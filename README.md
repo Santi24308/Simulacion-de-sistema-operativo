@@ -1,7 +1,5 @@
 # TP: C-Comenta
 
----
-
 # Modo de uso
 
 1. Levantar **Memoria**
