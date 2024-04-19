@@ -16,8 +16,8 @@
 
 ## Funcionalidades
 
-- Los 4 módulos se conectan correctamente.
-- Los 4 módulos pueden comunicarse correctamente.
+- Los cuatro módulos se conectan correctamente.
+- Los cuatro módulos pueden comunicarse correctamente.
 - Kernel tiene consola interactiva.
 - Kernel tiene la conexion dispatch e interrupt con Cpu disponible.
 - Entradasalida tiene consola interactiva (detallado en comentarios).
