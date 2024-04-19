@@ -1,76 +1,27 @@
-# tp-scaffold
+# TP: C-Comenta
 
-Esta es una plantilla de proyecto diseñada para generar un TP de Sistemas
-Operativos de la UTN FRBA.
+---
 
-## Dependencias
+# Modo de uso
 
-Para poder compilar y ejecutar el proyecto, es necesario tener instalada la
-biblioteca [so-commons-library] de la cátedra:
+1. Levantar **Memoria**
+2. Levantar **Cpu**
+3. Levantar **Kernel**
+4. Levantar **Entradasalida**
 
-```bash
-git clone https://github.com/sisoputnfrba/so-commons-library
-cd so-commons-library
-make debug
-make install
-```
+# Entrega: Checkpoint 1
 
-## Compilación
+## Funcionalidades
 
-Cada módulo del proyecto se compila de forma independiente a través de un
-archivo `makefile`. Para compilar un módulo, es necesario ejecutar el comando
-`make` desde la carpeta correspondiente.
+- Los 4 módulos se conectan correctamente.
+- Los 4 módulos pueden comunicarse correctamente.
+- Kernel tiene consola interactiva.
+- Entradasalida tiene consola interactiva (detallado en comentarios).
+- Kernel puede (y debe) apagarse por consola, esto implica que Cpu también se apague (detallado en comentarios).
+- Entradasalida puede (y debe) apagarse por consola.
 
-El ejecutable resultante se guardará en la carpeta `bin` del módulo.
+## Comentarios
 
-## Importar desde Visual Studio Code
-
-Para importar el workspace, debemos abrir el archivo `tp.code-workspace` desde
-la interfaz o ejecutando el siguiente comando desde la carpeta raíz del
-repositorio:
-
-```bash
-code tp.code-workspace
-```
-
-## Checkpoint
-
-Para cada checkpoint de control obligatorio, se debe crear un tag en el
-repositorio con el siguiente formato:
-
-```
-checkpoint-{número}
-```
-
-Donde `{número}` es el número del checkpoint.
-
-Para crear un tag y subirlo al repositorio, podemos utilizar los siguientes
-comandos:
-
-```bash
-git tag -a checkpoint-{número} -m "Checkpoint {número}"
-git push origin checkpoint-{número}
-```
-
-Asegúrense de que el código compila y cumple con los requisitos del checkpoint
-antes de subir el tag.
-
-## Entrega
-
-Para desplegar el proyecto en una máquina Ubuntu Server, podemos utilizar el
-script [so-deploy] de la cátedra:
-
-```bash
-git clone https://github.com/sisoputnfrba/so-deploy.git
-cd so-deploy
-./deploy.sh -r=release -p=utils -p=kernel -p=cpu -p=memoria -p=entradasalida "tp-{año}-{cuatri}-{grupo}"
-```
-
-El mismo se encargará de instalar las Commons, clonar el repositorio del grupo
-y compilar el proyecto en la máquina remota.
-
-Ante cualquier duda, podés consultar la documentación en el repositorio de
-[so-deploy], o utilizar el comando `./deploy.sh -h`.
-
-[so-commons-library]: https://github.com/sisoputnfrba/so-commons-library
-[so-deploy]: https://github.com/sisoputnfrba/so-deploy
+- Consola interactiva de Entradasalida: pensamos que en esta instancia sería necesario una consola para poder demostrar la correcta comunicación entre los modulos, a futuro puede retirarse sin problemas.
+- Kernel puede apagarse por consola: pensamos que si Kernel es el único modulo que puede enviarle mensajes a Cpu entonces si finaliza, finalizan ambos.
+- Absolutamente todo esta listo para modificaciones y expansiones, se trató de generalizar lo más que se pudo y **reutilizamos el tp0** de la forma más óptima que supimos, estamos abiertos a mejoras.
