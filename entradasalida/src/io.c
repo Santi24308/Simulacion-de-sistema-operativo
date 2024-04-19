@@ -1,6 +1,13 @@
 #include "io.h"
 
-int main(void) {
+int main(int argc, char* argv[]) {
+
+	if(argc != 2) {
+		printf("ERROR: Tenés que pasar el path del archivo config de Entradasalida\n");
+		return -1;
+	}
+
+	config_path = argv[1];
 
 	inicializar_modulo();
 	conectar();
@@ -89,7 +96,7 @@ void levantar_logger(){
 }
 
 void levantar_config(){
-    config_io = config_create("/home/marcos/cursadaSO/miRepoTp/conexiones/entradasalida/io.config");
+    config_io = config_create(config_path);
 	if (!config_io) {
 		perror("Error al iniciar config de IO\n");
 		exit(EXIT_FAILURE);

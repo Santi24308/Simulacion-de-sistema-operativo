@@ -14,6 +14,7 @@
 #include <pthread.h>
 #include <semaphore.h>
 
+char* config_path;
 char* puerto_escucha;
 char* puerto_cpu; 
 int socket_servidor;

@@ -14,6 +14,7 @@
 #include <pthread.h>
 #include <semaphore.h>
 
+char* config_path;
 char* ip;
 char* puerto_mem;
 char* puerto_kernel;

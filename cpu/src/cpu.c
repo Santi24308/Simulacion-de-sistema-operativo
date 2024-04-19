@@ -1,6 +1,13 @@
 #include "cpu.h"
 
-int main(void) {
+int main(int argc, char* argv[]) {
+
+	if(argc != 2) {
+		printf("ERROR: Tenés que pasar el path del archivo config de CPU\n");
+		return -1;
+	}
+
+	config_path = argv[1];
 
 	inicializar_modulo();
 	conectar();
@@ -46,7 +53,7 @@ void levantar_logger(){
 }
 
 void levantar_config(){
-    config_cpu = config_create("/home/marcos/cursadaSO/miRepoTp/conexiones/cpu/cpu.config");
+    config_cpu = config_create(config_path);
 	if (!config_cpu) {
 		perror("Error al iniciar config de cpu\n");
 		exit(EXIT_FAILURE);

@@ -1,6 +1,13 @@
 #include "kernel.h"
 
-int main(void) {
+int main(int argc, char* argv[]) {
+
+	if(argc != 2) {
+		printf("ERROR: Tenés que pasar el path del archivo config de Kernel\n");
+		return -1;
+	}
+
+	config_path = argv[1];
 
 	inicializar_modulo();
 	conectar();
@@ -178,7 +185,7 @@ void levantar_logger(){
 }
 
 void levantar_config(){
-    config_kernel = config_create("/home/marcos/cursadaSO/miRepoTp/conexiones/kernel/kernel.config");
+    config_kernel = config_create(config_path);
 	if (!config_kernel) {
 		perror("Error al iniciar config de kernel\n");
 		exit(EXIT_FAILURE);

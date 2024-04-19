@@ -1,6 +1,13 @@
 #include "memoria.h"
 
-int main(void) {
+int main(int argc, char* argv[]) {
+
+	if(argc != 2) {
+		printf("ERROR: Tenés que pasar el path del archivo config de Memoria\n");
+		return -1;
+	}
+
+	config_path = argv[1];
 
 	inicializar_modulo();
 	conectar();
@@ -47,7 +54,7 @@ void levantar_logger(){
 }
 
 void levantar_config(){
-	config_memoria = config_create("/home/marcos/cursadaSO/miRepoTp/conexiones/memoria/memoria.config");
+	config_memoria = config_create(config_path);
 	if (!config_memoria) {
 		perror("Error al iniciar config de memoria\n");
 		exit(EXIT_FAILURE);
