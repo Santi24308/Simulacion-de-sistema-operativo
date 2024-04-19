@@ -26,6 +26,7 @@
 
 ## Comentarios
 
+- Sobre el protocolo de comunicación: consideramos que usando el formato de mensajes del TP0 podriamos demostrar la correcta funcionalidad de las conexiones, los cuatro modulos son capaces de recibir y enviar mensajes de forma correcta. Sabemos que el formato de mensajes del TP0 **no** es el mismo que el del TP, pero es una base para arrancar, en la siguiente entrega ya va a estar implementado el protocolo como debe ser.
 - Consola interactiva de Entradasalida: pensamos que en esta instancia sería necesario una consola para poder demostrar la correcta comunicación entre los modulos, a futuro puede retirarse sin problemas.
 - Kernel puede apagarse por consola: pensamos que si Kernel es el único modulo que puede enviarle mensajes a Cpu entonces si finaliza, finalizan ambos.
 - Sabemos que las Entradasalida pueden ser una o muchas, la implementación no sería muy distinta, la idea seria hacer una lista o array de sockets y junto a un contador de cuantos fueron creados gestionar todas, incluyendo el manejo de hilos para cada conexion. Ya va a estar implementado para la siguiente entrega.
