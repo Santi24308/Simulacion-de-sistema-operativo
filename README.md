@@ -1,7 +1,10 @@
 # TP: C-Comenta
 
 # Modo de uso
-
+- Importante, los cuatro módulos necesitan el path de sus respectivos configs files, la manera de levantarlos es:
+  ```
+  ./modulo config-path
+  ```
 1. Levantar **Memoria**
 2. Levantar **Cpu**
 3. Levantar **Kernel**
