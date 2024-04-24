@@ -34,11 +34,15 @@ pthread_t hilo_kernel_interrupt;
 pthread_t hilo_memoria;
 t_registro registros_cpu;
 pthread_t mutex_cde_ejecutando;
+pthread_t mutex_instruccion_actualizada;
 sem_t sema_kernel_dispatch;
 sem_t sema_kernel_interrupt;
 sem_t sema_memoria;
 sem_t sema_ejecucion;
 
 uint32_t pid_de_cde_ejecutando;
+
+int interrupcion;
+int realizar_desalojo
 
 #endif

@@ -154,6 +154,39 @@ void atender_kernel_dispatch(){
 void ejecutar_proceso(t_cde* cde){
 	cargar_registros(cde);	
 	t_instruccion* instruccion_a_ejecutar;
+
+    while(interrupion != 1 && interrupcion_consola != 1 && realizar_desalojo != 1){
+        log_info(logger_cpu, "PID: %d - FETCH - Program Counter: %d", cde->pid, cde->pc);
+
+        enviar_codigo(socket_memoria, PEDIDO_INSTRUCCION); // fetch
+        t_buffer* buffer_envio = crear_buffer();
+        buffer_write_uint32(buffer_envio, cde->pid);
+        buffer_write_uint32(buffer_envio, cde->pc);
+
+        enviar_buffer(buffer_envio, socket_memoria);
+
+        destruir_buffer(buffer_envio);
+        
+        cde->pc++;
+
+        t_buffer* buffer_recibido = recibir_buffer(socket_memoria);
+        instruccion_a_ejecutar = buffer_read_instruccion(buffer_recibido);
+        destruir_buffer(buffer_recibido);
+        
+        pthread_mutex_lock(&mutex_instruccion_actualizada);
+        instruccion_actualizada = instruccion_a_ejecutar->codigo;
+        pthread_mutex_unlock(&mutex_instruccion_actualizada);
+
+        ejecutar_instruccion(cde, instruccion_a_ejecutar);
+	}
+
+	if(interrupcion){
+		// que pasaria
+	}else if (realizar_desalojo){
+
+	}else {
+
+	}
 }
 
 void cargar_registros(t_cde* cde){
@@ -182,6 +215,9 @@ void conectar_memoria(){
         exit(EXIT_FAILURE);
     }
 }
+
+
+
 
 void terminar_programa(){
 	terminar_conexiones(1, socket_memoria);
