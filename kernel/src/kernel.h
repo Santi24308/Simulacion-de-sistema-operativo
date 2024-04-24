@@ -8,7 +8,6 @@
 void levantar_logger();
 void levantar_config();
 void terminar_programa();
-void paquete(int);
 void conectar_cpu_dispatch();
 void conectar_cpu_interrupt();
 void conectar_io();

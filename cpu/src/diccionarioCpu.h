@@ -14,6 +14,11 @@
 #include <pthread.h>
 #include <semaphore.h>
 
+
+char* puerto_escucha_dispatch; 
+char* puerto_escucha_interrupt; 
+int socket_servidor_dispatch;
+int socket_servidor_interrupt;
 char* config_path;
 char* puerto_escucha; 
 int socket_servidor;

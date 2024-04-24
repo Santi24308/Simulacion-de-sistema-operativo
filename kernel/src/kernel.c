@@ -88,9 +88,9 @@ void conectar_memoria(){
 
 void conectar_cpu_dispatch(){
 	ip = config_get_string_value(config_kernel, "IP");
-	puerto_cpu = config_get_string_value(config_kernel, "PUERTO_CPU");
+	puerto_cpu_dispatch = config_get_string_value(config_kernel, "PUERTO_CPU_DISPATCH");
 
-    socket_cpu_dispatch = crear_conexion(ip, puerto_cpu);
+    socket_cpu_dispatch = crear_conexion(ip, puerto_cpu_dispatch);
     if (socket_cpu_dispatch == -1) {
 		terminar_programa();
         exit(EXIT_FAILURE);
@@ -98,16 +98,17 @@ void conectar_cpu_dispatch(){
 	log_info(logger_kernel, "Conexion dispatch lista!");
 }
 
+
 void conectar_cpu_interrupt(){
 	ip = config_get_string_value(config_kernel, "IP");
-	puerto_cpu = config_get_string_value(config_kernel, "PUERTO_CPU");
+	puerto_cpu_interrupt = config_get_string_value(config_kernel, "PUERTO_CPU_INTERRUPT");
 
-    socket_cpu_interrupt = crear_conexion(ip, puerto_cpu);
+    socket_cpu_interrupt = crear_conexion(ip, puerto_cpu_interrupt);
     if (socket_cpu_interrupt == -1) {
 		terminar_programa();
         exit(EXIT_FAILURE);
     }
-	log_info(logger_kernel, "Conexion interrupt lista!");
+	log_info(logger_kernel, "Conexion interrupt lista!");
 }
 
 void levantar_logger(){
