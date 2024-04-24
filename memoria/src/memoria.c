@@ -101,12 +101,45 @@ void conectar_cpu(){
 }
 
 void atender_kernel(){
+	while(1){
+	int cod_kernel = recibir_operacion(socket_kernel); 
+	switch(cod_kernel){
+		case CREAR_PROCESO:
+			t_proceso_memo* proceso_kernel = crear_proceso();			
+		break;
+		case FINALIZAR_PROCESO:
+			liberar_proceso(proceso_kernel);		
+			break;
+		case -1:
+			log_error(logger_memoria, "Se desconecto KERNEL");
+			sem_post(&sema_kernel);
+			return;		
+		default:
+		break;
+		}
+		}
+	}
+
+void atender_cpu(){
+	int cod_ins = recibir_operacion(socket_cpu);
+	char* instruccion;
+	/*cpu pide instruccion	
+	busco la instruccion en el archivo de instrucciones (ENUM)*/
+	instrucciones_path = config_get_string_value(config_memoria, "PATH_INSTRUCCIONES");
+	FILE* archivo_inst = fopen( instrucciones_path, "r");
+	fseek(archivo_inst,cod_ins, SEEK_SET);
+	fscanf(archivo_inst,"%s",instruccion);
+	//le envio a cpu la instruccion
+	buffer_instruccion = crear_buffer();
+	buffer_write_string(buffer_instruccion,instruccion);
+	/*void buffer_write_string(t_buffer* buffer, char* string_a_escribir);
+	char* buffer_read_string(t_buffer, uint32_t* tam);*/
+	enviar_buffer(buffer_instruccion,socket_cpu);
+	destruir_buffer(buffer_instruccion);
+	fclose(archivo_inst);	
 }
 
 void atender_io(){
-}
-
-void atender_cpu(){
 }
 
 void terminar_programa(){
@@ -117,3 +150,10 @@ void terminar_programa(){
 void iterator(char* value) {
 	log_info(logger_memoria,"%s", value);
 }
+
+t_proceso_memo* crear_proceso();
+//int pid = proceso_kernel->pid;
+//int paginas= proceso_kernel->paginas;
+//log_info(logger_memoria,"PID: <%d>  - Tamaño: <%d> ", pid , paginas);
+
+void liberar_proceso(t_proceso_memo* proceso);

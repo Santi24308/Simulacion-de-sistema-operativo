@@ -15,6 +15,7 @@
 #include <semaphore.h>
 
 char* config_path;
+char* instrucciones_path;
 char* puerto_escucha; 
 int socket_servidor;
 int socket_io;
@@ -30,4 +31,5 @@ sem_t sema_kernel;
 sem_t sema_cpu;
 sem_t sema_io;
 
+t_buffer* buffer_instruccion;
 #endif

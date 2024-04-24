@@ -28,4 +28,23 @@ int iniciar_servidor(char*, t_log*);
 int esperar_cliente(int, t_log*);
 void terminar_conexiones(int num_sockets, ...);
 
+// PROCESOS KERNEL
+typedef enum
+{
+	CREAR_PROCESO,
+	FINALIZAR_PROCESO
+}op_kernel;
+
+typedef struct //COMPLETAR
+{
+    int pid;
+    t_pagina* paginas;
+}t_proceso_memo;
+
+typedef struct //COMPLETAR
+{
+    int id;
+    
+}t_pagina;
+
 #endif
