@@ -101,71 +101,12 @@ void conectar_cpu(){
 }
 
 void atender_kernel(){
-	t_list* lista;
-	while (1) {
-		int cod_kernel = recibir_operacion(socket_kernel);
-		switch (cod_kernel) {
-			case MENSAJE:
-				recibir_mensaje(socket_kernel,logger_memoria);
-				break;
-			case PAQUETE:
-				lista = recibir_paquete(socket_kernel);
-				log_info(logger_memoria, "Me llegaron los siguientes valores:");
-				list_iterate(lista, (void*) iterator);
-				break;
-			case -1:
-				log_error(logger_memoria, "Se desconecto KERNEL");
-				sem_post(&sema_kernel);
-				return;
-			default:
-				break;
-		}
-	}
 }
 
 void atender_io(){
-	t_list* lista;
-	while (1) {
-		int cod_io = recibir_operacion(socket_io);
-		switch (cod_io) {
-				case MENSAJE:
-					recibir_mensaje(socket_io, logger_memoria);
-					break;
-				case PAQUETE:
-					lista = recibir_paquete(socket_io);
-					log_info(logger_memoria, "Me llegaron los siguientes valores:");
-					list_iterate(lista, (void*) iterator);
-					break;
-				case -1:
-					log_error(logger_memoria, "Se desconecto ENTRADASALIDA");
-					return;
-				default:
-					break;
-		}
-	}
 }
 
 void atender_cpu(){
-	t_list* lista;
-	while (1) {
-		int cod_cpu = recibir_operacion(socket_cpu);
-		switch (cod_cpu) {
-				case MENSAJE:
-					recibir_mensaje(socket_cpu,logger_memoria);
-					break;
-				case PAQUETE:
-					lista = recibir_paquete(socket_cpu);
-					log_info(logger_memoria, "Me llegaron los siguientes valores:");
-					list_iterate(lista, (void*) iterator);
-					break;
-				case -1:
-					log_error(logger_memoria, "Se desconecto CPU");
-					sem_post(&sema_cpu);
-					return;
-				default:
-					break;
-			}
-	}
 }
 
 void terminar_programa(){

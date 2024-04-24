@@ -48,52 +48,6 @@ void inicializar_modulo(){
 }
 
 void consola(){
-	int c;
-	char texto[100];
-	while (1) {
-		printf("Ingrese comando:\n");
-		printf("\t1 -- Enviar mensaje a Cpu - Dispatch\n");
-		printf("\t2 -- Enviar paquete a Cpu - Dispatch\n\n");
-		printf("\t3 -- Enviar mensaje a Cpu - Interrupt\n");
-		printf("\t4 -- Enviar paquete a Cpu - Interrupt\n\n");
-		printf("\t5 -- Enviar mensaje a Memoria\n");
-		printf("\t6 -- Enviar paquete a Memoria\n\n");
-		printf("\t9 -- Apagar Kernel\n");
-		scanf("%d", &c);
-		switch (c) {
-			case 1:
-    			printf("Ingresa un mensaje: \n");
-    			scanf("%s", texto);
-				enviar_mensaje(texto,socket_cpu_dispatch);
-				break;
-			case 2:
-				paquete(socket_cpu_dispatch);
-				break;
-			case 3:
-    			printf("Ingresa un mensaje: \n");
-    			scanf("%s", texto);
-				enviar_mensaje(texto,socket_cpu_interrupt);
-				break;
-			case 4:
-				paquete(socket_cpu_interrupt);
-				break;
-			case 5:
-    			printf("Ingresa un mensaje: \n");
-    			scanf("%s", texto);
-				enviar_mensaje(texto,socket_memoria);
-				break;
-			case 6:
-				paquete(socket_memoria);
-				break;	
-			case 9:
-				sem_post(&sema_consola);	
-				sem_post(&sema_io);			
-				return;
-			default:
-				printf("\tcodigo no reconocido!\n");
-				break;
-		}
-	}
 }
 
 void conectar_consola(){
@@ -119,26 +73,6 @@ void conectar_io(){
 }
 
 void atender_io(){
-	t_list* lista;
-	while (1) {
-		int cod_io = recibir_operacion(socket_io);		
-		switch (cod_io) {
-			case MENSAJE:
-				recibir_mensaje(socket_io,logger_kernel);
-				break;
-			case PAQUETE:
-				lista = recibir_paquete(socket_io);
-				log_info(logger_kernel, "Me llegaron los siguientes valores:");
-				list_iterate(lista, (void*) iterator);
-				break;
-			case -1:
-				log_error(logger_kernel, "Se desconecto ENTRADASALIDA");
-				sem_post(&sema_io);
-				return;
-			default:
-				break;
-		}
-	}
 }
 
 void conectar_memoria(){
@@ -190,27 +124,6 @@ void levantar_config(){
 		perror("Error al iniciar config de kernel\n");
 		exit(EXIT_FAILURE);
 	}
-}
-
-void paquete(int conexion){
-	char* leido;
-	t_paquete* paquete = crear_paquete();
-
-	while(1) {
-		printf("agregar lineas al paquete...\n");
-		leido = readline("> ");
-		if (string_is_empty(leido)) {
-			free(leido);
-			break;
-		}
-
-		agregar_a_paquete(paquete, leido, strlen(leido)+1);
-		free(leido);
-	}
-
-	enviar_paquete(paquete, conexion);
-
-	eliminar_paquete(paquete);
 }
 
 void terminar_programa(){

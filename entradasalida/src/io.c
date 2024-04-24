@@ -29,40 +29,6 @@ void inicializar_modulo(){
 }
 
 void consola(){
-	int c;
-	while (1) {
-		char texto[100];
-		printf("Ingrese comando:\n");
-		printf("\t1 -- Enviar mensaje a Kernel \n");
-		printf("\t2 -- Enviar paquete a Kernel \n\n");
-		printf("\t3 -- Enviar mensaje a Memoria \n");
-		printf("\t4 -- Enviar paquete a Memoria \n\n");
-		printf("\t9 -- Apagar IO\n");
-		scanf("%d", &c);
-		switch (c) {
-			case 1:
-    			printf("Ingresa un mensaje: \n");
-    			scanf("%s", texto);
-				enviar_mensaje(texto,socket_kernel);
-				break;
-			case 2:
-				paquete(socket_kernel);
-				break;
-			case 3:
-				printf("Ingresa un mensaje: \n");
-    			scanf("%s", texto);
-				enviar_mensaje(texto, socket_memoria);
-				break;
-			case 4:
-				paquete(socket_memoria);
-				break;
-			case 9:
-				return;
-			default:
-				printf("\tcodigo no reconocido!\n");
-				break;
-		}
-	}
 }
 
 void conectar_memoria(){
@@ -101,27 +67,6 @@ void levantar_config(){
 		perror("Error al iniciar config de IO\n");
 		exit(EXIT_FAILURE);
 	}
-}
-
-void paquete(int conexion){
-	char* leido;
-	t_paquete* paquete = crear_paquete();
-
-	while(1) {
-		printf("agregar lineas al paquete...\n");
-		leido = readline("> ");
-		if (string_is_empty(leido)) {
-			free(leido);
-			break;
-		}
-
-		agregar_a_paquete(paquete, leido, strlen(leido)+1);
-		free(leido);
-	}
-
-	enviar_paquete(paquete, conexion);
-
-	eliminar_paquete(paquete);
 }
 
 void terminar_programa(){

@@ -86,56 +86,11 @@ void conectar_kernel_interrupt(){
 	pthread_detach(hilo_kernel_interrupt);
 }
 
-void atender_kernel_dispatch(){ 
-	t_list* lista_d;
-	while (1) {
-		int cod_kernel_dispatch = recibir_operacion(socket_kernel_dispatch);
-		switch (cod_kernel_dispatch) {
-			case MENSAJE:
-				log_warning(logger_cpu, "Kernel (dispatch) se comunicó");
-				recibir_mensaje(socket_kernel_dispatch,logger_cpu);
-				break;
-			case PAQUETE:
-				log_warning(logger_cpu, "Kernel (dispatch) se comunicó");
-				lista_d = recibir_paquete(socket_kernel_dispatch);
-				log_info(logger_cpu, "Me llegaron los siguientes valores:");
-				list_iterate(lista_d, (void*) iterator);
-				break;
-			case -1:
-				log_error(logger_cpu, "Se desconecto KERNEL (dispatch)");
-				sem_post(&sema_kernel_dispatch);
-				return;
-			default:
-				break;
-		}
-	}
+void atender_kernel_dispatch(){
 }
 
 void atender_kernel_interrupt(){
-	t_list* lista_i;
-	while (1) {
-		int cod_kernel_interrupt = recibir_operacion(socket_kernel_interrupt);
-		switch (cod_kernel_interrupt) {
-			case MENSAJE:
-				log_warning(logger_cpu, "Kernel (interrupt) se comunicó");
-				recibir_mensaje(socket_kernel_interrupt,logger_cpu);
-				break;
-			case PAQUETE:
-			    log_warning(logger_cpu, "Kernel (interrupt) se comunicó");
-				lista_i = recibir_paquete(socket_kernel_interrupt);
-				log_info(logger_cpu, "Me llegaron los siguientes valores:");
-				list_iterate(lista_i, (void*) iterator);
-				break;
-			case -1:
-				log_error(logger_cpu, "Se desconecto KERNEL (interrupt)");
-				sem_post(&sema_kernel_interrupt);
-				return;
-			default:
-				break;
-		}
-	}	
 }
-
 
 void conectar_memoria(){
 	ip = config_get_string_value(config_cpu, "IP");
@@ -146,27 +101,6 @@ void conectar_memoria(){
 		terminar_programa();
         exit(EXIT_FAILURE);
     }
-}
-
-void paquete(int conexion){
-	char* leido;
-	t_paquete* paquete = crear_paquete();
-
-	while(1) {
-		printf("agregar lineas al paquete...\n");
-		leido = readline("> ");
-		if (string_is_empty(leido)) {
-			free(leido);
-			break;
-		}
-
-		agregar_a_paquete(paquete, leido, strlen(leido)+1);
-		free(leido);
-	}
-	
-	enviar_paquete(paquete, conexion);
-
-	eliminar_paquete(paquete);
 }
 
 void terminar_programa(){
