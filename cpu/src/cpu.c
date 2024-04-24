@@ -24,17 +24,27 @@ void esperar_desconexiones(){
 }
 
 void conectar(){
-	puerto_escucha = config_get_string_value(config_cpu, "PUERTO_ESCUCHA");
+	conectar_memoria();
+	conectar_kernel();
+}
 
-	socket_servidor = iniciar_servidor(puerto_escucha, logger_cpu);
-	if (socket_servidor == -1) {
-		perror("Fallo la creacion del servidor para memoria.\n");
+void conectar_kernel(){
+	puerto_escucha_dispatch = config_get_string_value(config_cpu, "PUERTO_ESCUCHA_DISPATCH");
+	puerto_escucha_interrupt = config_get_string_value(config_cpu, "PUERTO_ESCUCHA_INTERRUPT");
+
+
+	socket_servidor_dispatch = iniciar_servidor(puerto_escucha_dispatch, logger_cpu);
+	socket_servidor_interrupt= iniciar_servidor(puerto_escucha_interrupt , logger_cpu);
+
+	if (socket_servidor_dispatch == -1) {
+		perror("Fallo la creacion del servidor para Kernel dispatch.\n");
 		exit(EXIT_FAILURE);
 	}
 
-	conectar_memoria();
-	conectar_kernel_dispatch();
-	conectar_kernel_interrupt();
+	if (socket_servidor_interrupt == -1) {
+		perror("Fallo la creacion del servidor para Kernel interrupt.\n");
+		exit(EXIT_FAILURE);
+	}
 }
 
 void inicializar_modulo(){
@@ -62,8 +72,13 @@ void levantar_config(){
 
 void conectar_kernel_dispatch(){
 	log_info(logger_cpu, "Esperando Kernel (dispatch)....");
-    socket_kernel_dispatch = esperar_cliente(socket_servidor, logger_cpu);
-    log_info(logger_cpu, "Se conecto Kernel D");
+    socket_kernel_dispatch = esperar_cliente(socket_servidor_dispatch, logger_cpu);
+    log_info(logger_cpu, "Se conecto Kernel Dispatch");
+
+	if(socket_kernel_dispatch == -1){
+		log_info(logger_cpu, "Se desconecto Kernel Dispatch!!!.");
+		exit(EXIT_FAILURE);
+	}
 
 	int err = pthread_create(&hilo_kernel_dispatch, NULL, (void *)atender_kernel_dispatch, NULL);
 	if (err != 0) {
@@ -71,19 +86,27 @@ void conectar_kernel_dispatch(){
 		return;
 	}
 	pthread_detach(hilo_kernel_dispatch);
+	
 }
 
 void conectar_kernel_interrupt(){
 	log_info(logger_cpu, "Esperando Kernel (interrupt)....");
-    socket_kernel_interrupt = esperar_cliente(socket_servidor, logger_cpu);
-    log_info(logger_cpu, "Se conecto Kernel I");
+    socket_kernel_interrupt = esperar_cliente(socket_servidor_interrupt, logger_cpu);
+    log_info(logger_cpu, "Se conecto Kernel Interrupt");
+
+	if(socket_kernel_dispatch == -1){
+		
+		log_info(logger_cpu, "Se desconecto Kernel Interrupt.");
+		exit(EXIT_FAILURE);
+	}
 
 	int err = pthread_create(&hilo_kernel_interrupt, NULL, (void *)atender_kernel_interrupt, NULL);
-	if (err != 0) {
-		perror("Fallo la creacion de hilo para Kernel\n");
-		return;
-	}
+		if (err != 0) {
+			perror("Fallo la creacion de hilo para Kernel\n");
+			return;
+		}
 	pthread_detach(hilo_kernel_interrupt);
+
 }
 
 void atender_kernel_dispatch(){

@@ -12,7 +12,7 @@ void levantar_logger();
 void levantar_config();
 void terminar_programa();
 void terminar_conexiones(int, ...);
-void paquete(int);
+void conectar_kernel();
 void conectar_kernel_dispatch();
 void conectar_kernel_interrupt();
 

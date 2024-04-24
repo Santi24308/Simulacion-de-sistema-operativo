@@ -22,5 +22,4 @@ t_buffer* recibir_buffer(int socket);
 void enviar_codigo(int socket_receptor, uint8_t codigo);
 uint8_t recibir_codigo(int socket_emisor);
 
-
 #endif /* SRC_UTILS_SERIALIZACION_H_ */

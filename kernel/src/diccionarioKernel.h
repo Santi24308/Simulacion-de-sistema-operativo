@@ -16,7 +16,8 @@
 
 char* config_path;
 char* puerto_escucha;
-char* puerto_cpu; 
+char* puerto_cpu_dispatch;
+char* puerto_cpu_interrupt; 
 int socket_servidor;
 int socket_memoria;
 int socket_io;
