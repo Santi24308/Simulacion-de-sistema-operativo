@@ -52,6 +52,8 @@ void inicializar_modulo(){
 	sem_init(&sema_kernel_interrupt, 0, 1);
 	levantar_logger();
 	levantar_config();
+	inicializar_registros();
+	pthread_mutex_init(&mutex_cde_ejecutando, NULL);
 }
 
 void levantar_logger(){
@@ -69,6 +71,23 @@ void levantar_config(){
 		exit(EXIT_FAILURE);
 	}
 }
+
+void inicializar_registros(){
+    registros_cpu = malloc(sizeof(t_registro));
+    
+    registros_cpu->AX = 0;
+    registros_cpu->BX = 0;
+    registros_cpu->CX = 0;
+    registros_cpu->DX = 0;
+	registros_cpu->EAX = 0;
+	registros_cpu->EBX = 0;
+	registros_cpu->ECX = 0;
+	registros_cpu->EDX = 0;
+	registros_cpu->SI = 0;
+	registros_cpu->DI = 0;
+}
+
+// CONEXIONES
 
 void conectar_kernel_dispatch(){
 	log_info(logger_cpu, "Esperando Kernel (dispatch)....");
@@ -110,6 +129,44 @@ void conectar_kernel_interrupt(){
 }
 
 void atender_kernel_dispatch(){
+	while(1){
+		mensajeKernelCpu op_code = recibir_codigo(socket_kernel_dispatch);
+
+		t_buffer* buffer = recibir_buffer(socket_kernel_dispatch);
+
+		switch (op_code){
+			case EJECUTAR_PROCESO:
+				t_cde cde_recibido = buffer_read_cde(buffer);
+				destruir_buffer(buffer);
+
+				pthread_mutex_lock(&mutex_cde_ejecutando);
+				pid_de_cde_ejecutando = cde_recibido->pid;
+				pthread_mutex_unlock(&mutex_cde_ejecutando);
+
+				ejecutar_proceso(&cde_recibido);
+				break;
+			default:
+				break;
+		}
+	}
+}
+
+void ejecutar_proceso(t_cde* cde){
+	cargar_registros(cde);	
+	t_instruccion* instruccion_a_ejecutar;
+}
+
+void cargar_registros(t_cde* cde){
+    registros_cpu->AX = cde->registros->AX;
+    registros_cpu->BX = cde->registros->BX;
+    registros_cpu->CX = cde->registros->CX;
+    registros_cpu->DX = cde->registros->DX;
+	registros_cpu->EAX = cde->registros->EAX;
+	registros_cpu->EBX = cde->registros->EBX;
+	registros_cpu->ECX = cde->registros->ECX;
+	registros_cpu->EDX = cde->registros->EDX;
+	registros_cpu->DX = cde->registros->SI;
+	registros_cpu->DX = cde->registros->DI;
 }
 
 void atender_kernel_interrupt(){

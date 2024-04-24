@@ -14,8 +14,14 @@
 #include<signal.h>
 #include<stdarg.h>
 #include<utils/serializacion.h>
+#include<utils/instrucciones.h>
 
 // AGREGAR LOS PROTOCOLOS
+
+typedef struct {
+    EJECUTAR_PROCESO
+} mensajeKernelCpu;
+
 
 int crear_conexion(char* ip, char* puerto);
 int iniciar_servidor(char*, t_log*);

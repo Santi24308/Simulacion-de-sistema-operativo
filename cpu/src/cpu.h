@@ -21,4 +21,8 @@ void atender_kernel_interrupt();
 void conectar_memoria();
 void iterator(char* );
 
+void inicializar_registros();
+void ejecutar_proceso();
+void cargar_registros(t_cde);
+
 #endif
