@@ -6,6 +6,7 @@
 #include <stdint.h> // Para uintX_t
 #include <string.h>
 #include<sys/socket.h>
+#include <utils/instrucciones.h>
 
 typedef struct{
 	uint32_t size;
@@ -14,6 +15,7 @@ typedef struct{
 } t_buffer;
 
 typedef struct{
+	uint32_t PC;
 	uint32_t AX;
 	uint32_t BX;
 	uint32_t CX;

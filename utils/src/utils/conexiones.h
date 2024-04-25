@@ -22,9 +22,25 @@ typedef enum{
 	PEDIDO_INSTRUCCION
 }mensajeCpuMem;
 
-typedef struct {
+typedef enum{
     EJECUTAR_PROCESO
 } mensajeKernelCpu;
+
+typedef enum
+{
+	INICIAR_PROCESO_SOLICITUD,
+	INICIAR_PROCESO_OK,
+	INICIAR_PROCESO_ERROR,
+	FINALIZAR_PROCESO_SOLICITUD,
+	FINALIZAR_PROCESO_OK
+} mensajeMemoriaKernel;
+
+//CONTEXTO DE EJECUCION CREADO PARA CONEXIONES CON KERNEL
+typedef struct{
+	uint32_t pid;
+	uint32_t pc;
+	t_registro* registros;
+}t_contexto;
 
 
 int crear_conexion(char* ip, char* puerto);
@@ -41,15 +57,16 @@ typedef enum
 
 typedef struct //COMPLETAR
 {
+    int id;
+    
+}t_pagina;
+
+typedef struct //COMPLETAR
+{
     int pid;
     t_pagina* paginas;
 }t_proceso_memo;
 
-typedef struct //COMPLETAR
-{
-    int id;
-    
-}t_pagina;
 
 
 

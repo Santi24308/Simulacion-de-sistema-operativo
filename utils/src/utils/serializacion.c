@@ -97,7 +97,7 @@ uint8_t buffer_read_uint8(t_buffer* buffer){
 void buffer_write_string(t_buffer* buffer, char* cadena){
 	uint32_t tam = 0;
 
-	while(cadena[tam] != NULL)
+	while(cadena[tam])
 		tam++;
 
 	buffer_write_uint32(buffer,tam);
@@ -145,18 +145,18 @@ void destruir_cde(t_cde* cde){
 // INSTRUCCION
 void buffer_write_instruccion(t_buffer* buffer, t_instruccion* instruccion){
 	buffer_write_uint8(buffer, instruccion->codigo);
-	if (instruccion->par1 != NULL)
-		buffer_write_string(buffer, instruccion->par1);
+	if (instruccion->parametro1 != NULL)
+		buffer_write_string(buffer, instruccion->parametro1);
 	else
 		buffer_write_string(buffer, "");
 	
-	if (instruccion->par2 != NULL)
-		buffer_write_string(buffer, instruccion->par2);
+	if (instruccion->parametro2 != NULL)
+		buffer_write_string(buffer, instruccion->parametro2);
 	else
 		buffer_write_string(buffer, "");
 	
-	if (instruccion->par3 != NULL)
-		buffer_write_string(buffer, instruccion->par3);
+	if (instruccion->parametro3 != NULL)
+		buffer_write_string(buffer, instruccion->parametro3);
 	else
 		buffer_write_string(buffer, "");
 
@@ -164,24 +164,24 @@ void buffer_write_instruccion(t_buffer* buffer, t_instruccion* instruccion){
 
 t_instruccion* buffer_read_instruccion(t_buffer* buffer){
 	t_instruccion* instr = malloc(sizeof(t_instruccion));
-	instr->par1 = NULL;
-	instr->par2 = NULL;
-	instr->par3 = NULL;
+	instr->parametro1 = NULL;
+	instr->parametro2 = NULL;
+	instr->parametro3 = NULL;
 	uint32_t tam;
 
 	instr->codigo = buffer_read_uint8(buffer);
 	
-	instr->par1 = buffer_read_string(buffer, &tam);
-	instr->par2 = buffer_read_string(buffer, &tam);
-	instr->par3 = buffer_read_string(buffer, &tam);
+	instr->parametro1 = buffer_read_string(buffer, &tam);
+	instr->parametro2 = buffer_read_string(buffer, &tam);
+	instr->parametro3 = buffer_read_string(buffer, &tam);
 
 	return instr;
 }
 
 void destruir_instruccion(t_instruccion* instruccion){
-	free(instruccion->par1);
-	free(instruccion->par2);
-	free(instruccion->par3);
+	free(instruccion->parametro1);
+	free(instruccion->parametro2);
+	free(instruccion->parametro3);
 	free(instruccion);
 }
 

@@ -13,6 +13,42 @@
 #include <commons/string.h>
 #include <pthread.h>
 #include <semaphore.h>
+#include <commons/collections/queue.h>
+
+
+// Diagrama de 5 estados para la planificacion de recursos
+typedef enum{
+	NULO,
+	NEW, 
+	READY,
+	EXEC,
+	BLOCKED, // aca dice algo de multiples colas con i/o
+	TERMINADO
+}t_estados;
+
+//Estructura PCB
+typedef struct{
+	t_cde* cde; // contiene el pc, pid y registros
+	t_estados estado; 
+	char* path;
+    int quantum;
+	bool flag_clock;
+}t_pcb;
+
+typedef struct{
+	char* ip_memoria;
+	int puerto_memoria;
+	char* ip_io;
+	int puerto_io;
+	char* ip_cpu;
+	int puerto_cpu_dispatch;
+	int puerto_cpu_interrupt;
+	char* algoritmo;
+	int quantum;
+	t_list* recursos; // lista de t_recurso*
+	int grado_max_multiprogramacion;
+}t_config_kernel;
+
 
 char* config_path;
 char* puerto_escucha;
@@ -25,14 +61,52 @@ int socket_cpu_dispatch;
 int socket_cpu_interrupt;
 char* ip;
 char* puerto_mem;
+int pid_a_asignar;
+int quantum_a_asignar;
+int planificacion_detenida;
 t_log* logger_kernel;
 t_config* config_kernel;
+t_config_kernel config_kernel2; // corregir
+t_pcb* pcb_en_ejecucion;
 pthread_t hilo_io;
 pthread_t hilo_consola;
 pthread_t hilo_memoria;
 
+// LISTAS Y COLAS
+t_list* procesos_globales;
+
+t_queue* procesosNew;
+t_queue* procesosReady;
+t_queue* procesosBloqueados;
+t_queue* procesosFinalizados;
+
+// SEMAFOROS
 sem_t sema_memoria;
 sem_t sema_io;
 sem_t sema_consola;
+// semaforos de procesos y estados
+pthread_mutex_t mutex_procesos_globales;
+pthread_mutex_t mutex_new;
+pthread_mutex_t mutex_ready;
+pthread_mutex_t mutex_block;
+pthread_mutex_t mutex_finalizados;
+pthread_mutex_t mutex_exec;
+
+pthread_mutex_t mutex_pcb_en_ejecucion;
+
+
+sem_t procesos_en_new;
+sem_t procesos_en_ready;
+sem_t procesos_en_blocked;
+sem_t procesos_en_exit;
+
+sem_t pausar_new_a_ready;
+sem_t pausar_ready_a_exec;
+sem_t pausar_exec_a_finalizado;
+sem_t pausar_exec_a_ready;
+sem_t pausar_exec_a_blocked;
+sem_t pausar_blocked_a_ready;
+sem_t bin_recibir_cde;
+
 
 #endif
