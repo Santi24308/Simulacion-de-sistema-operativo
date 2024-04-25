@@ -5,6 +5,7 @@
 #include <commons/string.h>
 #include <diccionarioCpu.h>
 
+
 void inicializar_modulo();
 void conectar();
 void esperar_desconexiones();

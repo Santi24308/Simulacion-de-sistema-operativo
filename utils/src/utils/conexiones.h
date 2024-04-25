@@ -18,6 +18,10 @@
 
 // AGREGAR LOS PROTOCOLOS
 
+typedef enum{
+	PEDIDO_INSTRUCCION
+}mensajeCpuMem;
+
 typedef struct {
     EJECUTAR_PROCESO
 } mensajeKernelCpu;
@@ -46,5 +50,7 @@ typedef struct //COMPLETAR
     int id;
     
 }t_pagina;
+
+
 
 #endif

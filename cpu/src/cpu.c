@@ -74,7 +74,7 @@ void levantar_config(){
 
 void inicializar_registros(){
     registros_cpu = malloc(sizeof(t_registro));
-    
+
     registros_cpu->AX = 0;
     registros_cpu->BX = 0;
     registros_cpu->CX = 0;
@@ -151,11 +151,144 @@ void atender_kernel_dispatch(){
 	}
 }
 
+void atender_kernel_interrupt(){
+}
+
+void conectar_memoria(){
+	ip = config_get_string_value(config_cpu, "IP");
+	puerto_mem = config_get_string_value(config_cpu, "PUERTO_MEM");
+
+    socket_memoria = crear_conexion(ip, puerto_mem);
+    if (socket_memoria == -1) {
+		terminar_programa();
+        exit(EXIT_FAILURE);
+    }
+}
+
+void terminar_programa(){
+	terminar_conexiones(1, socket_memoria);
+    if(logger_cpu) log_destroy(logger_cpu);
+    if(config_cpu) config_destroy(config_cpu);
+}
+
+void iterator(char* value) {
+	log_info(logger_cpu,"%s", value);
+}
+
+
+
+// FUNCIONES AUXILIARES DE INSTRUCCIONES
+
+uint32_t buscar_valor_registro(void* registro){
+	uint32_t valorLeido;
+
+	if(strcmp(registro, "AX") == 0)
+		valorLeido = registros_cpu->AX;
+	else if(strcmp(registro, "BX") == 0)
+		valorLeido = registros_cpu->BX;
+
+	else if(strcmp(registro, "CX") == 0)
+		valorLeido = registros_cpu->CX;
+
+	else if(strcmp(registro, "DX") == 0)
+		valorLeido = registros_cpu->DX;
+	
+	else if(strcmp(registro, "EAX") == 0)
+		valorLeido = registros_cpu->EAX;
+	
+	else if(strcmp(registro, "EBX") == 0)
+		valorLeido = registros_cpu->EBX;
+	
+	else if(strcmp(registro, "ECX") == 0)
+		valorLeido = registros_cpu->ECX;
+	
+	else if(strcmp(registro, "EDX") == 0)
+		valorLeido = registros_cpu->EDX;
+	
+	else if(strcmp(registro, "SI") == 0)
+		valorLeido = registros_cpu->SI;
+	
+	else if(strcmp(registro, "DI") == 0)
+		valorLeido = registros_cpu->DI;
+
+	return valorLeido;
+}
+
+void cargar_registros(t_cde* cde){
+    registros_cpu->AX = cde->registros->AX;
+    registros_cpu->BX = cde->registros->BX;
+    registros_cpu->CX = cde->registros->CX;
+    registros_cpu->DX = cde->registros->DX;
+	registros_cpu->EAX = cde->registros->EAX;
+	registros_cpu->EBX = cde->registros->EBX;
+	registros_cpu->ECX = cde->registros->ECX;
+	registros_cpu->EDX = cde->registros->EDX;
+	registros_cpu->DX = cde->registros->SI;
+	registros_cpu->DX = cde->registros->DI;
+}
+
+void guardar_cde(t_cde* cde){
+    cde->registros->AX = registros_cpu->AX;
+    cde->registros->BX = registros_cpu->BX;
+    cde->registros->CX = registros_cpu->CX;
+    cde->registros->DX = registros_cpu->DX;
+	cde->registros->EAX = registros_cpu->EAX;
+	cde->registros->EBX = registros_cpu->EBX;
+	cde->registros->ECX = registros_cpu->ECX;
+	cde->registros->EDX = registros_cpu->EDX;
+	cde->registros->DX = registros_cpu->SI;
+	cde->registros->DX = registros_cpu->DI;
+}
+
+bool es_bloqueante(codigoInstruccion instruccion_actualizada){
+    switch(instruccion_actualizada){
+    case WAIT:
+        return true;
+        break;
+    case SIGNAL:
+        return true;
+        break;
+   	case IO_GEN_SLEEP :
+        return false;
+        break;
+    case IO_STDIN_READ:
+        return true;
+        break;
+	case IO_STDOUT_WRITE  :
+        return false;
+        break;
+	case IO_FS_CREATE  :
+        return false;
+        break;
+	case IO_FS_DELETE  :
+        return false;
+        break;
+	case IO_FS_TRUNCATE  :
+        return false;
+        break;
+	case IO_FS_WRITE   :
+        return false;
+        break;
+	case IO_FS_READ    :
+        return false;
+        break;	
+	case EXIT:
+        return true;
+        break;
+    default:
+        return false;
+        break;
+    }
+}
+
+
+
+
 void ejecutar_proceso(t_cde* cde){
 	cargar_registros(cde);	
 	t_instruccion* instruccion_a_ejecutar;
 
-    while(interrupion != 1 && interrupcion_consola != 1 && realizar_desalojo != 1){
+    while(interrupcion != 1 && realizar_desalojo != 1){
         log_info(logger_cpu, "PID: %d - FETCH - Program Counter: %d", cde->pid, cde->pc);
 
         enviar_codigo(socket_memoria, PEDIDO_INSTRUCCION); // fetch
@@ -181,50 +314,182 @@ void ejecutar_proceso(t_cde* cde){
 	}
 
 	if(interrupcion){
-		// que pasaria
-	}else if (realizar_desalojo){
 
+		interrupcion = 0;
+        pthread_mutex_lock(&mutex_realizar_desalojo);
+        realizar_desalojo = 0;
+        pthread_mutex_unlock(&mutex_realizar_desalojo);
+        log_info(logger_cpu, "PID: %d - Volviendo a kernel por instruccion %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar));
+        desalojar_cde(cde, instruccion_a_ejecutar);
+
+	}else if (realizar_desalojo){ // con RR Y PRIORIDADES SALE POR ACA
+		interrupcion = 0;  
+        pthread_mutex_lock(&mutex_realizar_desalojo);
+        realizar_desalojo = 0;
+        pthread_mutex_unlock(&mutex_realizar_desalojo);
+        if(algoritmo_planificacion == 1) // significa que es PRIORIDADES
+            log_info(logger_cpu, "PID: %d - Desalojado por proceso de mayor prioridad", cde->pid);
+        else if(algoritmo_planificacion == 2) // significa que es RR
+            log_info(logger_cpu, "PID: %d - Desalojado por fin de Quantum", cde->pid); 
+        desalojar_cde(cde, instruccion_a_ejecutar);
 	}else {
 
 	}
 }
 
-void cargar_registros(t_cde* cde){
-    registros_cpu->AX = cde->registros->AX;
-    registros_cpu->BX = cde->registros->BX;
-    registros_cpu->CX = cde->registros->CX;
-    registros_cpu->DX = cde->registros->DX;
-	registros_cpu->EAX = cde->registros->EAX;
-	registros_cpu->EBX = cde->registros->EBX;
-	registros_cpu->ECX = cde->registros->ECX;
-	registros_cpu->EDX = cde->registros->EDX;
-	registros_cpu->DX = cde->registros->SI;
-	registros_cpu->DX = cde->registros->DI;
-}
+void interruptProceso(void* socket_server){
+    int socket_servidor_interrupt = (int) (intptr_t) socket_server;
+    
+    log_info(logger_cpu, "Esperando Kernel INTERRUPT....");
+    socket_kernel_interrupt = esperar_cliente(socket_servidor_interrupt);
+    log_info(logger_cpu, "Se conecto el Kernel por INTERRUPT");
+    
+    while(1){
+        // Esperar que termine de ejecutar (semaforo)
+        // Chequear si le llego una interrupcion del kernel
+        // Si llego una, la atiendo
+        // Si no, posteo el semaforo de ejecucion
 
-void atender_kernel_interrupt(){
-}
-
-void conectar_memoria(){
-	ip = config_get_string_value(config_cpu, "IP");
-	puerto_mem = config_get_string_value(config_cpu, "PUERTO_MEM");
-
-    socket_memoria = crear_conexion(ip, puerto_mem);
-    if (socket_memoria == -1) {
-		terminar_programa();
-        exit(EXIT_FAILURE);
+        mensajeKernelCpu op_code = recibir_codigo(socket_kernel_interrupt);
+        t_buffer* buffer = recibir_buffer(socket_kernel_interrupt); // recibe pid o lo que necesite
+        uint32_t pid_recibido = buffer_read_uint32(buffer);
+        destruir_buffer_nuestro(buffer);
+        
+        switch (op_code){
+            case INTERRUPT:
+                // atendemos la interrupcion
+                pthread_mutex_lock(&mutex_interrupcion_consola);
+                interrupcion_consola = 1;
+                pthread_mutex_unlock(&mutex_interrupcion_consola);
+                break;
+            case DESALOJO:
+                // se desaloja proceso en ejecucion
+                if(algoritmo_planificacion == 2 && pid_de_cde_ejecutando != pid_recibido){ // significa que el algoritmo es RR
+                    break;
+                }
+                else if(algoritmo_planificacion == 2 && pid_de_cde_ejecutando == pid_recibido){
+                    if(es_bloqueante(instruccion_actualizada)){
+                        break;
+                    }
+                }
+                pthread_mutex_lock(&mutex_realizar_desalojo);
+                realizar_desalojo = 1;
+                pthread_mutex_unlock(&mutex_realizar_desalojo);
+                break;
+            default:
+                log_warning(logger_cpu, "entre al case de default");
+                break;
+        }
     }
 }
 
 
+// FUNCIONES INSTRUCCIONES
 
+// AX,BX,CX,DX es uint8, pero el resto es uint32. Cuando se la llama, hay que pasarle
+// el registro y cargar el parametro que corresponda
 
-void terminar_programa(){
-	terminar_conexiones(1, socket_memoria);
-    if(logger_cpu) log_destroy(logger_cpu);
-    if(config_cpu) config_destroy(config_cpu);
+void ejecutar_set(char* registro, uint8_t valor_recibido8,uint32_t valor_recibido32){
+
+    if(strcmp(registro, "AX") == 0) registros_cpu->AX = valor_recibido8;   
+    else if(strcmp(registro, "BX") == 0)
+        registros_cpu->BX = valor_recibido8;
+    else if(strcmp(registro, "CX") == 0)
+        registros_cpu->CX = valor_recibido8;
+    else if(strcmp(registro, "DX") == 0)
+        registros_cpu->DX = valor_recibido8;
+	else if(strcmp(registro, "EAX") == 0)
+        registros_cpu->EAX= valor_recibido32;
+	else if(strcmp(registro, "EBX") == 0)
+        registros_cpu->EBX = valor_recibido32;
+	else if(strcmp(registro, "ECX") == 0)
+        registros_cpu->ECX = valor_recibido32;	
+	else if(strcmp(registro, "EDX") == 0)
+        registros_cpu->EDX = valor_recibido32;			
+    else if(strcmp(registro, "SI") == 0)
+        registros_cpu->SI = valor_recibido32;
+	else if(strcmp(registro, "DI") == 0)
+        registros_cpu->DI = valor_recibido32;	    
+    else
+        log_error(logger_cpu, "No se reconoce el registro %s", registro);
 }
 
-void iterator(char* value) {
-	log_info(logger_cpu,"%s", value);
+void ejecutar_sum(char* reg_dest, char* reg_origen){
+    uint32_t valor_reg_origen = buscar_valor_registro(reg_origen);
+    
+    if(strcmp(reg_dest, "AX") == 0)
+        registros_cpu->AX += valor_reg_origen;
+
+    else if(strcmp(reg_dest, "BX") == 0)
+        registros_cpu->BX += valor_reg_origen;
+
+    else if(strcmp(reg_dest, "CX") == 0)
+        registros_cpu->CX += valor_reg_origen;
+
+    else if(strcmp(reg_dest, "DX") == 0)
+        registros_cpu->DX += valor_reg_origen;
+
+    else
+        log_warning(logger_cpu, "Registro no reconocido");
 }
+
+void ejecutar_sub(char* reg_dest, char* reg_origen){
+    uint32_t valor_reg_origen = buscar_valor_registro(reg_origen);
+
+    if(strcmp(reg_dest, "AX") == 0)
+        registros_cpu->AX -= valor_reg_origen;
+
+    else if(strcmp(reg_dest, "BX") == 0)
+        registros_cpu->BX -= valor_reg_origen;
+    
+    else if(strcmp(reg_dest, "CX") == 0)
+        registros_cpu->CX -= valor_reg_origen;
+    
+    else if(strcmp(reg_dest, "DX") == 0)
+        registros_cpu->DX -= valor_reg_origen;
+    
+    else
+        log_warning(logger_cpu, "Registro no reconocido");
+}
+
+void ejecutar_jnz(void* registro, uint32_t nro_instruccion, t_cde* cde){
+    if(strcmp(registro, "AX") == 0){
+        if(registros_cpu->AX != 0)
+            cde->pc = nro_instruccion;
+    }
+
+    else if(strcmp(registro, "BX") == 0){
+        if(registros_cpu->BX != 0)
+            cde->pc = nro_instruccion;
+    }
+
+    else if(strcmp(registro, "CX") == 0){
+        if(registros_cpu->CX != 0)
+            cde->pc = nro_instruccion;
+    }
+
+    else if(strcmp(registro, "DX") == 0){
+        if(registros_cpu->DX != 0)
+            cde->pc = nro_instruccion;
+    }
+
+    else
+        log_warning(logger_cpu, "Registro no reconocido");
+}
+
+void ejecutar_sleep(uint32_t tiempo){ //devolver cde al kernel con la cant de segundos que el proceso se va a bloquear
+    interruption = 1;
+}
+
+void ejecutar_wait(char* recurso){ //solicitar a kernel que se asigne una instancia del recurso
+    interruption = 1;
+}
+
+void ejecutar_signal(char* recurso){ //solicitar a kernel que se libere una instancia del recurso
+    interruption = 1;
+}
+
+
+
+
+

@@ -1,5 +1,7 @@
 {
     "files.associations": {
-        "memoria.h": "c"
+        "memoria.h": "c",
+        "serializacion.h": "c",
+        "string.h": "c"
     }
 }
