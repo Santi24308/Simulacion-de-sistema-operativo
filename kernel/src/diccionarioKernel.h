@@ -36,18 +36,11 @@ typedef struct{
 }t_pcb;
 
 typedef struct{
-	char* ip_memoria;
-	int puerto_memoria;
-	char* ip_io;
-	int puerto_io;
-	char* ip_cpu;
-	int puerto_cpu_dispatch;
-	int puerto_cpu_interrupt;
-	char* algoritmo;
-	int quantum;
-	t_list* recursos; // lista de t_recurso*
-	int grado_max_multiprogramacion;
-}t_config_kernel;
+    char* nombre;
+    int instancias;
+	t_list* procesos_bloqueados;
+    sem_t sem_recurso;
+}t_recurso;
 
 
 char* config_path;
@@ -61,16 +54,20 @@ int socket_cpu_dispatch;
 int socket_cpu_interrupt;
 char* ip;
 char* puerto_mem;
+char* algoritmo;
 int pid_a_asignar;
 int quantum_a_asignar;
 int planificacion_detenida;
 t_log* logger_kernel;
 t_config* config_kernel;
-t_config_kernel config_kernel2; // corregir
 t_pcb* pcb_en_ejecucion;
 pthread_t hilo_io;
 pthread_t hilo_consola;
 pthread_t hilo_memoria;
+
+int quantum;
+t_list* recursos; // lista de t_recurso*
+int grado_max_multiprogramacion;
 
 // LISTAS Y COLAS
 t_list* procesos_globales;

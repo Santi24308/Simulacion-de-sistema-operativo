@@ -27,12 +27,13 @@ void terminar_proceso();
 void iniciarPlanificacion();
 void detenerPlanificacion();
 void listar_procesos_por_estado();
-void enviar_contexto_a_cpu();
+void enviar_cde_a_cpu();
 
 void agregar_pcb_a(t_queue* cola, t_pcb* pcb_a_agregar, pthread_mutex_t* mutex);
 t_pcb* retirar_pcb_de(t_queue* cola, pthread_mutex_t* mutex);
 char* obtener_elementos_cargados_en(t_queue* cola);
 char* obtener_nombre_estado(t_estados estado);
+t_recurso* inicializar_recurso(char* nombre_recu, int instancias_tot);
 
 
 #endif

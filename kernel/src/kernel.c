@@ -45,6 +45,42 @@ void inicializar_modulo(){
 
 	levantar_logger();
 	levantar_config();
+	algoritmo = config_get_string_value(config_kernel, "ALGORITMO");
+	quantum = config_get_int_value(config_kernel, "QUANTUM");
+	grado_max_multiprogramacion = config_get_int_value(config_kernel, "MULTIPROGRAMACION_MAX");
+	char **recursos = config_get_array_value(config_kernel,"RECURSOS");
+	char **instancias = config_get_array_value(config_kernel,"INSTANCIAS_RECURSOS");
+	recursos = list_create();
+
+	int a = 0;
+	while(recursos[a]!= NULL){
+		int num_instancias = strtol(instancias[a],NULL,10);
+		t_recurso* recurso = inicializar_recurso(recursos[a], num_instancias);
+		list_add(recursos, recurso);
+		a++;
+	}
+
+    string_array_destroy(recursos);
+    string_array_destroy(instancias);
+}
+
+t_recurso* inicializar_recurso(char* nombre_recu, int instancias_tot){
+	t_recurso* recurso = malloc(sizeof(t_recurso));
+	int tam = 0;
+
+	while(nombre_recu[tam])
+		tam++;
+
+	recurso->nombre = malloc(tam);
+	strcpy(recurso->nombre, nombre_recu);
+
+	recurso->instancias = instancias_tot;
+    recurso->procesos_bloqueados = list_create();
+    sem_t sem;
+    sem_init(&sem, instancias_tot, 1);
+    recurso->sem_recurso = sem;
+	
+	return recurso;
 }
 
 void consola(){ // CONSOLA INTERACTIVA EN BASE A LINEAMIENTO E IMPLEMENTACION
@@ -130,7 +166,7 @@ t_pcb* crear_pcb(char* path, int quantum){
 }
 
 void destruir_pcb(t_pcb* pcb){
-    destruir_cde(pcb->cde); // en conexiones.c
+    destruir_cde(pcb->cde); // en serializacion.c
     free(pcb);
 }
 
@@ -145,7 +181,7 @@ void iniciarProceso(char* path, char* size, int quantum){
     buffer_write_string(buffer, path); 
     uint32_t tamanio = atoi(size);
     buffer_write_uint32(buffer, tamanio);
-	buffer_write_int(buffer, quantum);
+	buffer_write_uint32(buffer, quantum);
 	
     enviar_buffer(buffer, socket_memoria);
 
@@ -180,10 +216,7 @@ void terminar_proceso(){
         pthread_mutex_lock(&mutex_procesos_globales);
 	    list_remove_element(procesos_globales, pcb); // lo elimina de la global
 	    pthread_mutex_unlock(&mutex_procesos_globales);
-                
-        liberar_recursos_pcb(pcb);
-        liberar_archivos_pcb(pcb);
-
+    
         // Solicitar a memoria liberar estructuras
 
         enviar_codigo(socket_memoria, FINALIZAR_PROCESO_SOLICITUD);
@@ -206,6 +239,76 @@ void terminar_proceso(){
         
     }
 }
+
+void iniciarPlanificacion(){
+    sem_post(&pausar_new_a_ready); // libera el semaforo
+    if(pausar_new_a_ready.__align == 1) // align decide si los semaforos deben bloquearse o no despues de ser liberados
+        sem_wait(&pausar_new_a_ready);
+    
+    sem_post(&pausar_ready_a_exec);
+    if(pausar_ready_a_exec.__align == 1)
+        sem_wait(&pausar_ready_a_exec);
+    
+    sem_post(&pausar_exec_a_finalizado);
+    if(pausar_exec_a_finalizado.__align == 1)
+        sem_wait(&pausar_exec_a_finalizado);
+    
+    sem_post(&pausar_exec_a_ready);
+    if(pausar_exec_a_ready.__align == 1)
+        sem_wait(&pausar_exec_a_ready);
+    
+    sem_post(&pausar_exec_a_blocked);
+    if(pausar_exec_a_blocked.__align == 1)
+        sem_wait(&pausar_exec_a_blocked);
+    
+    sem_post(&pausar_blocked_a_ready);
+    if(pausar_blocked_a_ready.__align == 1)
+        sem_wait(&pausar_blocked_a_ready);
+    
+    planificacion_detenida = 0;
+}
+
+
+void detenerPlanificacion(){ 
+    planificacion_detenida = 1;
+}
+
+void enviar_cde_a_cpu(){ // idea sin probar
+    mensajeKernelCpu codigo = EJECUTAR_PROCESO;
+    enviar_codigo(socket_cpu_dispatch, codigo);
+
+    t_buffer* buffer_dispatch = crear_buffer();
+    pthread_mutex_lock(&mutex_pcb_en_ejecucion);
+    buffer_write_cde(buffer_dispatch, pcb_en_ejecucion->cde);
+    pthread_mutex_unlock(&mutex_pcb_en_ejecucion);
+
+    if(strcmp(algoritmo, "RR") == 0){
+        pcb_en_ejecucion->flag_clock = false;
+    }
+
+    enviar_buffer(buffer_dispatch, socket_cpu_dispatch);
+    destruir_buffer(buffer_dispatch);
+    sem_post(&bin_recibir_cde);
+}
+
+// UTILS COLAS DE ESTADOS
+void agregar_pcb_a(t_queue* cola, t_pcb* pcb_a_agregar, pthread_mutex_t* mutex){
+    
+    pthread_mutex_lock(mutex);
+    queue_push(cola, (void*) pcb_a_agregar);
+	pthread_mutex_unlock(mutex);
+
+}
+
+t_pcb* retirar_pcb_de(t_queue* cola, pthread_mutex_t* mutex){
+    
+	pthread_mutex_lock(mutex);
+	t_pcb* pcb = queue_pop(cola);
+	pthread_mutex_unlock(mutex);
+    
+	return pcb;
+}
+
 
 ///////// CHECKPOINT 1 CONEXIONES Y CONSOLA /////////
 
