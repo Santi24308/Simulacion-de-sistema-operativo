@@ -102,7 +102,7 @@ void conectar_cpu(){
 
 void atender_kernel(){
 	while(1){
-	int cod_kernel = recibir_operacion(socket_kernel); 
+	int cod_kernel = recibir_codigo(socket_kernel); 
 	switch(cod_kernel){
 		case CREAR_PROCESO:
 			t_proceso_memo* proceso_kernel = crear_proceso();			
@@ -120,23 +120,50 @@ void atender_kernel(){
 		}
 	}
 
-void atender_cpu(){
-	int cod_ins = recibir_operacion(socket_cpu);
-	char* instruccion;
+void atender_cpu(){	
+	int pedido_cpu = recibir_codigo(socket_cpu);
+	retardo_respuesta = config_get_string_value(config_memoria, "RETARDO_RESPUESTA");
+
+	switch(pedido_cpu){
+		case PEDIDO_INSTRUCCION:
+		usleep((int)retardo_respuesta);
+		enviar_instruccion();
+		default:
+			break;
+	}
+		
+}
+
+void enviar_instruccion(){
+	
+	instrucciones_path = config_get_string_value(config_memoria, "PATH_INSTRUCCIONES");
+	uint32_t pid;
+	uint32_t pc;
+	
+	char* ins_leida;
+	t_instruccion* instruccion;
 	/*cpu pide instruccion	
 	busco la instruccion en el archivo de instrucciones (ENUM)*/
-	instrucciones_path = config_get_string_value(config_memoria, "PATH_INSTRUCCIONES");
+
+	t_buffer* buffer_recibido = recibir_buffer(socket_cpu);
+	//para paginas
+	pid = buffer_read_uint32(buffer_recibido);
+	pc = buffer_read_uint32(buffer_recibido);	
 	FILE* archivo_inst = fopen( instrucciones_path, "r");
-	fseek(archivo_inst,cod_ins, SEEK_SET);
-	fscanf(archivo_inst,"%s",instruccion);
+	//pc? codigo de instruccion?
+	
+	fseek(archivo_inst,codigoInstruccion, SEEK_SET);
+	fscanf(archivo_inst,"%s",ins_leida);
+	//indice?
+	escribirCharParametroInstruccion(1, instruccion, ins_leida);
+	
 	//le envio a cpu la instruccion
 	buffer_instruccion = crear_buffer();
-	buffer_write_string(buffer_instruccion,instruccion);
-	/*void buffer_write_string(t_buffer* buffer, char* string_a_escribir);
-	char* buffer_read_string(t_buffer, uint32_t* tam);*/
+	buffer_write_instruccion(buffer_instruccion, instruccion);
+
 	enviar_buffer(buffer_instruccion,socket_cpu);
 	destruir_buffer(buffer_instruccion);
-	fclose(archivo_inst);	
+	fclose(archivo_inst);
 }
 
 void atender_io(){

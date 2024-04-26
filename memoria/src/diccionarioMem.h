@@ -17,6 +17,7 @@
 char* config_path;
 char* instrucciones_path;
 char* puerto_escucha; 
+char* retardo_respuesta;
 int socket_servidor;
 int socket_io;
 int socket_cpu;

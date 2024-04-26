@@ -63,7 +63,7 @@ typedef struct //COMPLETAR
 
 typedef struct //COMPLETAR
 {
-    int pid;
+    uint32_t pid;
     t_pagina* paginas;
 }t_proceso_memo;
 
