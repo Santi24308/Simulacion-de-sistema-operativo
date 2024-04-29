@@ -15,23 +15,27 @@
 #include <semaphore.h>
 
 
-char* puerto_escucha_dispatch; 
-char* puerto_escucha_interrupt; 
 int socket_servidor_dispatch;
 int socket_servidor_interrupt;
-char* config_path;
-char* puerto_escucha; 
 int socket_servidor;
 int socket_kernel_dispatch;
 int socket_kernel_interrupt;
 int socket_memoria;
+
+char* puerto_escucha_dispatch; 
+char* puerto_escucha_interrupt; 
+char* config_path;
+char* puerto_escucha; 
 char* ip;
 char* puerto_mem;
+
 t_log* logger_cpu;
 t_config* config_cpu;
+
 pthread_t hilo_kernel_dispatch;
 pthread_t hilo_kernel_interrupt;
 pthread_t hilo_memoria;
+
 t_registro* registros_cpu;
 
 pthread_mutex_t mutex_cde_ejecutando;
@@ -49,6 +53,7 @@ sem_t sema_ejecucion;
 codigoInstruccion instruccion_actualizada;
 
 uint32_t pid_de_cde_ejecutando;
+uint32_t algoritmo_planificacion;
 
 int interrupcion;
 int realizar_desalojo;
