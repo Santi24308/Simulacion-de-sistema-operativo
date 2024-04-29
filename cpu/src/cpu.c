@@ -152,6 +152,44 @@ void atender_kernel_dispatch(){
 }
 
 void atender_kernel_interrupt(){
+while(1){
+        // Esperar que termine de ejecutar (semaforo)
+        // Chequear si le llego una interrupcion del kernel
+        // Si llego una, la atiendo
+        // Si no, posteo el semaforo de ejecucion
+
+        mensajeKernelCpu op_code = recibir_codigo(socket_kernel_interrupt);
+        t_buffer* buffer = recibir_buffer(socket_kernel_interrupt); // recibe pid o lo que necesite
+        uint32_t pid_recibido = buffer_read_uint32(buffer);
+        destruir_buffer_nuestro(buffer);
+        
+        switch (op_code){
+            case INTERRUPT:
+                // atendemos la interrupcion
+                pthread_mutex_lock(&mutex_interrupcion_consola);
+                interrupcion_consola = 1;
+                pthread_mutex_unlock(&mutex_interrupcion_consola);
+                break;
+            case DESALOJO:
+                // se desaloja proceso en ejecucion
+                if(algoritmo_planificacion == 2 && pid_de_cde_ejecutando != pid_recibido){ // significa que el algoritmo es RR
+                    break;
+                }
+                else if(algoritmo_planificacion == 2 && pid_de_cde_ejecutando == pid_recibido){
+                    if(es_bloqueante(instruccion_actualizada)){
+                        break;
+                    }
+                }
+                pthread_mutex_lock(&mutex_realizar_desalojo);
+                realizar_desalojo = 1;
+                pthread_mutex_unlock(&mutex_realizar_desalojo);
+                break;
+            default:
+                log_warning(logger_cpu, "entre al case de default");
+                break;
+        }
+    }
+}
 }
 
 void conectar_memoria(){
@@ -330,52 +368,6 @@ void ejecutar_proceso(t_cde* cde){
 	}else {
 
 	}
-}
-
-void interruptProceso(void* socket_server){
-    int socket_servidor_interrupt = (int) (intptr_t) socket_server;
-    
-    log_info(logger_cpu, "Esperando Kernel INTERRUPT....");
-    socket_kernel_interrupt = esperar_cliente(socket_servidor_interrupt);
-    log_info(logger_cpu, "Se conecto el Kernel por INTERRUPT");
-    
-    while(1){
-        // Esperar que termine de ejecutar (semaforo)
-        // Chequear si le llego una interrupcion del kernel
-        // Si llego una, la atiendo
-        // Si no, posteo el semaforo de ejecucion
-
-        mensajeKernelCpu op_code = recibir_codigo(socket_kernel_interrupt);
-        t_buffer* buffer = recibir_buffer(socket_kernel_interrupt); // recibe pid o lo que necesite
-        uint32_t pid_recibido = buffer_read_uint32(buffer);
-        destruir_buffer_nuestro(buffer);
-        
-        switch (op_code){
-            case INTERRUPT:
-                // atendemos la interrupcion
-                pthread_mutex_lock(&mutex_interrupcion_consola);
-                interrupcion_consola = 1;
-                pthread_mutex_unlock(&mutex_interrupcion_consola);
-                break;
-            case DESALOJO:
-                // se desaloja proceso en ejecucion
-                if(algoritmo_planificacion == 2 && pid_de_cde_ejecutando != pid_recibido){ // significa que el algoritmo es RR
-                    break;
-                }
-                else if(algoritmo_planificacion == 2 && pid_de_cde_ejecutando == pid_recibido){
-                    if(es_bloqueante(instruccion_actualizada)){
-                        break;
-                    }
-                }
-                pthread_mutex_lock(&mutex_realizar_desalojo);
-                realizar_desalojo = 1;
-                pthread_mutex_unlock(&mutex_realizar_desalojo);
-                break;
-            default:
-                log_warning(logger_cpu, "entre al case de default");
-                break;
-        }
-    }
 }
 
 
