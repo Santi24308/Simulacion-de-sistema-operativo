@@ -53,7 +53,7 @@ void inicializar_modulo(){
 	levantar_logger();
 	levantar_config();
 	inicializar_registros();
-	pthread_mutex_init(&mutex_cde_ejecutando, NULL);
+	inicializarSemaforos();
 }
 
 void levantar_logger(){
@@ -85,6 +85,13 @@ void inicializar_registros(){
 	registros_cpu->EDX = 0;
 	registros_cpu->SI = 0;
 	registros_cpu->DI = 0;
+}
+
+void inicializarSemaforos(){
+	pthread_mutex_init(&mutex_cde_ejecutando, NULL);
+	pthread_mutex_init(&mutex_interrupcion_consola, NULL);
+	pthread_mutex_init(&mutex_realizar_desalojo, NULL);
+	pthread_mutex_init(&mutex_instruccion_actualizada, NULL);
 }
 
 // CONEXIONES
