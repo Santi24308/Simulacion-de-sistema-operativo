@@ -33,9 +33,12 @@ pthread_t hilo_kernel_dispatch;
 pthread_t hilo_kernel_interrupt;
 pthread_t hilo_memoria;
 t_registro* registros_cpu;
-pthread_t mutex_cde_ejecutando;
-pthread_t mutex_instruccion_actualizada;
-pthread_t mutex_realizar_desalojo;
+
+pthread_mutex_t mutex_cde_ejecutando;
+pthread_mutex_t mutex_interrupcion_consola;
+pthread_mutex_t mutex_realizar_desalojo;
+pthread_mutex_t mutex_instruccion_actualizada;
+
 sem_t sema_kernel_dispatch;
 sem_t sema_kernel_interrupt;
 sem_t sema_memoria;
