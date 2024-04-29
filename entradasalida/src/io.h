@@ -5,6 +5,15 @@
 #include <commons/string.h>
 #include <diccionarioIO.h>
 
+typedef enum{
+    GENERICA,
+    STDIN,
+    STDOUT,
+    DIALFS
+}tiposIO;
+
+char* nombreIO[50];
+
 void levantar_logger();
 void levantar_config();
 void terminar_programa();
