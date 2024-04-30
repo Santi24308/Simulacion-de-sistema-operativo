@@ -2,20 +2,35 @@
 
 int main(int argc, char* argv[]) {
 
-	if(argc != 2) {
-		printf("ERROR: Tenés que pasar el path del archivo config de Entradasalida\n");
-		return -1;
-	}
-
-	config_path = argv[1];
+	// se analiza si se puede seguir o no ejecutando
+	if(!chequeo_parametros(argc, argv)) return -1;
 
 	inicializar_modulo();
+
+	// las interfaces tienen tipo y de eso me doy cuenta en tiempo de ejecucion, por lo que es
+	// necesario que main sepa preparar todo en base al tipo que toco (obtenido desde config)
 	conectar();
-	consola();
 
     terminar_programa();
 
     return 0;
+}
+
+int chequeo_parametros(int argc, char** argv){
+	// I/O debe recibir el NOMBRE y el CONFIG
+	// Duda: en el enunciado dice que el nombre es unico en el sistema, cual seria una manera
+	// de corroborar eso (en caso de ser necesario)...
+	if(argc != 3) {
+		printf("\x1b[31m""ERROR: Tenés que pasar el nombre de I/O y el path del archivo config de Entradasalida""\x1b[0m""\n");
+		return -1;
+	}
+
+	// asignamos el nombre
+	strcpy(nombreIO, argv[1]);
+	// asignamos config
+	config_path = argv[2];
+
+	return 0;
 }
 
 void conectar(){
@@ -26,12 +41,120 @@ void conectar(){
 void inicializar_modulo(){
 	levantar_logger();
 	levantar_config();
-	solicitarInformacionIO();
-	inicializar_IO(nombreIO , config_io);
+	// PROPONGO: usando la funcion data_ok que uso antes en main estas dos lineas que siguen no harian falta
+	// por otro lado, la I/O se va a dar cuenta de su tipo a la hora de atender
+	
+	//solicitarInformacionIO();
+	//inicializar_IO(nombreIO , config_io);
 }
 
-void consola(){
+void atender_kernel_generica(){
+	int tut = config_get_int_value(config_io, "TIEMPO_UNIDAD_TRABAJO");
+	while(1){
+		codigoInstruccion cod = recibir_codigo(socket_kernel);
+		switch (cod){
+			case IO_GEN_SLEEP:
+				sleep(tut);
+				break;	
+			case -1:
+				log_info(logger_io, "Se desconecto Kernel");
+				return;
+			default:
+				break;
+		}
+	}
 }
+
+void atender_kernel_stdin(){
+	while(1){
+		codigoInstruccion cod = recibir_codigo(socket_kernel);
+		switch (cod){
+			case IO_STDIN_READ:
+					leer_y_enviar_a_memoria();
+				break;	
+			case -1:
+				log_info(logger_io, "Se desconecto Kernel");
+				return;
+			default:
+				break;
+		}
+	}
+}
+void atender_kernel_stdout(){
+	while(1){
+		codigoInstruccion cod = recibir_codigo(socket_kernel);
+		switch (cod){
+			case IO_STDOUT_WRITE:
+				break;	
+			case -1:
+				log_info(logger_io, "Se desconecto Kernel");
+				return;
+			default:
+				break;
+		}
+	}
+}
+void atender_kernel_dialfs(){
+	while(1){
+		codigoInstruccion cod = recibir_codigo(socket_kernel);
+		switch (cod){
+			case IO_FS_CREATE:
+				break;
+			case IO_FS_DELETE:
+				break;
+			case IO_FS_TRUNCATE:
+				break;
+			case IO_FS_WRITE:
+				break;
+			case IO_FS_READ:
+				break;
+			case -1:
+				log_info(logger_io, "Se desconecto Kernel");
+				return;
+			default:
+				break;
+		}
+	}
+}
+
+void atender(){
+	// IMPORTANTE: el tipo se va a preguntar una sola vez en todo el programa ya que las I/O 
+	// no pueden cambiar
+	tipo = config_get_string_value(config_io, "TIPO_INTERFAZ");
+	if (strcmp(tipo, "GENERICA")==0)
+		atender_kernel_generica();
+	else if (strcmp(tipo, "STDIN")==0)
+		atender_kernel_stdin();
+	else if (strcmp(tipo, "STDOUT")==0)
+		atender_kernel_stdout();
+	else if (strcmp(tipo, "DIALFS")==0)
+		atender_kernel_dialfs();
+	else  
+		log_error(logger_io, "El tipo de I/O indicado en config es incorrecto, terminando programa...");
+}
+
+void leer_y_enviar_a_memoria(){
+	enviar_codigo(socket_memoria, GUARDAR_EN_DIRECCION);
+
+	// primero leo la direccion que me llego de kernel
+	t_buffer* buffer_recibido = recibir_buffer(socket_kernel);
+	uint32_t tamanio_direccion;
+	char* direccion_memoria = buffer_read_string(buffer_recibido, &tamanio_direccion);
+
+	char* leido = readline("> ");
+
+	t_buffer* buffer_a_enviar = crear_buffer();
+	buffer_write_string(buffer_a_enviar, direccion_memoria);
+	buffer_write_string(buffer_a_enviar, leido);
+
+	enviar_buffer(buffer_a_enviar, socket_memoria);
+
+	destruir_buffer(buffer_recibido);
+	destruir_buffer(buffer_a_enviar);
+}
+
+//--------------------------------------------------------------------------------------------------------------
+
 
 void conectar_memoria(){
 	ip = config_get_string_value(config_io, "IP");
@@ -53,6 +176,14 @@ void conectar_kernel(){
 		terminar_programa();
         exit(EXIT_FAILURE);
     }
+	// notar que aca llamo a atender de manera generica ya que es esa funcion
+	// la encargada de derivar
+	int err = pthread_create(&hilo_kernel, NULL, (void *)atender, NULL);
+	if (err != 0) {
+		perror("Fallo la creacion de hilo para Kernel\n");
+		return;
+	}
+	pthread_detach(hilo_kernel);
 }
 
 void levantar_logger(){
@@ -71,7 +202,7 @@ void levantar_config(){
 	}
 }
 
-
+/*
 solicitarInformacionIO(){
 	//PODRIA MANEJAR ESTO CON HILOS(?)
 	solicitarNombreIO();
@@ -175,7 +306,7 @@ void atender_interfazGenercia(){
 //desarrollar
 void esperar(*int tiempo){}
 
-
+*/
 
 
 void terminar_programa(){

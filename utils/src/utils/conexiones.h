@@ -18,6 +18,11 @@
 
 // AGREGAR LOS PROTOCOLOS
 
+// prototipo de protocolo entre memoria e IO
+typedef enum{
+	GUARDAR_EN_DIRECCION
+}mensajeIOMemoria;
+
 typedef enum{
 	PEDIDO_INSTRUCCION
 }mensajeCpuMem;

@@ -14,6 +14,8 @@
 #include <pthread.h>
 #include <semaphore.h>
 
+char* tipo;
+
 char* config_path;
 char* ip;
 char* puerto_mem;
@@ -22,6 +24,7 @@ int socket_memoria;
 int socket_kernel;
 t_log* logger_io;
 t_config* config_io;
+pthread_t hilo_kernel;
 
 sem_t sema_memoria;
 sem_t sema_kernel;
