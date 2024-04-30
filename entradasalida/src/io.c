@@ -150,6 +150,7 @@ void leer_y_enviar_a_memoria(){
 
 	enviar_buffer(buffer_a_enviar, socket_memoria);
 
+	free(leido);
 	destruir_buffer(buffer_recibido);
 	destruir_buffer(buffer_a_enviar);
 }
