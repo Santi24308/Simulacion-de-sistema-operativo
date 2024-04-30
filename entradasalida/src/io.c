@@ -41,7 +41,7 @@ void conectar(){
 void inicializar_modulo(){
 	levantar_logger();
 	levantar_config();
-	// PROPONGO: usando la funcion data_ok que uso antes en main estas dos lineas que siguen no harian falta
+	// PROPONGO: usando la funcion chequeo_parametros que uso antes en main estas dos lineas que siguen no harian falta
 	// por otro lado, la I/O se va a dar cuenta de su tipo a la hora de atender
 	
 	//solicitarInformacionIO();
