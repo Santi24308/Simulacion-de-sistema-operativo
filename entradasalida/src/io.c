@@ -133,6 +133,7 @@ void atender(){
 		log_error(logger_io, "El tipo de I/O indicado en config es incorrecto, terminando programa...");
 }
 
+// esto ya no es del checkpoint 2
 void leer_y_enviar_a_memoria(){
 	enviar_codigo(socket_memoria, GUARDAR_EN_DIRECCION);
 
