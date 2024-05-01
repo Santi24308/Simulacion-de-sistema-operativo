@@ -33,6 +33,7 @@ typedef struct{
 	char* path;
     int quantum;
 	bool flag_clock;
+	bool fin_q;
 }t_pcb;
 
 typedef struct{
@@ -96,6 +97,15 @@ sem_t procesos_en_new;
 sem_t procesos_en_ready;
 sem_t procesos_en_blocked;
 sem_t procesos_en_exit;
+
+
+sem_t sem_iniciar_quantum;
+sem_t sem_reloj_destruido;
+sem_t no_end_kernel;
+sem_t grado_de_multiprogramacion;
+sem_t bin_recibir_cde;
+sem_t sem_liberar_archivos;
+
 
 sem_t pausar_new_a_ready;
 sem_t pausar_ready_a_exec;

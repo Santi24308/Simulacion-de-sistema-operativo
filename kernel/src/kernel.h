@@ -20,12 +20,19 @@ void conectar();
 void esperar_desconexiones();
 void iterator(char*);
 // CHECKPOINT 2
+void inicializarListas();
+void inicializarSemaforos();
 t_pcb* crear_pcb(char* path, int quantum);
 void destruir_pcb(t_pcb* pcb);
-void iniciarProceso(char* path, char* size, int quantum);
+t_pcb* encontrar_pcb_por_pid(uint32_t pid, int* encontrado);
+void retirar_pcb_de_su_respectivo_estado(uint32_t pid, int* resultado);
+void finalizar_pcb(t_pcb* pcb_a_finalizar, char* razon);
+void iniciar_proceso(char* path, char* size, int quantum);
 void terminar_proceso();
 void iniciarPlanificacion();
 void detenerPlanificacion();
+void iniciar_quantum();
+void controlar_tiempo_de_ejecucion();
 void listar_procesos_por_estado();
 void enviar_cde_a_cpu();
 

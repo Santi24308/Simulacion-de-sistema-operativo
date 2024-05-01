@@ -62,6 +62,34 @@ void inicializar_modulo(){
 
     string_array_destroy(recursos);
     string_array_destroy(instancias);
+
+	pid_a_asignar = 0; // para crear pcbs arranca en 0 el siguiente en 1
+    planificacion_detenida = 0;
+    
+    inicializarListas();
+    inicializarSemaforos();
+
+    enviar_codigo(socket_cpu_dispatch, ALGORITMO_PLANIFICACION);
+    t_buffer* buffer = crear_buffer();
+    // si el algoritmo es FIFO envia 0
+    // si el algoritmo es VIRTUAL ROUND ROBIN envia un 1
+    // si el algoritmo es ROUND ROBIN envia un 2
+    if(strcmp(algoritmo, "FIFO") == 0) 
+        buffer_write_uint32(buffer, 0);
+    else if(strcmp(algoritmo, "VRR") == 0)
+        buffer_write_uint32(buffer, 1);
+    else
+        buffer_write_uint32(buffer, 2);
+    enviar_buffer(buffer, socket_cpu_dispatch);
+    destruir_buffer(buffer);
+
+    if(strcmp(algoritmo, "RR") == 0){
+       iniciar_quantum();
+    }
+
+	// iniciarPlanificadores(); ¿pensar a futuro o necesario ahora?
+    
+    return;
 }
 
 t_recurso* inicializar_recurso(char* nombre_recu, int instancias_tot){
@@ -99,22 +127,22 @@ void consola(){ // CONSOLA INTERACTIVA EN BASE A LINEAMIENTO E IMPLEMENTACION
 		switch (c) {
 			case 1:
     			printf("Se ejecuta el script de operaciones: \n");
-				ejecutar_script_de_operaciones(texto,socket_cpu_dispatch);
+				ejecutar_script_de_operaciones(texto,socket_cpu_dispatch); // todavia queda esto pendiente
 				break;
 			case 2:
-				iniciar_proceso();
+				iniciar_proceso(); // ver error aca
 				break;
 			case 3:
-    			finalizar_proceso();
+    			terminar_proceso();
 				break;
 			case 4:
-				inicializar_planificacion();
+				iniciar_planificacion();
 				break;
 			case 5:
     			detener_planificacion();
 				break;
 			case 6:
-				listar_procesos_por_estado();
+				listar_procesos_por_estado(); // pendiente 
 				break;	
 			case 9:
 				sem_post(&sema_consola);	
@@ -170,7 +198,83 @@ void destruir_pcb(t_pcb* pcb){
     free(pcb);
 }
 
-void iniciarProceso(char* path, char* size, int quantum){
+t_pcb* encontrar_pcb_por_pid(uint32_t pid, int* encontrado){
+    t_pcb* pcb;
+    int i = 0;
+    
+    *(encontrado) = 0;
+
+    for(int i = 0; i < list_size(procesos_globales); i++){
+        pcb = list_get(procesos_globales, i);
+        if(pcb->cde->pid == pid){
+            *(encontrado) = 1;
+            break;
+        }
+    }
+
+    if(*(encontrado))
+        return pcb;
+    else
+        log_warning(logger_kernel, "PCB no encontrado de PID: %d", pid);
+}
+
+void retirar_pcb_de_su_respectivo_estado(uint32_t pid, int* resultado){
+    t_pcb* pcb_a_retirar = encontrar_pcb_por_pid(pid, resultado);
+
+    if(resultado){
+        switch(pcb_a_retirar->estado){
+            case NEW:
+                sem_wait(&procesos_en_new);
+                pthread_mutex_lock(&mutex_new);
+                list_remove_element(procesosNew->elements, pcb_a_retirar);
+                pthread_mutex_unlock(&mutex_new);
+                finalizar_pcb(pcb_a_retirar, "EXIT POR CONSOLA");
+                break;
+            case READY:
+                sem_wait(&procesos_en_ready);
+                pthread_mutex_lock(&mutex_ready);
+                list_remove_element(procesosReady->elements, pcb_a_retirar);
+                pthread_mutex_unlock(&mutex_ready);
+                finalizar_pcb(pcb_a_retirar, "EXIT POR CONSOLA");
+                break;
+            case BLOCKED:
+                sem_wait(&procesos_en_blocked);
+                pthread_mutex_lock(&mutex_block);
+                list_remove_element(procesosBloqueados->elements, pcb_a_retirar);
+                pthread_mutex_unlock(&mutex_block);
+                finalizar_pcb(pcb_a_retirar, "EXIT POR CONSOLA");
+                break;
+            case EXEC:
+                enviar_codigo(socket_cpu_interrupt, INTERRUPT);
+                
+                t_buffer* buffer = crear_buffer();
+                buffer_write_uint32(buffer, pcb_a_retirar->cde->pid);
+                enviar_buffer(buffer, socket_cpu_interrupt);
+                destruir_buffer(buffer);
+                break;
+            case TERMINADO:
+                // ¿ Faltaria algo ?
+                break;
+            default:
+                log_error(logger_kernel, "Entre al default en estado nro: %d", pcb_a_retirar->estado);
+                break;
+        
+        }
+    }
+    else
+        log_warning(logger_kernel, "No ejecute el switch");
+}
+
+void finalizar_pcb(t_pcb* pcb_a_finalizar, char* razon){
+    agregar_pcb_a(procesosFinalizados, pcb_a_finalizar, &mutex_finalizados);
+    log_info(logger_kernel, "PID: %d - Estado anterior: %s - Estado actual: %s", pcb_a_finalizar->cde->pid, obtener_nombre_estado(pcb_a_finalizar->estado), obtener_nombre_estado(TERMINADO)); //OBLIGATORIO
+    log_info(logger_kernel, "Finaliza el proceso %d - Motivo: %s", pcb_a_finalizar->cde->pid, razon); // OBLIGATORIO
+    sem_post(&procesos_en_exit);
+    if (pcb_a_finalizar->estado == READY || pcb_a_finalizar->estado == BLOCKED)
+        sem_post(&grado_de_multiprogramacion); //Como se envia a EXIT, se "libera" 1 grado de multiprog
+}
+
+void iniciar_proceso(char* path, char* size, int quantum){
 	t_pcb* pcb_a_new = crear_pcb(path, quantum); // creo un nuevo pcb al que le voy a cambiar el estado
 
     enviar_codigo(socket_memoria, INICIAR_PROCESO_SOLICITUD); //envio la solicitud a traves del socket
@@ -240,7 +344,37 @@ void terminar_proceso(){
     }
 }
 
-void iniciarPlanificacion(){
+void iniciar_quantum(){
+    pthread_t clock_rr;
+    pthread_create(&clock_rr, NULL, (void*) controlar_tiempo_de_ejecucion, NULL);
+    pthread_detach(clock_rr);
+}
+
+void controlar_tiempo_de_ejecucion(){  
+    while(1){
+        sem_wait(&sem_iniciar_quantum);
+
+        uint32_t pid_pcb_before_start_clock = pcb_en_ejecucion->cde->pid;
+        bool flag_clock_pcb_before_start_clock = pcb_en_ejecucion->flag_clock;
+
+        usleep(quantum * 1000);
+
+        if(pcb_en_ejecucion != NULL)
+            pcb_en_ejecucion->fin_q = true;
+
+        if(pcb_en_ejecucion != NULL && pid_pcb_before_start_clock == pcb_en_ejecucion->cde->pid && flag_clock_pcb_before_start_clock == pcb_en_ejecucion->flag_clock){
+            enviar_codigo(socket_cpu_interrupt, DESALOJO);
+
+            t_buffer* buffer = crear_buffer();
+            buffer_write_uint32(buffer, pcb_en_ejecucion->cde->pid); // lo enviamos porque interrupt recibe un buffer, pero no hacemos nada con esto
+            enviar_buffer(buffer, socket_cpu_interrupt);
+            destruir_buffer(buffer);
+        }
+        sem_post(&sem_reloj_destruido);
+    }
+}
+
+void iniciar_planificacion(){
     sem_post(&pausar_new_a_ready); // libera el semaforo
     if(pausar_new_a_ready.__align == 1) // align decide si los semaforos deben bloquearse o no despues de ser liberados
         sem_wait(&pausar_new_a_ready);
@@ -269,11 +403,13 @@ void iniciarPlanificacion(){
 }
 
 
-void detenerPlanificacion(){ 
+void detener_planificacion(){ 
     planificacion_detenida = 1;
 }
 
-void enviar_cde_a_cpu(){ // idea sin probar
+// IDA Y VUELTA CON CPU
+
+void enviar_cde_a_cpu(){
     mensajeKernelCpu codigo = EJECUTAR_PROCESO;
     enviar_codigo(socket_cpu_dispatch, codigo);
 
@@ -307,6 +443,66 @@ t_pcb* retirar_pcb_de(t_queue* cola, pthread_mutex_t* mutex){
 	pthread_mutex_unlock(mutex);
     
 	return pcb;
+}
+
+void inicializarListas(){
+    procesos_globales = list_create();
+    procesosNew = queue_create();
+    procesosReady = queue_create();
+    procesosBloqueados = queue_create();
+    procesosFinalizados = queue_create();
+
+}
+
+void inicializarSemaforos(){ // TERMINAR DE VER
+    pthread_mutex_init(&mutex_new, NULL);
+    pthread_mutex_init(&mutex_ready, NULL);
+    pthread_mutex_init(&mutex_block, NULL);
+    pthread_mutex_init(&mutex_finalizados, NULL);
+    pthread_mutex_init(&mutex_exec, NULL);
+    pthread_mutex_init(&mutex_procesos_globales, NULL);
+
+    pthread_mutex_init(&mutex_pcb_en_ejecucion, NULL);
+
+    sem_init(&pausar_new_a_ready, 0, 0);
+    sem_init(&pausar_ready_a_exec, 0, 0);
+    sem_init(&pausar_exec_a_finalizado, 0, 0);
+    sem_init(&pausar_exec_a_ready, 0, 0);
+    sem_init(&pausar_exec_a_blocked, 0, 0);
+    sem_init(&pausar_blocked_a_ready, 0, 0);
+
+    sem_init(&sem_iniciar_quantum, 0, 0);
+    sem_init(&sem_reloj_destruido, 0, 1);
+    sem_init(&no_end_kernel, 0, 0);
+    sem_init(&grado_de_multiprogramacion, 0, grado_max_multiprogramacion);
+    sem_init(&procesos_en_new, 0, 0);
+    sem_init(&procesos_en_ready, 0, 0);
+    sem_init(&procesos_en_blocked, 0, 0);
+    sem_init(&procesos_en_exit, 0, 0);
+    sem_init(&bin_recibir_cde, 0, 0);
+}
+
+char* obtener_nombre_estado(t_estados estado){
+    switch(estado){
+        case NEW:
+            return "NEW";
+            break;
+        case READY:
+            return "READY";
+            break;
+        case EXEC:
+            return "EXEC";
+            break;
+        case BLOCKED:
+            return "BLOCKED";
+            break;
+        case TERMINADO:
+            return "EXIT";
+            break;
+        default:
+            return "NULO";
+            break;
+    }
 }
 
 

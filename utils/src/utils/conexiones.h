@@ -28,7 +28,10 @@ typedef enum{
 }mensajeCpuMem;
 
 typedef enum{
-    EJECUTAR_PROCESO
+    EJECUTAR_PROCESO,
+	ALGORITMO_PLANIFICACION,
+	INTERRUPT,
+	DESALOJO
 } mensajeKernelCpu;
 
 typedef enum

@@ -197,7 +197,7 @@ while(1){
         }
     }
 }
-}
+
 
 void conectar_memoria(){
 	ip = config_get_string_value(config_cpu, "IP");
