@@ -152,7 +152,14 @@ void atender_kernel_dispatch(){
 
 				ejecutar_proceso(&cde_recibido);
 				break;
+			case ALGORITMO_PLANIFICACION:
+                		algoritmo_planificacion = buffer_read_uint32(buffer);
+               			destruir_buffer_nuestro(buffer);
+               			break;
 			default:
+				destruir_buffer_nuestro(buffer);
+                		log_error(logger_cpu, "Codigo de operacion desconocido. Cierrando modulo...");
+                		exit(EXIT_FAILURE);
 				break;
 		}
 	}
