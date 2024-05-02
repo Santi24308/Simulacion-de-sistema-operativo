@@ -48,19 +48,19 @@ void inicializar_modulo(){
 	algoritmo = config_get_string_value(config_kernel, "ALGORITMO");
 	quantum = config_get_int_value(config_kernel, "QUANTUM");
 	grado_max_multiprogramacion = config_get_int_value(config_kernel, "MULTIPROGRAMACION_MAX");
-	char **recursos = config_get_array_value(config_kernel,"RECURSOS");
+	char **recursos_config = config_get_array_value(config_kernel,"RECURSOS");
 	char **instancias = config_get_array_value(config_kernel,"INSTANCIAS_RECURSOS");
 	recursos = list_create();
 
 	int a = 0;
-	while(recursos[a]!= NULL){
+	while(recursos_config[a]!= NULL){
 		int num_instancias = strtol(instancias[a],NULL,10);
-		t_recurso* recurso = inicializar_recurso(recursos[a], num_instancias);
+		t_recurso* recurso = inicializar_recurso(recursos_config[a], num_instancias);
 		list_add(recursos, recurso);
 		a++;
 	}
 
-    string_array_destroy(recursos);
+    string_array_destroy(recursos_config);
     string_array_destroy(instancias);
 
 	pid_a_asignar = 0; // para crear pcbs arranca en 0 el siguiente en 1
@@ -112,18 +112,37 @@ t_recurso* inicializar_recurso(char* nombre_recu, int instancias_tot){
 }
 
 void consola(){ // CONSOLA INTERACTIVA EN BASE A LINEAMIENTO E IMPLEMENTACION
-	int c;
-	char texto[100];
+	char* entrada;
+    char* comando;
+    char* parametro;
+	//char texto[100];
 	while (1) {
 		printf("Ingrese comando:\n");
-		printf("\t1 -- Ejecutar script de operaciones\n");
-		printf("\t2 -- Iniciar proceso\n");
-		printf("\t3 -- Finalizar proceso\n");
-		printf("\t4 -- Inicializar planificacion\n");
-		printf("\t5 -- Detener planificacion\n");
-		printf("\t6 -- Listar procesos por estado\n");
-		printf("\t9 -- Apagar Kernel\n");
-		scanf("%d", &c);
+		printf("\tEJECUTAR_SCRIPT [PATH] -- Ejecutar script de operaciones\n");
+		printf("\tINICIAR_PROCESO [PATH] -- Iniciar proceso\n");
+		printf("\tFINALIZAR_PROCESO [PID] -- Finalizar proceso\n");
+		printf("\tINICIAR_PLANIFICACION -- Inicializar planificacion\n");
+		printf("\tDETENER_PLANIFICACION -- Detener planificacion\n");
+		printf("\tMULTIPROGRAMACION [VALOR] -- Modificar multiprogramación\n");
+		printf("\tPROCESO_ESTADO -- Listar procesos por estado\n");
+		
+        scanf("%s", entrada);
+
+        char** palabras = string_split(entrada, " ");
+        strcpy(comando, palabras[0]);
+        strcpy(parametro, palabras[1]);
+
+        if (strcmp(comando, "EJECUTAR_SCRIPT") == 0) {
+            leer_y_ejecutar(parametro);
+        } else 
+            ejecutar_comando_unico(comando, parametro);
+
+        string_array_destroy(palabras); // no se si string_split usa memoria dinamica
+    }
+
+
+
+        /*
 		switch (c) {
 			case 1:
     			printf("Se ejecuta el script de operaciones: \n");
@@ -152,7 +171,46 @@ void consola(){ // CONSOLA INTERACTIVA EN BASE A LINEAMIENTO E IMPLEMENTACION
 				printf("\tcodigo no reconocido!\n");
 				break;
 		}
-	}
+        */
+
+}
+
+void ejecutar_comando_unico(char* comando, char* parametro){
+    if (strcmp(comando, "INICIAR_PROCESO") == 0){
+        if (!parametro || string_is_empty(parametro)) {
+            printf("ERROR: Falta path para iniciar proceso, fue omitido.\n");
+        }
+        // accionar y ya esta cargado el parametro
+    } else if (strcmp(comando, "INICIAR_PLANIFICACION") == 0) {
+        //accionar
+    } else if (strcmp(comando, "FINALIZAR_PROCESO ") == 0) {
+        if (!parametro || string_is_empty(parametro)) {
+            printf("ERROR: Falta id de proceso para finalizarlo, fue omitido.\n");
+        }// accionar y ya esta cargado el parametro
+    } else if (strcmp(comando, "DETENER_PLANIFICACION ") == 0) {
+        // accionar
+    } else if (strcmp(comando, "MULTIPROGRAMACION") == 0) {
+        if (!parametro || string_is_empty(parametro)) {
+            printf("ERROR: Falta el valor a asignar para multiprogramación, fue omitido.\n");
+        }
+        // accionar y ya esta cargado el parametro
+    } else if (strcmp(comando, "PROCESO_ESTADO") == 0) {
+        // accionar
+    } else {
+        printf("ERROR: Comando \"%s\" no reconocido, fue omitido.\n", comando);
+    }
+}
+
+void leer_y_ejecutar(char* path){
+    FILE* script = fopen(path,"r");
+    char* s;
+    int leido = fscanf(script,"%s\n", s);
+    while (leido != EOF){
+        char** linea = string_split(s, " ");  // linea[0] contiene el comando y linea[1] el parametro
+        ejecutar_comando_unico(linea[0], linea[1]);
+        string_array_destroy(linea); // no se si string_split usa memoria dinamica
+    }
+    fclose(script);
 }
 
 
@@ -200,7 +258,6 @@ void destruir_pcb(t_pcb* pcb){
 
 t_pcb* encontrar_pcb_por_pid(uint32_t pid, int* encontrado){
     t_pcb* pcb;
-    int i = 0;
     
     *(encontrado) = 0;
 
@@ -216,6 +273,8 @@ t_pcb* encontrar_pcb_por_pid(uint32_t pid, int* encontrado){
         return pcb;
     else
         log_warning(logger_kernel, "PCB no encontrado de PID: %d", pid);
+
+    return NULL; // si llega aca es porque no lo encontró
 }
 
 void retirar_pcb_de_su_respectivo_estado(uint32_t pid, int* resultado){
@@ -253,7 +312,7 @@ void retirar_pcb_de_su_respectivo_estado(uint32_t pid, int* resultado){
                 destruir_buffer(buffer);
                 break;
             case TERMINADO:
-                // ¿ Faltaria algo ?
+                // un proceso desde TERMINADO no pasa a ningun lado
                 break;
             default:
                 log_error(logger_kernel, "Entre al default en estado nro: %d", pcb_a_retirar->estado);

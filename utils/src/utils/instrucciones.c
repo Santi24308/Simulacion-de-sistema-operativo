@@ -1,5 +1,20 @@
 #include <utils/instrucciones.h>
 
+t_instruccion* crear_instruccion(codigoInstruccion codigo, char* par1, char* par2, char* par3, char* par4, char* par5){
+	t_instruccion* instruccion = malloc(sizeof(t_instruccion));
+	if (!instruccion) {
+		perror("No se pudo reservar memoria para instruccion.\n");
+		return NULL;
+	}
+	instruccion->codigo = codigo;
+	strcpy(instruccion->parametro1, par1);
+	strcpy(instruccion->parametro2, par2);
+	strcpy(instruccion->parametro3, par3);
+	strcpy(instruccion->parametro4, par4);
+	strcpy(instruccion->parametro5, par5);
+	return instruccion;
+}
+
 uint32_t leerEnteroParametroInstruccion(int indice, t_instruccion* instr){
 	char* aux = leerCharParametroInstruccion(indice, instr);
 	uint32_t leido = atoi(aux);

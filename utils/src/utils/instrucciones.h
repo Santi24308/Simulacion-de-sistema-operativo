@@ -42,6 +42,8 @@ typedef struct{
     char* parametro5;
 }t_instruccion;
 
+t_instruccion* crear_instruccion(codigoInstruccion, char*, char*, char*, char*, char*);
+
 uint32_t leerEnteroParametroInstruccion(int indice, t_instruccion* instr);
 
 void escribirCharParametroInstruccion(int indice, t_instruccion* instr, char* string);

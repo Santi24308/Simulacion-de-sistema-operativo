@@ -35,6 +35,8 @@ void iniciar_quantum();
 void controlar_tiempo_de_ejecucion();
 void listar_procesos_por_estado();
 void enviar_cde_a_cpu();
+void ejecutar_comando_unico(char*, char*);
+void leer_y_ejecutar(char*);
 
 void agregar_pcb_a(t_queue* cola, t_pcb* pcb_a_agregar, pthread_mutex_t* mutex);
 t_pcb* retirar_pcb_de(t_queue* cola, pthread_mutex_t* mutex);
