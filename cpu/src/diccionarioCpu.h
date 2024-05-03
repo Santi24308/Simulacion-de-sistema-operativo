@@ -39,7 +39,7 @@ pthread_t hilo_memoria;
 t_registro* registros_cpu;
 
 pthread_mutex_t mutex_cde_ejecutando;
-pthread_mutex_t mutex_interrupcion_consola;
+pthread_mutex_t mutex_interrupcion;
 pthread_mutex_t mutex_realizar_desalojo;
 pthread_mutex_t mutex_instruccion_actualizada;
 

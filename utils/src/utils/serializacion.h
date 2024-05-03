@@ -28,11 +28,28 @@ typedef struct{
 	uint32_t DI;
 }t_registro;
 
+/*
+Check Interrupt
+En este momento, se deberá chequear si el Kernel nos envió una interrupción al PID que se está ejecutando,
+ en caso afirmativo, se devuelve el Contexto de Ejecución actualizado al Kernel con motivo de la interrupción.
+ Caso contrario, se descarta la interrupción.
+*/
+typedef enum{
+	FINALIZACION_EXIT,
+	FINALIZACION_ERROR,
+	SOLICITUD_LLAMADA_A_KERNEL,
+	INTERRUPCION,
+	FIN_DE_QUANTUM,
+	NO_DESALOJADO
+}motivo_desalojo;
+
 // CONTEXTO DE EJECUCION
+// la colocamos en serializacion porque necesitamos que tanto CPU como Kernel entiendan el TDA
 typedef struct{
 	uint32_t pid;
 	uint32_t pc;
 	t_registro* registros;
+	motivo_desalojo motivo;
 }t_cde;
 
 t_buffer* crear_buffer();

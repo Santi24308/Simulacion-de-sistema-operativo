@@ -226,6 +226,7 @@ t_pcb* crear_pcb(char* path, int quantum){
 	pcb_creado->quantum = quantum_a_asignar;
     pcb_creado->cde->pid = pid_a_asignar;
     pcb_creado->cde->pc = 0;
+    pcb_creado->cde->motivo = NO_DESALOJADO;
     
 	// Inicializo los registros
     pcb_creado->cde->registros->AX = 0;

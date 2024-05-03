@@ -29,7 +29,8 @@ typedef enum{
     IO_FS_TRUNCATE,
     IO_FS_WRITE,
     IO_FS_READ,
-    EXIT
+    EXIT,
+    NULO     // se usa como estado de instruccion_actualizada en cpu cuando se desaloja un proceso
 }codigoInstruccion;
 
 
