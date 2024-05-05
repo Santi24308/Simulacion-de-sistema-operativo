@@ -100,16 +100,17 @@ void conectar_cpu(){
 	pthread_detach(hilo_cpu);
 }
 
-void atender_kernel(){
+void atender_kernel(){	
 	while(1){
 	int cod_kernel = recibir_codigo(socket_kernel); 
 	switch(cod_kernel){
-		case CREAR_PROCESO:
-			t_proceso_memo* proceso_kernel = crear_proceso();			
-		break;
-		case FINALIZAR_PROCESO:
-			liberar_proceso(proceso_kernel);		
-			break;
+		case INICIAR_PROCESO_SOLICITUD:
+			//t_proceso_memo* proceso_kernel = crear_proceso();
+			iniciar_proceso();
+		break;		
+		case FINALIZAR_PROCESO_SOLICITUD:		
+			liberar_proceso();			
+		break;		
 		case -1:
 			log_error(logger_memoria, "Se desconecto KERNEL");
 			sem_post(&sema_kernel);
@@ -128,10 +129,14 @@ void atender_cpu(){
 		case PEDIDO_INSTRUCCION:
 		usleep((int)retardo_respuesta);
 		enviar_instruccion();
+		break;
 		default:
 			break;
 	}
 		
+}
+
+void atender_io(){
 }
 
 void enviar_instruccion(){
@@ -141,16 +146,15 @@ void enviar_instruccion(){
 	uint32_t pc;
 	
 	char* ins_leida;
-	t_instruccion* instruccion;
-	/*cpu pide instruccion	
-	busco la instruccion en el archivo de instrucciones (ENUM)*/
+	t_instruccion* instruccion; //instruccion?
+	/*busco la instruccion en el archivo de instrucciones (ENUM)*/
 
 	t_buffer* buffer_recibido = recibir_buffer(socket_cpu);
-	//para paginas
+
 	pid = buffer_read_uint32(buffer_recibido);
 	pc = buffer_read_uint32(buffer_recibido);	
 	FILE* archivo_inst = fopen( instrucciones_path, "r");
-	//pc? codigo de instruccion?
+	//codigo de instruccion?
 	
 	fseek(archivo_inst,codigoInstruccion, SEEK_SET);
 	fscanf(archivo_inst,"%s",ins_leida);
@@ -165,8 +169,20 @@ void enviar_instruccion(){
 	destruir_buffer(buffer_instruccion);
 	fclose(archivo_inst);
 }
+void iniciar_proceso(){	
+	t_buffer* buffer_recibido = recibir_buffer(socket_kernel);
+	uint32_t pid = buffer_read_uint32(buffer_recibido);
+    char* nombreArchInstr = buffer_read_string(buffer_recibido,tamanio);  //size?
+    uint32_t tamanio = buffer_read_uint32(buffer_recibido);
+	uint32_t quantum = buffer_read_uint32(buffer_recibido);	
+	/* [...]enviar_codigo(socket_kernel , INICIAR_PROCESO_OK)
+	 enviar_codigo(socket_kernel , INICIAR_PROCESO_ERROR):*/ 
+}
 
-void atender_io(){
+void liberar_proceso(){
+	t_buffer* buffer_recibido = recibir_buffer(socket_kernel);
+	uint32_t pid = buffer_read_uint32(buffer_recibido);
+	enviar_codigo(socket_kernel , FINALIZAR_PROCESO_OK);
 }
 
 void terminar_programa(){
@@ -179,8 +195,8 @@ void iterator(char* value) {
 }
 
 t_proceso_memo* crear_proceso();
-//int pid = proceso_kernel->pid;
-//int paginas= proceso_kernel->paginas;
+
 //log_info(logger_memoria,"PID: <%d>  - Tamaño: <%d> ", pid , paginas);
 
-void liberar_proceso(t_proceso_memo* proceso);
+
+
