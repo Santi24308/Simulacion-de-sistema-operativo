@@ -56,6 +56,7 @@ int iniciar_servidor(char*, t_log*);
 int esperar_cliente(int, t_log*);
 void terminar_conexiones(int num_sockets, ...);
 
+/* BORRAR
 // PROCESOS KERNEL
 typedef enum
 {
@@ -76,6 +77,6 @@ typedef struct //COMPLETAR
 }t_proceso_memo;
 
 
-
+*/
 
 #endif
