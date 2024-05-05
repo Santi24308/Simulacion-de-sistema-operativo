@@ -1,7 +1,6 @@
 #ifndef SRC_DICCIONARIOKERNEL_H_
 #define SRC_DICCIONARIOKERNEL_H_
 
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -14,11 +13,11 @@
 #include <pthread.h>
 #include <semaphore.h>
 #include <commons/collections/queue.h>
-
+#include <utils/serializacion.h>
 
 // Diagrama de 5 estados para la planificacion de recursos
 typedef enum{
-	NULO,
+	ESTADO_NULO, // le agrego el ESTADO porque NULO ya estaba definido en instrucciones
 	NEW, 
 	READY,
 	EXEC,
@@ -75,6 +74,7 @@ t_list* procesos_globales;
 
 t_queue* procesosNew;
 t_queue* procesosReady;
+t_queue* procesosReadyPlus;
 t_queue* procesosBloqueados;
 t_queue* procesosFinalizados;
 
@@ -82,10 +82,14 @@ t_queue* procesosFinalizados;
 sem_t sema_memoria;
 sem_t sema_io;
 sem_t sema_consola;
+sem_t procesos_en_exec;
+sem_t cde_recibido;
+sem_t cpu_libre;
 // semaforos de procesos y estados
 pthread_mutex_t mutex_procesos_globales;
 pthread_mutex_t mutex_new;
 pthread_mutex_t mutex_ready;
+pthread_mutex_t mutex_readyPlus;
 pthread_mutex_t mutex_block;
 pthread_mutex_t mutex_finalizados;
 pthread_mutex_t mutex_exec;
