@@ -271,8 +271,8 @@ void cargar_registros(t_cde* cde){
 	registros_cpu->EBX = cde->registros->EBX;
 	registros_cpu->ECX = cde->registros->ECX;
 	registros_cpu->EDX = cde->registros->EDX;
-	registros_cpu->DX = cde->registros->SI;
-	registros_cpu->DX = cde->registros->DI;
+	registros_cpu->SI = cde->registros->SI;
+	registros_cpu->DI = cde->registros->DI;
 }
 
 void guardar_cde(t_cde* cde){
@@ -284,8 +284,8 @@ void guardar_cde(t_cde* cde){
 	cde->registros->EBX = registros_cpu->EBX;
 	cde->registros->ECX = registros_cpu->ECX;
 	cde->registros->EDX = registros_cpu->EDX;
-	cde->registros->DX = registros_cpu->SI;
-	cde->registros->DX = registros_cpu->DI;
+	cde->registros->SI = registros_cpu->SI;
+	cde->registros->DI = registros_cpu->DI;
 }
 
 bool es_bloqueante(codigoInstruccion instruccion_actualizada){

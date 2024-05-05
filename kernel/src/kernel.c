@@ -130,13 +130,13 @@ void consola(){ // CONSOLA INTERACTIVA EN BASE A LINEAMIENTO E IMPLEMENTACION
 
         char** palabras = string_split(entrada, " ");
         strcpy(comando, palabras[0]);
-        strcpy(parametro, palabras[1]);
 
         if (strcmp(comando, "EJECUTAR_SCRIPT") == 0) {
+            strcpy(parametro, palabras[1]);
             leer_y_ejecutar(parametro);
-        } else 
-            ejecutar_comando_unico(comando, parametro);
-
+        } else {
+            ejecutar_comando_unico(comando, palabras); // pasamos palabras completo para sacar el parametro cuando se pueda
+        }
         string_array_destroy(palabras); // no se si string_split usa memoria dinamica
     }
 
@@ -175,8 +175,10 @@ void consola(){ // CONSOLA INTERACTIVA EN BASE A LINEAMIENTO E IMPLEMENTACION
 
 }
 
-void ejecutar_comando_unico(char* comando, char* parametro){
+void ejecutar_comando_unico(char* comando, char** palabras){
+    char* parametro;
     if (strcmp(comando, "INICIAR_PROCESO") == 0){
+        strcpy(parametro, palabras[1]);
         if (!parametro || string_is_empty(parametro)) {
             printf("ERROR: Falta path para iniciar proceso, fue omitido.\n");
         }
@@ -184,12 +186,14 @@ void ejecutar_comando_unico(char* comando, char* parametro){
     } else if (strcmp(comando, "INICIAR_PLANIFICACION") == 0) {
         //accionar
     } else if (strcmp(comando, "FINALIZAR_PROCESO ") == 0) {
+        strcpy(parametro, palabras[1]);
         if (!parametro || string_is_empty(parametro)) {
             printf("ERROR: Falta id de proceso para finalizarlo, fue omitido.\n");
         }// accionar y ya esta cargado el parametro
     } else if (strcmp(comando, "DETENER_PLANIFICACION ") == 0) {
         // accionar
     } else if (strcmp(comando, "MULTIPROGRAMACION") == 0) {
+        strcpy(parametro, palabras[1]);
         if (!parametro || string_is_empty(parametro)) {
             printf("ERROR: Falta el valor a asignar para multiprogramación, fue omitido.\n");
         }
