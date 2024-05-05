@@ -12,18 +12,20 @@ int main(int argc, char* argv[]) {
 	inicializar_modulo();
 	conectar();
 	consola();
-	esperar_desconexiones();
+	//esperar_desconexiones();
+
+    sem_wait(&terminar_kernel);
 
     terminar_programa();
 
     return 0;
 }
-
+/*
 void esperar_desconexiones(){
 	sem_wait(&sema_io);
 	sem_wait(&sema_consola);
 }
-
+*/
 void conectar(){
 	puerto_escucha = config_get_string_value(config_kernel, "PUERTO_ESCUCHA");
 
@@ -40,8 +42,7 @@ void conectar(){
 }
 
 void inicializar_modulo(){
-	sem_init(&sema_consola, 0, 0);
-	sem_init(&sema_io, 0, 0);
+	sem_init(&terminar_kernel, 0, 0);
 
 	levantar_logger();
 	levantar_config();
@@ -91,7 +92,6 @@ void inicializar_modulo(){
 
 	// iniciarPlanificadores(); ¿pensar a futuro o necesario ahora?
     
-    return;
 }
 
 t_recurso* inicializar_recurso(char* nombre_recu, int instancias_tot){
@@ -114,11 +114,12 @@ t_recurso* inicializar_recurso(char* nombre_recu, int instancias_tot){
 }
 
 void consola(){ // CONSOLA INTERACTIVA EN BASE A LINEAMIENTO E IMPLEMENTACION
-	char* entrada;
-    char* comando;
-    char* parametro;
 	//char texto[100];
 	while (1) {
+        char* entrada;
+        char* comando;
+        char* parametro;
+
 		printf("Ingrese comando:\n");
 		printf("\tEJECUTAR_SCRIPT [PATH] -- Ejecutar script de operaciones\n");
 		printf("\tINICIAR_PROCESO [PATH] -- Iniciar proceso\n");
@@ -127,11 +128,17 @@ void consola(){ // CONSOLA INTERACTIVA EN BASE A LINEAMIENTO E IMPLEMENTACION
 		printf("\tDETENER_PLANIFICACION -- Detener planificacion\n");
 		printf("\tMULTIPROGRAMACION [VALOR] -- Modificar multiprogramación\n");
 		printf("\tPROCESO_ESTADO -- Listar procesos por estado\n");
-		
+        printf("\x1b[31m""\tFINALIZAR_SISTEMA -- Finalizar todo el sistema, todos los modulos\n""\x1b[0m""\n");
+
         scanf("%s", entrada);
 
         char** palabras = string_split(entrada, " ");
         strcpy(comando, palabras[0]);
+
+        if(strcmp(comando, "FINALIZAR_SISTEMA") == 0){
+            sem_post(&terminar_kernel);
+            return;
+        }
 
         if (strcmp(comando, "EJECUTAR_SCRIPT") == 0) {
             strcpy(parametro, palabras[1]);
@@ -184,6 +191,7 @@ void ejecutar_comando_unico(char* comando, char** palabras){
         if (!parametro || string_is_empty(parametro)) {
             printf("ERROR: Falta path para iniciar proceso, fue omitido.\n");
         }
+        iniciar_proceso()
         // accionar y ya esta cargado el parametro
     } else if (strcmp(comando, "INICIAR_PLANIFICACION") == 0) {
         //accionar
@@ -222,18 +230,20 @@ void leer_y_ejecutar(char* path){
 
 ///////// CHECKPOINT 2 PLANIFICACION /////////////////
 
-t_pcb* crear_pcb(char* path, int quantum){
+t_pcb* crear_pcb(char* path){
     t_pcb* pcb_creado = malloc(sizeof(t_pcb));
     // Asigno memoria a las estructuras
     pcb_creado->cde = malloc(sizeof(t_cde)); 
     pcb_creado->cde->registros = malloc(sizeof(t_registro));
 
 	//Inicializo el quantum, pid y el PC
-	pcb_creado->quantum = quantum_a_asignar;
-    pcb_creado->cde->pid = pid_a_asignar;
+	pcb_creado->quantum = quantum;  // el valor de quantum ya esta seteado
+    pcb_creado->cde->pid = pid_a_asignar; // arranca en 0 y va sumando 1 cada vez que se crea un pcb
     pcb_creado->cde->pc = 0;
     pcb_creado->cde->motivo = NO_DESALOJADO;
-    
+    pcb_creado->fin_q = false;
+    pcb_creado->flag_clock = false;
+
 	// Inicializo los registros
     pcb_creado->cde->registros->AX = 0;
     pcb_creado->cde->registros->BX = 0;
@@ -251,7 +261,7 @@ t_pcb* crear_pcb(char* path, int quantum){
     pcb_creado->path = path;
 	
 	// Inicializa el estado
-    pcb_creado->estado = NULO; 
+    pcb_creado->estado = ESTADO_NULO; 
 
 	// Incremento su valor, para usar un nuevo PID la proxima vez que se cree un proceso
     pid_a_asignar ++;
@@ -340,8 +350,8 @@ void finalizar_pcb(t_pcb* pcb_a_finalizar, char* razon){
         sem_post(&grado_de_multiprogramacion); //Como se envia a EXIT, se "libera" 1 grado de multiprog
 }
 
-void iniciar_proceso(char* path, char* size, int quantum){
-	t_pcb* pcb_a_new = crear_pcb(path, quantum); // creo un nuevo pcb al que le voy a cambiar el estado
+void iniciar_proceso(char* path){
+	t_pcb* pcb_a_new = crear_pcb(path); // creo un nuevo pcb al que le voy a cambiar el estado
 
     enviar_codigo(socket_memoria, INICIAR_PROCESO_SOLICITUD); //envio la solicitud a traves del socket
 
@@ -349,9 +359,6 @@ void iniciar_proceso(char* path, char* size, int quantum){
 
     buffer_write_uint32(buffer, pcb_a_new->cde->pid);
     buffer_write_string(buffer, path); 
-    uint32_t tamanio = atoi(size);
-    buffer_write_uint32(buffer, tamanio);
-	buffer_write_uint32(buffer, quantum);
 	
     enviar_buffer(buffer, socket_memoria);
 

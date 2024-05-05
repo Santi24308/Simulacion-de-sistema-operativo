@@ -11,18 +11,20 @@ int main(int argc, char* argv[]) {
 
 	inicializar_modulo();
 	conectar();
-	esperar_desconexiones();
+	//esperar_desconexiones();
+
+    sem_wait(&terminar_cpu);
 
     terminar_programa();
 
     return 0;
 }
-
+/*
 void esperar_desconexiones(){
 	sem_wait(&sema_kernel_dispatch);
 	sem_wait(&sema_kernel_interrupt);
 }
-
+*/
 void conectar(){
 	conectar_memoria();
 	conectar_kernel();
@@ -48,8 +50,7 @@ void conectar_kernel(){
 }
 
 void inicializar_modulo(){
-	sem_init(&sema_kernel_dispatch, 0, 0);
-	sem_init(&sema_kernel_interrupt, 0, 1);
+	sem_init(&terminar_cpu, 0, 0);
 	levantar_logger();
 	levantar_config();
 	inicializar_registros();
@@ -141,6 +142,13 @@ void atender_kernel_dispatch(){
 
 		t_buffer* buffer = recibir_buffer(socket_kernel_dispatch);
 
+        // en caso de que se desconecte kernel NO se sigue
+        // nos sirve mas que nada para tener una salida segura
+        if (op_code == UINT8_MAX || !buffer) {
+            sem_post(&terminar_cpu);
+            return;
+        }
+
 		switch (op_code){
 			case EJECUTAR_PROCESO:
 				t_cde cde_recibido = buffer_read_cde(buffer);
@@ -152,14 +160,7 @@ void atender_kernel_dispatch(){
 
 				ejecutar_proceso(&cde_recibido);
 				break;
-			case ALGORITMO_PLANIFICACION:
-                		algoritmo_planificacion = buffer_read_uint32(buffer);
-               			destruir_buffer_nuestro(buffer);
-               			break;
 			default:
-				destruir_buffer_nuestro(buffer);
-                		log_error(logger_cpu, "Codigo de operacion desconocido. Cierrando modulo...");
-                		exit(EXIT_FAILURE);
 				break;
 		}
 	}
@@ -169,8 +170,14 @@ void atender_kernel_interrupt(){
     while(1){
         mensajeKernelCpu op_code = recibir_codigo(socket_kernel_interrupt);
         t_buffer* buffer = recibir_buffer(socket_kernel_interrupt); // recibe pid o lo que necesite
+        // en caso de que se desconecte kernel NO se sigue
+        // nos sirve mas que nada para tener una salida segura
+        if (op_code == UINT8_MAX || !buffer) {
+            sem_post(&terminar_cpu);
+            return;
+        }
         uint32_t pid_recibido = buffer_read_uint32(buffer);
-        destruir_buffer_nuestro(buffer);
+        destruir_buffer(buffer);
         
         // asumimos que puede pasar que el pid recibido sea distinto del actual
         if (cde->pid == pid_recibido) {
@@ -194,8 +201,6 @@ void atender_kernel_interrupt(){
                     realizar_desalojo = 1;
                     pthread_mutex_unlock(&mutex_realizar_desalojo);
                     break;
-                case -1:
-                    return;
                 default:
                     break;
             }

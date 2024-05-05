@@ -79,9 +79,13 @@ t_queue* procesosBloqueados;
 t_queue* procesosFinalizados;
 
 // SEMAFOROS
-sem_t sema_memoria;
-sem_t sema_io;
-sem_t sema_consola;
+//sem_t sema_memoria;
+//sem_t sema_io;
+//sem_t sema_consola;
+// la idea ahora va a ser que cada modulo tenga un unico semaforo 
+// que le impida terminar a menos que - pase algo que lo obligue -
+// como por ejemplo en kernel: que se indique por consola 
+sem_t terminar_kernel;
 sem_t procesos_en_exec;
 sem_t cde_recibido;
 sem_t cpu_libre;
