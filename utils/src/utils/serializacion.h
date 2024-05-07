@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <stdint.h> // Para uintX_t
 #include <string.h>
-#include<sys/socket.h>
+#include <sys/socket.h>
 #include <utils/instrucciones.h>
 
 typedef struct{
@@ -37,19 +37,26 @@ En este momento, se deberá chequear si el Kernel nos envió una interrupción a
 typedef enum{
 	FINALIZACION_EXIT,
 	FINALIZACION_ERROR,
-	SOLICITUD_LLAMADA_A_KERNEL,
+	LLAMADA_IO,
 	INTERRUPCION,
 	FIN_DE_QUANTUM,
 	NO_DESALOJADO
-}motivo_desalojo;
+}cod_desalojo;
 
 // CONTEXTO DE EJECUCION
 // la colocamos en serializacion porque necesitamos que tanto CPU como Kernel entiendan el TDA
+
+// con motivo se refiere a si el cde vuelve por exit, llamada a I/O, desalojo por quantum, interrupcion
+// tener en cuenta que cuando haya llamada a I/O vamos a tener que cargar los datos que necesite I/O para 
+// justamente atender esa llamada
+
+// siempre la idea va a ser que cuando se desaloje se setee el motivo y se guarde la ultima instruccion
 typedef struct{
 	uint32_t pid;
 	uint32_t pc;
 	t_registro* registros;
-	motivo_desalojo motivo;
+	cod_desalojo motivo;
+	t_instruccion ultima_instruccion; // se usa mas que nada para los casos en donde I/O necesite data  
 }t_cde;
 
 t_buffer* crear_buffer();
