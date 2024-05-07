@@ -43,8 +43,14 @@ pthread_mutex_t mutex_interrupcion;
 pthread_mutex_t mutex_realizar_desalojo;
 pthread_mutex_t mutex_instruccion_actualizada;
 
-sem_t sema_kernel_dispatch;
-sem_t sema_kernel_interrupt;
+
+//sem_t sema_kernel_dispatch;
+//sem_t sema_kernel_interrupt;
+// la idea ahora va a ser que cada modulo tenga un unico semaforo 
+// que le impida terminar a menos que - pase algo que lo obligue -
+// en el caso de cpu va a terminar si alguna de las conexiones
+// con kernel termina, ya que no tiene sentido seguir
+sem_t terminar_cpu;
 sem_t sema_memoria;
 sem_t sema_ejecucion;
 

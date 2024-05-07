@@ -21,12 +21,12 @@ void iterator(char*);
 // CHECKPOINT 2
 void inicializarListas();
 void inicializarSemaforos();
-t_pcb* crear_pcb(char* path, int quantum);
+t_pcb* crear_pcb(char* path);
 void destruir_pcb(t_pcb* pcb);
 t_pcb* encontrar_pcb_por_pid(uint32_t pid, int* encontrado);
 void retirar_pcb_de_su_respectivo_estado(uint32_t pid, int* resultado);
 void finalizar_pcb(t_pcb* pcb_a_finalizar, char* razon);
-void iniciar_proceso(char* path, char* size, int quantum);
+void iniciar_proceso(char* path);
 void terminar_proceso();
 void iniciarPlanificacion();
 void detenerPlanificacion();

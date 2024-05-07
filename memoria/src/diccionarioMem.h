@@ -14,6 +14,12 @@
 #include <pthread.h>
 #include <semaphore.h>
 
+typedef struct{
+	uint32_t pid;
+	t_list* instrucciones;
+    uint32_t tamanio;
+}t_proceso;
+
 char* config_path;
 char* instrucciones_path;
 char* puerto_escucha; 
@@ -24,6 +30,9 @@ int socket_cpu;
 int socket_kernel;
 t_log* logger_memoria;
 t_config* config_memoria;
+t_list* listaGlobalProceso;
+
+pthread_t mutex_lista_global_procesos;
 pthread_t hilo_cpu;
 pthread_t hilo_io;
 pthread_t hilo_kernel;

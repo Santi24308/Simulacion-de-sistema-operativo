@@ -32,8 +32,12 @@ t_buffer* recibir_buffer(int socket){
 	t_buffer* buffer = crear_buffer();
 
 	// Recibo el tamanio del buffer y reservo espacio en memoria
-	recv(socket, &(buffer -> size), sizeof(uint32_t), MSG_WAITALL);
 
+	// si recv no puede recibir nada, quiere decir que se desconecto el socket y retorna -1
+	if (recv(socket, &(buffer -> size), sizeof(uint32_t), MSG_WAITALL) == -1){
+		destruir_buffer(buffer);
+		return NULL;   // chequear si fue NULL va a ser un buen flag para saber que se desconecto el socket
+	}
 	if(buffer->size != 0){
 		buffer -> stream = malloc(buffer -> size);
 
@@ -53,8 +57,9 @@ void enviar_codigo(int socket_receptor, uint8_t codigo){
 uint8_t recibir_codigo(int socket_emisor){
 	uint8_t codigo;
 
-	recv(socket_emisor, &codigo, sizeof(uint8_t), MSG_WAITALL);
-
+	if (recv(socket_emisor, &codigo, sizeof(uint8_t), MSG_WAITALL) == -1){
+		return UINT8_MAX;   // chequear si fue UINT8_MAX va a ser un buen flag para saber que se desconecto el socket
+	}
 	return codigo;
 }
 
