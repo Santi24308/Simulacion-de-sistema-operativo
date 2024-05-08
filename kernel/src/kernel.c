@@ -12,7 +12,6 @@ int main(int argc, char* argv[]) {
 	inicializar_modulo();
 	conectar();
 	consola();
-	//esperar_desconexiones();
 
     sem_wait(&terminar_kernel);
 
@@ -20,12 +19,7 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
-/*
-void esperar_desconexiones(){
-	sem_wait(&sema_io);
-	sem_wait(&sema_consola);
-}
-*/
+
 void conectar(){
 	puerto_escucha = config_get_string_value(config_kernel, "PUERTO_ESCUCHA");
 
@@ -69,29 +63,6 @@ void inicializar_modulo(){
     
     inicializarListas();
     inicializarSemaforos();
-
-    /*  POR AHORA DESCARTAMOS LA IDEA DE SETEARLE A CPU UN ALGORITMO --------
-
-    enviar_codigo(socket_cpu_dispatch, ALGORITMO_PLANIFICACION);
-    t_buffer* buffer = crear_buffer();
-    // si el algoritmo es FIFO envia 0
-    // si el algoritmo es VIRTUAL ROUND ROBIN envia un 1
-    // si el algoritmo es ROUND ROBIN envia un 2
-    if(strcmp(algoritmo, "FIFO") == 0) 
-        buffer_write_uint32(buffer, 0);
-    else if(strcmp(algoritmo, "VRR") == 0)
-        buffer_write_uint32(buffer, 1);
-    else
-        buffer_write_uint32(buffer, 2);
-    enviar_buffer(buffer, socket_cpu_dispatch);
-    destruir_buffer(buffer);
-
-    if(strcmp(algoritmo, "RR") == 0){
-       iniciar_quantum();
-    }*/
-
-	// iniciarPlanificadores(); ¿pensar a futuro o necesario ahora?
-    
 }
 
 t_recurso* inicializar_recurso(char* nombre_recu, int instancias_tot){
@@ -148,40 +119,6 @@ void consola(){ // CONSOLA INTERACTIVA EN BASE A LINEAMIENTO E IMPLEMENTACION
         }
         string_array_destroy(palabras); // no se si string_split usa memoria dinamica
     }
-
-
-
-        /*
-		switch (c) {
-			case 1:
-    			printf("Se ejecuta el script de operaciones: \n");
-				ejecutar_script_de_operaciones(texto,socket_cpu_dispatch); // todavia queda esto pendiente
-				break;
-			case 2:
-				iniciar_proceso(); // ver error aca
-				break;
-			case 3:
-    			terminar_proceso();
-				break;
-			case 4:
-				iniciar_planificacion();
-				break;
-			case 5:
-    			detener_planificacion();
-				break;
-			case 6:
-				listar_procesos_por_estado(); // pendiente 
-				break;	
-			case 9:
-				sem_post(&sema_consola);	
-				sem_post(&sema_io);			
-				return;
-			default:
-				printf("\tcodigo no reconocido!\n");
-				break;
-		}
-        */
-
 }
 
 void ejecutar_comando_unico(char* comando, char** palabras){
@@ -191,7 +128,6 @@ void ejecutar_comando_unico(char* comando, char** palabras){
         if (!parametro || string_is_empty(parametro)) {
             printf("ERROR: Falta path para iniciar proceso, fue omitido.\n");
         }
-        iniciar_proceso()
         // accionar y ya esta cargado el parametro
     } else if (strcmp(comando, "INICIAR_PLANIFICACION") == 0) {
         //accionar
