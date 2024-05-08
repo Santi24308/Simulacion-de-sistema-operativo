@@ -16,8 +16,7 @@
 
 typedef struct{
 	uint32_t pid;
-	t_list* instrucciones;
-    uint32_t tamanio;
+	char* path_op;
 }t_proceso;
 
 char* config_path;
