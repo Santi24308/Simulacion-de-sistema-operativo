@@ -159,6 +159,7 @@ void leer_y_ejecutar(char* path){
         char** linea = string_split(s, " ");  // linea[0] contiene el comando y linea[1] el parametro
         ejecutar_comando_unico(linea[0], linea); // linea y palabras son lo mismo, es el resultado de split
         string_array_destroy(linea); // no se si string_split usa memoria dinamica
+        leido = fscanf(script,"%s\n", s);
     }
     fclose(script);
 }
@@ -197,7 +198,7 @@ t_pcb* crear_pcb(char* path){
     pcb_creado->path = path;
 	
 	// Inicializa el estado
-    pcb_creado->estado = ESTADO_NULO; 
+    pcb_creado->estado = NEW; 
 
 	// Incremento su valor, para usar un nuevo PID la proxima vez que se cree un proceso
     pid_a_asignar ++;
@@ -311,7 +312,8 @@ void iniciar_proceso(char* path){
         list_add(procesos_globales, pcb_a_new); // agrego a lista global de pcbs
         pthread_mutex_unlock(&mutex_procesos_globales);
 
-        pcb_a_new->estado = NEW; // el estado del PCB se pone en New
+        // inicializado en New antes
+
         log_info(logger_kernel, "Se crea el proceso %d en NEW", pcb_a_new->cde->pid);
         sem_post(&procesos_en_new);
     }
@@ -739,7 +741,6 @@ void enviar_de_exec_a_block(){
     pthread_mutex_lock(&mutex_pcb_en_ejecucion);
     pcb_en_ejecucion = NULL;
     pthread_mutex_unlock(&mutex_pcb_en_ejecucion);
-    
 
     sem_post(&cpu_libre); // se libera el procesador
     sem_post(&procesos_en_blocked);
@@ -758,7 +759,7 @@ void enviar_pcb_de_block_a_ready(t_pcb* pcb){
     int posicion_pcb = esta_proceso_en_cola_bloqueados(pcb);
 
     t_pcb* pcb_a_ready = list_get(procesosBloqueados->elements,posicion_pcb);
-    
+
     pthread_mutex_lock(&mutex_block);
     list_remove_element(procesosBloqueados->elements, pcb);
     pthread_mutex_unlock(&mutex_block);

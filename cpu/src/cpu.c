@@ -191,7 +191,7 @@ void atender_kernel_interrupt(){
                     // caso FIFO: no existe desalojo, kernel NUNCA deberia mandar este mensaje si esta seteado fifo como algoritmo
                     // caso RR: desaloja solo por quantum, si llega este mensaje es porque SI o SI hay que sacar por quantum
                     // caso VRR: desaloja solo por quantum, si llega este mensaje es porque SI o SI hay que sacar por quantum
-
+                    
                     // este es el unico chequeo que quizas es necesario considerar (a confirmar) ya que si la instruccion es bloqueante
                     // se desaloja solo el cde y - en la practica se considera que si se termina el quantum pero JUSTO llego a la rafaga I/O
                     // se deja completar la misma y quien lo desaloja es I/O -

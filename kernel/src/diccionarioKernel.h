@@ -17,7 +17,6 @@
 
 // Diagrama de 5 estados para la planificacion de recursos
 typedef enum{
-	ESTADO_NULO, // le agrego el ESTADO porque NULO ya estaba definido en instrucciones
 	NEW, 
 	READY,
 	EXEC,
