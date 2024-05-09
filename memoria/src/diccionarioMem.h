@@ -15,8 +15,8 @@
 #include <semaphore.h>
 
 typedef struct{
-	uint32_t pid;
-	char* path_op;
+	uint32_t pid;	
+	t_list* lista_instrucciones;
 }t_proceso;
 
 char* config_path;
@@ -29,9 +29,9 @@ int socket_cpu;
 int socket_kernel;
 t_log* logger_memoria;
 t_config* config_memoria;
-t_list* listaGlobalProceso;
+t_list* lista_procesos;
 
-pthread_t mutex_lista_global_procesos;
+pthread_t mutex_lista_procesos;
 pthread_t hilo_cpu;
 pthread_t hilo_io;
 pthread_t hilo_kernel;

@@ -120,26 +120,111 @@ void atender_kernel(){
 		}
 	}
 
-void atender_cpu(){	
-	int pedido_cpu = recibir_codigo(socket_cpu);
+void atender_cpu(){		
 	retardo_respuesta = config_get_string_value(config_memoria, "RETARDO_RESPUESTA");
-
+	while(1){
+	int pedido_cpu = recibir_codigo(socket_cpu);
 	switch(pedido_cpu){
 		case PEDIDO_INSTRUCCION:
-		usleep((int)retardo_respuesta);
+			usleep((int)retardo_respuesta);
 		//Ante un pedido de lectura, devolver el valor que se encuentra a partir de la dirección física pedida
 		//Ante un pedido de escritura, escribir lo indicado a partir de la dirección física pedida. En caso satisfactorio se responderá un mensaje de ‘OK’
-		enviar_instruccion();
-		break;
-		default:
+			enviar_instruccion();
 			break;
+		case -1:
+			log_error(logger_memoria, "Se desconecto CPU");
+			sem_post(&sema_cpu);
+			return;	
+		default:
+			break;			
+		}		
 	}
-		
 }
 
 void atender_io(){
 }
 
+void iniciar_proceso(){	
+	t_buffer* buffer_recibido = recibir_buffer(socket_kernel);
+	int tam = 0;
+	uint32_t pid = buffer_read_uint32(buffer_recibido);
+    char* path_op = buffer_read_string(buffer_recibido,tam);  //path de kernel, inst del proceso a ejecutar 
+	destruir_buffer(buffer_recibido);
+
+	t_list* lista_instrucciones = levantar_instrucciones(path_op);
+
+	t_proceso* proceso_nuevo = crear_proceso(pid,lista_instrucciones);
+		
+	log_info(logger_memoria, "Creación: PID: %d - Tamaño: 0", pid);
+
+	pthread_mutex_lock(&mutex_lista_procesos);
+	list_add(lista_procesos, proceso_nuevo);
+	pthread_mutex_unlock(&mutex_lista_procesos);
+
+	enviar_codigo(socket_kernel, INICIAR_PROCESO_OK);	
+}
+
+
+void liberar_proceso(){
+	t_buffer* buffer_recibido = recibir_buffer(socket_kernel);
+	uint32_t pid = buffer_read_uint32(buffer_recibido);
+	t_proceso* proceso_a_eliminar = buscar_proceso(pid);
+	eliminar_proceso(proceso_a_eliminar);
+	log_info(logger_memoria, "Destruccion: PID: %d - Tamaño: 0", pid);
+	enviar_codigo(socket_kernel , FINALIZAR_PROCESO_OK);
+}
+
+void eliminar_proceso(t_proceso* proceso){
+	list_destroy_and_destroy_elements(proceso->lista_instrucciones, (void* ) eliminar_instruccion);
+	free(proceso);
+}
+
+void eliminar_instruccion(t_instruccion* instruccion){
+	free(instruccion->parametro1);
+	free(instruccion->parametro2);
+	free(instruccion->parametro3);
+	free(instruccion->parametro4);
+	free(instruccion->parametro5);
+	free(instruccion->codigo); //?
+	free(instruccion);
+}
+
+t_proceso* crear_proceso(uint32_t pid, t_list* lista_instrucciones){
+	t_proceso* proceso = malloc(sizeof(t_proceso));	
+	proceso->pid = pid;		
+	proceso->lista_instrucciones = lista_instrucciones;
+	return proceso;
+}
+
+t_list* levantar_instrucciones(char* path_op){
+	t_list* lista_instrucciones = list_create();
+	//crear un proceso cuyas operaciones corresponderán al archivo de pseudocódigo pasado por parámetro
+	/*void leer_y_ejecutar(char* path){
+    FILE* script = fopen(path,"r");
+    char* s;
+    int leido = fscanf(script,"%s\n", s);
+    while (leido != EOF){
+        char** linea = string_split(s, " ");  // linea[0] contiene el comando y linea[1] el parametro
+        ejecutar_comando_unico(linea[0], linea); // linea y palabras son lo mismo, es el resultado de split
+        string_array_destroy(linea); // no se si string_split usa memoria dinamica
+		leido = fscanf(script,"%s\n", s);
+    }
+    fclose(script);
+}*/
+	FILE* archivo_instrucciones = fopen(path_op, "r");
+	return lista_instrucciones;
+}
+
+t_proceso* buscar_proceso(uint32_t pid)
+{
+	t_proceso* proceso;
+	for(int i = 0; i < list_size(lista_procesos); i++){
+		proceso = list_get(lista_procesos, i);
+		if(proceso->pid == pid){
+			return proceso;
+			}
+	}
+}
 void enviar_instruccion(){
 	
 	instrucciones_path = config_get_string_value(config_memoria, "PATH_INSTRUCCIONES");
@@ -152,6 +237,13 @@ void enviar_instruccion(){
 
 	pid = buffer_read_uint32(buffer_recibido);
 	pc = buffer_read_uint32(buffer_recibido);	
+	
+	pthread_mutex_lock(&mutex_lista_procesos);
+	t_proceso* proceso = buscar_proceso(pid);
+	pthread_mutex_unlock(&mutex_lista_procesos);
+
+	//t_instruccion* instruccion = list_get(proceso->instrucciones, pc);
+	
 	/*FILE* archivo_inst = fopen( instrucciones_path, "r");
 	//codigo de instruccion?
 	
@@ -162,49 +254,10 @@ void enviar_instruccion(){
 
 	buffer_instruccion = crear_buffer();	
 	buffer_write_instruccion(buffer_instruccion, instruccion);
-
 	enviar_buffer(buffer_instruccion,socket_cpu);
 	destruir_buffer(buffer_instruccion);
 	//fclose(archivo_inst);
 }
-
-void iniciar_proceso(){	
-	t_buffer* buffer_recibido = recibir_buffer(socket_kernel);
-	int tam = 0;
-	uint32_t pid = buffer_read_uint32(buffer_recibido);
-    char* path_op = buffer_read_string(buffer_recibido,0);  //path de config??  
-	destruir_buffer(buffer_recibido);
-
-	t_list* lista_instrucciones = levantar_instrucciones(path_op);
-
-	t_proceso* proceso_nuevo = crear_proceso(path_op, pid);
-
-	/*if (proceso_nuevo == NULL || lista_instrucciones == NULL){
-		enviar_codigo(socket_kernel , INICIAR_PROCESO_ERROR);
-		log_error(logger_memoria, "No se pudo crear el proceso %d o la lista" , pid);
-	}
-	else{}*/
-	//log_info(logger_memoria, "Creación: PID: %d - Tamaño: %d", pid, tamanio);
-
-	pthread_mutex_lock(&mutex_lista_global_procesos);
-	list_add(listaGlobalProceso, proceso_nuevo);
-	pthread_mutex_unlock(&mutex_lista_global_procesos);
-
-	enviar_codigo(socket_kernel, INICIAR_PROCESO_OK);
-
-	//	 enviar_codigo(socket_kernel , INICIAR_PROCESO_ERROR) ?
-}
-
-void liberar_proceso(){
-	t_buffer* buffer_recibido = recibir_buffer(socket_kernel);
-	uint32_t pid = buffer_read_uint32(buffer_recibido);
-	t_proceso* proceso_a_eliminar = buscar_proceso(pid);
-	destruir_proceso(proceso_a_eliminar);
-	log_info(logger_memoria, "Destruccion: PID: %d - Tamaño: 0", pid);
-	enviar_codigo(socket_kernel , FINALIZAR_PROCESO_OK);
-}
-
-
 void terminar_programa(){
 	if (logger_memoria) log_destroy(logger_memoria);
 	if (config_memoria) config_destroy(config_memoria);
@@ -213,26 +266,3 @@ void terminar_programa(){
 void iterator(char* value) {
 	log_info(logger_memoria,"%s", value);
 }
-
-t_proceso* crear_proceso(char* path_op, uint32_t pid){
-	t_proceso* proceso = malloc(sizeof(t_proceso));
-	proceso->path_op = path_op;
-	proceso->pid = pid;		
-	return proceso;
-}
-
-t_list* levantar_instrucciones(char* path_op){
-	t_list* listaInstrucciones = list_create();
-	//crear un proceso cuyas operaciones corresponderán al archivo de pseudocódigo pasado por parámetro
-	FILE* archivoInstrucciones = fopen(path_op, "r");
-
-
-}
-
-t_proceso* buscar_proceso(uint32_t pid)
-{
-	t_proceso* proceso; 
-	return proceso;
-}
-
-void destruir_proceso(t_proceso* proceso);
