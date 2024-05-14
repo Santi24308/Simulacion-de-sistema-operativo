@@ -127,25 +127,29 @@ void ejecutar_comando_unico(char* comando, char** palabras){
         strcpy(parametro, palabras[1]);
         if (!parametro || string_is_empty(parametro)) {
             printf("ERROR: Falta path para iniciar proceso, fue omitido.\n");
+            return;   // Se debe tener en cuenta que frente a un fallo en la escritura de un comando en consola el sistema debe permanecer estable sin reacción alguna.
         }
-        // accionar y ya esta cargado el parametro
+        iniciar_proceso(palabras[1]);
     } else if (strcmp(comando, "INICIAR_PLANIFICACION") == 0) {
-        //accionar
+        if (planificacion_detenida) 
+            iniciar_planificacion();
     } else if (strcmp(comando, "FINALIZAR_PROCESO ") == 0) {
         strcpy(parametro, palabras[1]);
         if (!parametro || string_is_empty(parametro)) {
             printf("ERROR: Falta id de proceso para finalizarlo, fue omitido.\n");
-        }// accionar y ya esta cargado el parametro
+            return;
+        }
+        finalizarProceso(palabras[1]);
     } else if (strcmp(comando, "DETENER_PLANIFICACION ") == 0) {
-        // accionar
+        detener_planificacion();
     } else if (strcmp(comando, "MULTIPROGRAMACION") == 0) {
         strcpy(parametro, palabras[1]);
         if (!parametro || string_is_empty(parametro)) {
             printf("ERROR: Falta el valor a asignar para multiprogramación, fue omitido.\n");
         }
-        // accionar y ya esta cargado el parametro
+        grado_max_multiprogramacion = atoi(palabras[1]);
     } else if (strcmp(comando, "PROCESO_ESTADO") == 0) {
-        // accionar
+        listar_procesos_por_estado();
     } else {
         printf("ERROR: Comando \"%s\" no reconocido, fue omitido.\n", comando);
     }
@@ -317,10 +321,25 @@ void iniciar_proceso(char* path){
         log_info(logger_kernel, "Se crea el proceso %d en NEW", pcb_a_new->cde->pid);
         sem_post(&procesos_en_new);
     }
-    else if(cod_op == INICIAR_PROCESO_ERROR)
+    else if(cod_op == INICIAR_PROCESO_ERROR){
         log_info(logger_kernel, "No se pudo crear el proceso %d", pcb_a_new->cde->pid);
+        destruir_pcb(pcb_a_new);
+    }
     
 }
+
+void finalizarProceso(char* pid_string){
+    // Antes de hacer finalizar proceso, hay que ver que como desde todos los estados podes pasar a exit, quiza conviene 
+    // tener el estado en el pcb, para saber en que lista lo sacas? 
+    // Aunque sin este parametro se puede hacer quiza es un poco mas rebuscado?
+
+    int resultado = 0;
+    uint32_t pid = atoi(pid_string);
+    retirar_pcb_de_su_respectivo_estado(pid, &resultado);    
+    // detectar deadlock se llama en menu.c
+    return;
+}
+
 
 void terminar_proceso(){
     while(1){
