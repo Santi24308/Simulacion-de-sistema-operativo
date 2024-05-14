@@ -55,6 +55,8 @@ void inicializar_modulo(){
 	levantar_config();
 	inicializar_registros();
 	inicializarSemaforos();
+    interrupcion =0;
+    interrupcion_consola = 0;
 }
 
 void levantar_logger(){
@@ -451,16 +453,70 @@ char* obtener_nombre_instruccion(t_instruccion* instruccion){
 }
 
 void ejecutar_instruccion(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
+    uint32_t parametro1;
+    uint32_t parametro2;
     switch(instruccion_a_ejecutar->codigo){
         case SET:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
+            parametro2 = leerEnteroParametroInstruccion(2, instruccion_a_ejecutar);
+            ejecutar_set(instruccion_a_ejecutar->parametro1, parametro2);
+            if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
+                destruir_instruccion(instruccion_a_ejecutar);
             break;
         case SUM:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
+            ejecutar_sum(instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
+            if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
+                destruir_instruccion(instruccion_a_ejecutar);
             break;
         case SUB:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
+            ejecutar_sub(instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
+            if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
+                destruir_instruccion(instruccion_a_ejecutar);
             break;
+        case JNZ:
+            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
+            parametro2 = leerEnteroParametroInstruccion(2, instruccion_a_ejecutar);
+            ejecutar_jnz(instruccion_a_ejecutar->parametro1, parametro2, cde);
+            if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
+                destruir_instruccion(instruccion_a_ejecutar);
+            break;
+
+        /*
+        IO_GEN_SLEEP (Interfaz, Unidades de trabajo)
+
+        ejecutar_IO_GEN_SLEEP()
+
+        Esta instrucción solicita al Kernel que se envíe 
+        a una interfaz de I/O a que realice un sleep por 
+        una cantidad de unidades de trabajo.
+
+        */
+        case IO_GEN_SLEEP:
+            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
+            
+            /* DEJO COMO EJEMPLO EL USO DE SLEEP
+            SLEEP (Tiempo): Esta instrucción representa una syscall bloqueante. 
+            Se deberá devolver el Contexto de Ejecución actualizado al Kernel 
+            junto a la cantidad de segundos que va a bloquearse el proceso.
+
+            interrumpir
+            actualizar cde
+            actualiza ultima instruccion de cde
+            devolver a kernel
+            */
+            parametro1 = leerEnteroParametroInstruccion(1, instruccion_a_ejecutar);
+            ejecutar_sleep(parametro1);
+            if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
+                destruir_instruccion(instruccion_a_ejecutar);
+    
+            break;
+
+
+
+
+        // 3er CheckPoint
         case MOV_IN:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             break;
@@ -470,9 +526,6 @@ void ejecutar_instruccion(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
         case RESIZE:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1);
             break;
-        case JNZ:
-            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->par1, instruccion_a_ejecutar->parametro2);
-            break;
         case WAIT:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1);
             break;
@@ -481,9 +534,6 @@ void ejecutar_instruccion(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
             break;
         case COPY_STRING:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1);
-            break;
-        case IO_GEN_SLEEP:
-            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->par2);
             break;
         case IO_STDIN_READ:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
@@ -658,7 +708,17 @@ void ejecutar_jnz(void* registro, uint32_t nro_instruccion, t_cde* cde){
         log_warning(logger_cpu, "Registro no reconocido");
 }
 
+void ejecutar_sleep(uint32_t tiempo){ //devolver cde al kernel con la cant de segundos que el proceso se va a bloquear
+    interrupcion = 1;
+}
 
+void ejecutar_wait(char* recurso){ //solicitar a kernel que se asigne una instancia del recurso
+    interrupcion = 1;
+}
+
+void ejecutar_signal(char* recurso){ //solicitar a kernel que se libere una instancia del recurso
+    interrupcion = 1;
+}
 // los parametros a recibir son una interfaz y el tiempo a realizar un sleep en esa interfaz
 // NO TERMINADO
 void ejecutar_IO_GEN_SLEEP(uint32_t tiempo){ //devolver cde al kernel con la cant de segundos que el proceso se va a bloquear

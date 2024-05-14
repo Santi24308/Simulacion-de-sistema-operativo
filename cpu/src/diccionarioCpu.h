@@ -63,5 +63,6 @@ uint32_t algoritmo_planificacion;
 
 int interrupcion;
 int realizar_desalojo;
+int interrupcion_consola ;
 
 #endif
