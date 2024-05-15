@@ -49,17 +49,22 @@ void inicializar_modulo(){
 }
 
 void atender_kernel_generica(){
-	int tut = config_get_int_value(config_io, "TIEMPO_UNIDAD_TRABAJO");
 	while(1){
 		codigoInstruccion cod = recibir_codigo(socket_kernel);
 		switch (cod){
 			case IO_GEN_SLEEP:
-				sleep(tut);
+				enviar_codigo(socket_kernel, OP_VALIDA);
+				t_buffer* buffer = recibir_buffer(socket_kernel);
+				t_instruccion* instruccion_recibida = buffer_read_instruccion(buffer);
+				sleep(leerEnteroParametroInstruccion(2, instruccion_recibida));
 				break;	
 			case -1:
 				log_info(logger_io, "Se desconecto Kernel");
 				return;
+			case TEST_CONEXION:
+				break;
 			default:
+				enviar_codigo(socket_kernel, OP_INVALIDA);
 				break;
 		}
 	}
@@ -186,6 +191,13 @@ void conectar_kernel(){
 		return;
 	}
 	pthread_detach(hilo_kernel);
+
+	// le mandamos el tipo a Kernel para poder definir desde Kernel si la IO va a satisfacer o no ciertas solicitudes
+	t_buffer* buffer = crear_buffer();
+	buffer_write_uint32(buffer, atoi(strlen(tipo)));
+	buffer_write_string(buffer, tipo);
+	enviar_buffer(buffer, socket_kernel);
+	destruir_buffer(buffer);
 }
 
 void levantar_logger(){

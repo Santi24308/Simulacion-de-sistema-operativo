@@ -15,6 +15,7 @@
 #include<stdarg.h>
 #include<utils/serializacion.h>
 #include<utils/instrucciones.h>
+#include <commons/collections/queue.h>
 
 // AGREGAR LOS PROTOCOLOS
 
@@ -42,6 +43,13 @@ typedef enum
 	FINALIZAR_PROCESO_SOLICITUD,
 	FINALIZAR_PROCESO_OK
 } mensajeMemoriaKernel;
+
+typedef enum {
+	IO_GEN_SLEEP,
+	TEST_CONEXION,
+	LIBRE,
+	DESCONEXION
+}mensajeIOKernel;
 
 //CONTEXTO DE EJECUCION CREADO PARA CONEXIONES CON KERNEL
 typedef struct{

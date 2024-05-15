@@ -41,6 +41,15 @@ typedef struct{
     sem_t sem_recurso;
 }t_recurso;
 
+// interfaces de IO
+typedef struct{
+	uint32_t interfazID;
+	char* tipo;
+	int socket;
+	bool ocupada;
+	t_pcb* pcb_ejecutando;
+	t_queue* pcb_esperando;  
+}t_interfaz;
 
 char* config_path;
 char* puerto_escucha;
@@ -60,6 +69,7 @@ int planificacion_detenida;
 t_log* logger_kernel;
 t_config* config_kernel;
 t_pcb* pcb_en_ejecucion;
+pthread_t hilo_esperar_IOs;
 pthread_t hilo_io;
 pthread_t hilo_consola;
 pthread_t hilo_memoria;
@@ -69,6 +79,7 @@ t_list* recursos; // lista de t_recurso*
 int grado_max_multiprogramacion;
 
 // LISTAS Y COLAS
+t_list* interfacesIO;
 t_list* procesos_globales;
 
 t_queue* procesosNew;

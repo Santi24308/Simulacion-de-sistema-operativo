@@ -32,7 +32,55 @@ void conectar(){
 	conectar_cpu_dispatch();
 	conectar_cpu_interrupt();
 	conectar_memoria();
+
+    pthread_create(&hilo_esperar_IOs, NULL, (void*) esperarIOs, NULL);
+    pthread_detach(esperarIOs);
+
 	conectar_io();
+}
+void conectar_io(){
+    log_info(logger_kernel, "Esperando IO....");
+    socket_io = esperar_cliente(socket_servidor, logger_kernel);
+    log_info(logger_kernel, "Se conecto IO");
+
+	int err = pthread_create(&hilo_io, NULL, (void *)atender_io(), NULL);
+	if (err != 0) {
+		perror("Fallo la creacion de hilo para IO\n");
+		return;
+	}
+	pthread_detach(hilo_io);
+}
+
+void esperarIOs(){
+    while (1){
+        log_info(logger_kernel, "Esperando que se conecte una IO....");
+        socket_io = esperar_cliente(socket_servidor, logger_kernel);
+
+        t_buffer* buffer = recibir_buffer(socket_io);
+        int tamanio = 0;
+        // recordar que es necesario que IO forme el buffer asi: [tamanio string, string]
+        // porque buffer_read_string primero lee un tamaño
+        char* tipo = buffer_read_string(buffer, &tamanio);        
+        
+        id_a_asignar = list_size(interfacesIO) + 1;
+        t_interfaz* interfaz = crear_interfaz(id_a_asignar, tipo, socket_io);
+
+        list_add(interfacesIO, (void*)interfaz);
+
+        log_info(logger_kernel, "Se conecto la IO con ID: %u  TIPO: %s", id_a_asignar, tipo);
+    }
+} 
+
+t_interfaz* crear_interfaz(uint32_t id, char* tipo, int socket){
+    t_interfaz* interfaz = malloc(sizeof(t_buffer));
+    interfaz->interfazID = id;
+    strcpy(interfaz->tipo, tipo);
+    interfaz->socket = socket;
+    interfaz->ocupada = false;
+    interfaz->pcb_ejecutando = NULL;
+    interfaz->pcb_esperando = queue_create();
+
+    return interfaz;
 }
 
 void inicializar_modulo(){
@@ -482,6 +530,103 @@ void evaluar_instruccion(t_instruccion instruccion_actual){
     // por ejemplo, en los llamados a I/O vamos a tener que gestionar el ida y vuelta
     // con la interfaz involucrada, eso implica ver si existe y tambien ver si puede
     // cumplir ese pedido esa I/O
+    if (instruccion_actual.codigo == IO_GEN_SLEEP) {
+        t_interfaz* interfaz_buscada;
+        if (!interfaz_valida(instruccion_actual.parametro1, interfaz_buscada)){
+            finalizarProceso(pcb_en_ejecucion->cde->pid);
+            return;
+        }
+
+        if (interfaz_buscada->ocupada){
+            queue_push(interfaz_buscada->pcb_esperando, (void*)pcb_en_ejecucion);
+            enviar_de_exec_a_block(); // al hacer esto se avisa que la cpu esta libre y se continua con el proximo pcb
+            return; 
+        }
+      
+        despachar_pcb_a_interfaz(interfaz_buscada, pcb_en_ejecucion); 
+        
+        enviar_de_exec_a_block();
+    }
+
+}
+
+void despachar_pcb_a_interfaz(t_interfaz* interfaz, t_pcb* pcb){
+    enviar_codigo(interfaz->socket, pcb->cde->ultima_instruccion.codigo);
+    t_buffer* buffer = crear_buffer();
+    buffer_write_instruccion(buffer, &(pcb->cde->ultima_instruccion));
+    enviar_buffer(buffer, interfaz->socket);
+    destruir_buffer(buffer);
+}
+
+bool interfaz_valida(uint32_t id, t_interfaz* interfaz_buscada){
+    mensajeIOKernel codigo = TEST_CONEXION;
+    
+    // chequeo si existe
+    int indice = -1; // aca se va a guardar el indice en donde esta la interfaz guardada, solo si lo encuentra va a tener un valor valido
+    interfaz_buscada = obtener_interfaz_en_lista(id, &indice);
+    if (!interfaz_buscada) 
+        return false;
+
+    // chequeo ahora si esta conectada
+    int test_conexion = send(interfaz_buscada->socket, &codigo, sizeof(uint8_t), 0);
+     // si hubo error..
+    if(test_conexion < 0) {
+        // remueve io de la lista
+        return false; 
+    }
+
+    // chequeo si puede satisfacer la solicitud
+    if(!io_puede_cumplir_solicitud(interfaz_buscada->tipo, pcb_en_ejecucion->cde->ultima_instruccion.codigo))
+        return false; // en este caso no es necesario destruir la IO ya que no es su culpa, sino la del proceso
+
+    return true;
+}
+
+bool io_puede_cumplir_solicitud(char* tipo, codigoInstruccion instruccion){
+    if (strcmp(tipo, "GEN") == 0) {
+        return (instruccion == IO_GEN_SLEEP); // solo si es esa instruccion la io puede satisfacer
+    } else if (strcmp(tipo, "STDIN") == 0) {
+        return (instruccion == IO_STDIN_READ);
+    } else if (strcmp(tipo, "STDOUT") == 0) {
+        return (instruccion == IO_STDOUT_WRITE);
+    } else if (strcmp(tipo, "DIALFS") == 0) {
+        switch (instruccion){
+        case IO_FS_CREATE:
+            return true;
+        case IO_FS_DELETE:
+            return true;
+        case IO_FS_READ:
+            return true;
+        case IO_FS_TRUNCATE:
+            return true;
+        case IO_FS_WRITE:
+            return true;
+        default:
+            return false;
+        }
+    } else 
+        return false;
+}
+
+t_interfaz* obtener_interfaz_en_lista(uint32_t id, int* indice){
+    t_interfaz* interfaz;
+    int i = 0;
+    
+    int encontrado = 0;
+
+    for(int i = 0; i < list_size(interfacesIO); i++){
+        interfaz = list_get(interfacesIO, i);
+        if(interfaz->interfazID == id){
+            encontrado = 1;
+            *(indice) = i; 
+            break;
+        }
+    }
+
+    if(encontrado)
+        return interfaz;
+    else
+        return NULL;
 }
 
 // UTILS COLAS DE ESTADOS
@@ -508,7 +653,7 @@ void inicializarListas(){
     procesosReady = queue_create();
     procesosBloqueados = queue_create();
     procesosFinalizados = queue_create();
-
+    interfacesIO = list_create();
 }
 
 void inicializarSemaforos(){ // TERMINAR DE VER
@@ -574,20 +719,44 @@ void conectar_consola(){
 	pthread_detach(hilo_consola);
 }
 
-void conectar_io(){
-    log_info(logger_kernel, "Esperando IO....");
-    socket_io = esperar_cliente(socket_servidor, logger_kernel);
-    log_info(logger_kernel, "Se conecto IO");
-
-	int err = pthread_create(&hilo_io, NULL, (void *)atender_io, NULL);
-	if (err != 0) {
-		perror("Fallo la creacion de hilo para IO\n");
-		return;
-	}
-	pthread_detach(hilo_io);
-}
-
 void atender_io(){
+    while(1) {
+        mensajeIOKernel codigo = recibir_codigo(socket_io);
+        switch (codigo){
+        case LIBRE:
+            // recibo en un uint32 el id de la interfaz
+            t_buffer* buffer = recibir_buffer(socket_io);
+            uint32_t id_interfaz = buffer_read_uint32(buffer);
+            destruir_buffer(buffer);
+            // busco en la lista de interfaces
+            int indice = -1;
+            t_interfaz* interfaz = obtener_interfaz_en_lista(id_interfaz, &indice);
+            // al pcb ejecutando lo paso a READY porque ya esta listo para continuar
+            enviar_pcb_de_block_a_ready(interfaz->pcb_ejecutando);
+            // le cambio el estado del bool ocupada a false (esto es por si no tiene ninguno esperando)
+            interfaz->ocupada = false;
+            if (!queue_is_empty(interfaz->pcb_esperando)){
+            // llamo a despachar al siguiente en su cola de espera
+            // ¿Por que no evaluo si esta interfaz puede satisfacer la peticion? Porque ya se chequeo antes de poner el pcb en la cola
+                despachar_pcb_a_interfaz(interfaz, queue_pop(interfaz->pcb_esperando));
+            // y vuelve a estar ocupada
+                interfaz->ocupada = true;
+            }
+            break;
+        case DESCONEXION: // suponemos que hay alguna manera de avisar
+            // recibo el id
+            t_buffer* buffer = recibir_buffer(socket_io);
+            uint32_t id_interfaz = buffer_read_uint32(buffer);
+            destruir_buffer(buffer);
+            // la saco de la lista
+            int indice = -1;
+            t_interfaz interfaz = obtener_interfaz_en_lista(id_interfaz, &indice);
+            list_remove(interfacesIO, indice);
+            // libero sus recursos
+        default:
+            break;
+        }
+    }
 }
 
 void conectar_memoria(){
