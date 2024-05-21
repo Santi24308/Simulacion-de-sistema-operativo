@@ -49,6 +49,7 @@ typedef struct{
 	bool ocupada;
 	t_pcb* pcb_ejecutando;
 	t_queue* pcb_esperando;  
+	pthread_t hilo_io;
 }t_interfaz;
 
 char* config_path;
@@ -73,6 +74,8 @@ pthread_t hilo_esperar_IOs;
 pthread_t hilo_io;
 pthread_t hilo_consola;
 pthread_t hilo_memoria;
+
+uint32_t id_a_asignar;
 
 int quantum;
 t_list* recursos; // lista de t_recurso*

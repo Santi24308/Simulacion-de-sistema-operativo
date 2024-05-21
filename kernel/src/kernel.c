@@ -38,12 +38,8 @@ void conectar(){
 
 	conectar_io();
 }
-void conectar_io(){
-    log_info(logger_kernel, "Esperando IO....");
-    socket_io = esperar_cliente(socket_servidor, logger_kernel);
-    log_info(logger_kernel, "Se conecto IO");
-
-	int err = pthread_create(&hilo_io, NULL, (void *)atender_io(), NULL);
+void conectar_io(pthread_t* hilo_io){
+	int err = pthread_create(hilo_io, NULL, (void *)atender_io(), NULL);
 	if (err != 0) {
 		perror("Fallo la creacion de hilo para IO\n");
 		return;
@@ -56,16 +52,24 @@ void esperarIOs(){
         log_info(logger_kernel, "Esperando que se conecte una IO....");
         socket_io = esperar_cliente(socket_servidor, logger_kernel);
 
-        t_buffer* buffer = recibir_buffer(socket_io);
+        id_a_asignar = list_size(interfacesIO) + 1;
+
+        t_buffer* buffer = crear_buffer();
+        buffer_write_uint32(buffer, id_a_asignar);
+        enviar_buffer(buffer, socket_io);
+        destruir_buffer(buffer);
+
+        buffer = recibir_buffer(socket_io);
         int tamanio = 0;
         // recordar que es necesario que IO forme el buffer asi: [tamanio string, string]
         // porque buffer_read_string primero lee un tamaño
         char* tipo = buffer_read_string(buffer, &tamanio);        
         
-        id_a_asignar = list_size(interfacesIO) + 1;
         t_interfaz* interfaz = crear_interfaz(id_a_asignar, tipo, socket_io);
 
         list_add(interfacesIO, (void*)interfaz);
+
+        conectar_io(&interfaz->hilo_io);
 
         log_info(logger_kernel, "Se conecto la IO con ID: %u  TIPO: %s", id_a_asignar, tipo);
     }
@@ -485,6 +489,29 @@ void detener_planificacion(){
     planificacion_detenida = 1;
 }
 
+void listar_procesos_por_estado(){
+    log_info(logger_kernel, "---------LISTANDO PROCESOS POR ESTADO---------");
+
+    char* procesos_cargados_en_new = obtener_elementos_cargados_en(procesosNew);
+    char* procesos_cargados_en_ready = obtener_elementos_cargados_en(procesosReady);
+    char* procesos_cargados_en_blocked = obtener_elementos_cargados_en(procesosBloqueados);
+    char* procesos_cargados_en_exit = obtener_elementos_cargados_en(procesosFinalizados);
+
+    log_info(logger_kernel, "Procesos en %s: %s", obtener_nombre_estado(NEW), procesos_cargados_en_new);
+    log_info(logger_kernel, "Procesos en %s: %s", obtener_nombre_estado(READY), procesos_cargados_en_ready);
+    if(pcb_en_ejecucion != NULL)
+        log_info(logger_kernel, "Proceso en %s: [%d]", obtener_nombre_estado(EXEC), pcb_en_ejecucion->cde->pid);
+    else
+        log_info(logger_kernel, "Proceso en %s: []", obtener_nombre_estado(EXEC));
+    log_info(logger_kernel, "Procesos en %s: %s", obtener_nombre_estado(BLOCKED), procesos_cargados_en_blocked);
+    log_info(logger_kernel, "Procesos en %s: %s",  obtener_nombre_estado(FINISH), procesos_cargados_en_exit);
+
+    free(procesos_cargados_en_new);
+    free(procesos_cargados_en_ready);
+    free(procesos_cargados_en_blocked);
+    free(procesos_cargados_en_exit);
+}
+
 // IDA Y VUELTA CON CPU
 
 void enviar_cde_a_cpu(){
@@ -558,12 +585,12 @@ void despachar_pcb_a_interfaz(t_interfaz* interfaz, t_pcb* pcb){
     destruir_buffer(buffer);
 }
 
-bool interfaz_valida(uint32_t id, t_interfaz* interfaz_buscada){
-    mensajeIOKernel codigo = TEST_CONEXION;
+bool interfaz_valida(uint32_t id_IO_solicitada, t_interfaz* interfaz_buscada){
+    codigoInstruccion codigo = NULO;
     
     // chequeo si existe
     int indice = -1; // aca se va a guardar el indice en donde esta la interfaz guardada, solo si lo encuentra va a tener un valor valido
-    interfaz_buscada = obtener_interfaz_en_lista(id, &indice);
+    interfaz_buscada = obtener_interfaz_en_lista(id_IO_solicitada, &indice);
     if (!interfaz_buscada) 
         return false;
 
@@ -571,7 +598,9 @@ bool interfaz_valida(uint32_t id, t_interfaz* interfaz_buscada){
     int test_conexion = send(interfaz_buscada->socket, &codigo, sizeof(uint8_t), 0);
      // si hubo error..
     if(test_conexion < 0) {
-        // remueve io de la lista
+        t_interfaz interfaz_a_eliminar = list_get(interfacesIO, indice);
+        queue_destroy(interfaz_a_eliminar.pcb_esperando);
+        list_remove(interfacesIO, indice);
         return false; 
     }
 
@@ -738,7 +767,9 @@ void atender_io(){
             if (!queue_is_empty(interfaz->pcb_esperando)){
             // llamo a despachar al siguiente en su cola de espera
             // ¿Por que no evaluo si esta interfaz puede satisfacer la peticion? Porque ya se chequeo antes de poner el pcb en la cola
-                despachar_pcb_a_interfaz(interfaz, queue_pop(interfaz->pcb_esperando));
+                t_pcb* pcb_siguiente = queue_pop(interfaz->pcb_esperando);
+                despachar_pcb_a_interfaz(interfaz, pcb_siguiente);
+                interfaz->pcb_ejecutando = pcb_siguiente;
             // y vuelve a estar ocupada
                 interfaz->ocupada = true;
             }

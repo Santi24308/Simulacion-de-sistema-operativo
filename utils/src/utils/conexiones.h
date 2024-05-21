@@ -45,8 +45,6 @@ typedef enum
 } mensajeMemoriaKernel;
 
 typedef enum {
-	IO_GEN_SLEEP,
-	TEST_CONEXION,
 	LIBRE,
 	DESCONEXION
 }mensajeIOKernel;

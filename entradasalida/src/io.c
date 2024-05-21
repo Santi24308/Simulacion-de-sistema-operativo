@@ -53,15 +53,20 @@ void atender_kernel_generica(){
 		codigoInstruccion cod = recibir_codigo(socket_kernel);
 		switch (cod){
 			case IO_GEN_SLEEP:
-				enviar_codigo(socket_kernel, OP_VALIDA);
 				t_buffer* buffer = recibir_buffer(socket_kernel);
 				t_instruccion* instruccion_recibida = buffer_read_instruccion(buffer);
+				destruir_buffer(buffer);
 				sleep(leerEnteroParametroInstruccion(2, instruccion_recibida));
+				enviar_codigo(socket_kernel, LIBRE);
+				buffer = crear_buffer();
+				buffer_write_uint32(buffer, id_interfaz);
+				enviar_buffer(buffer, socket_kernel);
+				destruir_buffer(buffer);
 				break;	
 			case -1:
 				log_info(logger_io, "Se desconecto Kernel");
 				return;
-			case TEST_CONEXION:
+			case NULO: // lo usamos para testear que siga conectada desde kernel 
 				break;
 			default:
 				enviar_codigo(socket_kernel, OP_INVALIDA);
@@ -183,6 +188,11 @@ void conectar_kernel(){
 		terminar_programa();
         exit(EXIT_FAILURE);
     }
+
+	t_buffer* buffer = recibir_buffer(socket_kernel);
+	id_interfaz = buffer_read_uint32(buffer);
+	destruir_buffer(buffer);
+
 	// notar que aca llamo a atender de manera generica ya que es esa funcion
 	// la encargada de derivar
 	int err = pthread_create(&hilo_kernel, NULL, (void *)atender, NULL);

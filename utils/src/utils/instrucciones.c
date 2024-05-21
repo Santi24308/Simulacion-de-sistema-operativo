@@ -1,4 +1,4 @@
-#include <utils/instrucciones.h>
+#include "instrucciones.h"
 
 t_instruccion* crear_instruccion(codigoInstruccion codigo, char* par1, char* par2, char* par3, char* par4, char* par5){
 	t_instruccion* instruccion = malloc(sizeof(t_instruccion));
