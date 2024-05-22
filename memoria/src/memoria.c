@@ -40,7 +40,7 @@ void conectar(){
 	conectar_io();
 }
 
-void esperar_desconexiones(){
+void esperar_desconexiones(){ //usar un solo sem?
 	sem_wait(&sema_cpu);
 	sem_wait(&sema_kernel);
 }
@@ -150,7 +150,7 @@ void iniciar_proceso(){
 	uint32_t pid = buffer_read_uint32(buffer_recibido);
     char* path_op = buffer_read_string(buffer_recibido,tam);  //path de kernel, inst del proceso a ejecutar 
 	destruir_buffer(buffer_recibido);
-
+	
 	t_list* lista_instrucciones = levantar_instrucciones(path_op);
 
 	t_proceso* proceso_nuevo = crear_proceso(pid,lista_instrucciones);
@@ -174,19 +174,19 @@ void liberar_proceso(){
 	enviar_codigo(socket_kernel , FINALIZAR_PROCESO_OK);
 }
 
-void eliminar_proceso(t_proceso* proceso){
-	list_destroy_and_destroy_elements(proceso->lista_instrucciones, (void* ) eliminar_instruccion);
-	free(proceso);
-}
-
-void eliminar_instruccion(t_instruccion* instruccion){
+void* eliminar_instruccion(t_instruccion* instruccion){
 	free(instruccion->parametro1);
 	free(instruccion->parametro2);
 	free(instruccion->parametro3);
 	free(instruccion->parametro4);
 	free(instruccion->parametro5);
-	free(instruccion->codigo); //?
+	//free(instruccion->codigo); //? error
 	free(instruccion);
+}
+
+void eliminar_proceso(t_proceso* proceso){
+	list_destroy_and_destroy_elements(proceso->lista_instrucciones, (void* ) eliminar_instruccion);
+	free(proceso);
 }
 
 t_proceso* crear_proceso(uint32_t pid, t_list* lista_instrucciones){
@@ -197,27 +197,57 @@ t_proceso* crear_proceso(uint32_t pid, t_list* lista_instrucciones){
 }
 
 t_list* levantar_instrucciones(char* path_op){
-	t_list* lista_instrucciones = list_create();
-	//crear un proceso cuyas operaciones corresponderán al archivo de pseudocódigo pasado por parámetro
-	/*void leer_y_ejecutar(char* path){
-    FILE* script = fopen(path,"r");
-    char* s;
-    int leido = fscanf(script,"%s\n", s);
-    while (leido != EOF){
-        char** linea = string_split(s, " ");  // linea[0] contiene el comando y linea[1] el parametro
-        ejecutar_comando_unico(linea[0], linea); // linea y palabras son lo mismo, es el resultado de split
-        string_array_destroy(linea); // no se si string_split usa memoria dinamica
-		leido = fscanf(script,"%s\n", s);
-    }
-    fclose(script);
-}*/
+	t_list* lista_instrucciones = list_create();	
 	FILE* archivo_instrucciones = fopen(path_op, "r");
+    char* s;
+	t_instruccion* instruccion;
+	int i = 1;
+    int leido = fscanf(archivo_instrucciones,"%s\n", s);
+
+    while (leido != EOF){		
+        char** intruccion_leida = string_split(s, " ");        
+		
+		instruccion = crear_instruccion(s[0],NULL,NULL,NULL,NULL,NULL);// char -> enum ??
+		while(s[i] != NULL){
+			escribir_parametro(i, instruccion, s[i]);			
+			i++;			
+		}
+        string_array_destroy(intruccion_leida); // no se si string_split usa memoria dinamica
+
+		list_add(lista_instrucciones, instruccion);
+
+        leido = fscanf(archivo_instrucciones,"%s\n", s);
+    }
+    fclose(archivo_instrucciones);	
+
 	return lista_instrucciones;
+}
+
+void escribir_parametro(int i ,t_instruccion *inst , char* parametro){
+	switch (i){
+		case 1 :
+		strcpy(inst->parametro1, parametro[i]);
+		break;
+		case 2 :
+		strcpy(inst->parametro2, parametro[i]);
+		break;
+		case 3 :
+		strcpy(inst->parametro3, parametro[i]);
+		break;
+		case 4 :
+		strcpy(inst->parametro4, parametro[i]);
+		break;
+		case 5 :
+		strcpy(inst->parametro5, parametro[i]);
+		break;
+		default: 
+		break;
+	}
 }
 
 t_proceso* buscar_proceso(uint32_t pid)
 {
-	t_proceso* proceso;
+	t_proceso* proceso = malloc(sizeof(t_proceso));
 	for(int i = 0; i < list_size(lista_procesos); i++){
 		proceso = list_get(lista_procesos, i);
 		if(proceso->pid == pid){
@@ -227,11 +257,9 @@ t_proceso* buscar_proceso(uint32_t pid)
 }
 void enviar_instruccion(){
 	
-	instrucciones_path = config_get_string_value(config_memoria, "PATH_INSTRUCCIONES");
+	//instrucciones_path = config_get_string_value(config_memoria, "PATH_INSTRUCCIONES");
 	uint32_t pid;
-	uint32_t pc;
-		
-	t_instruccion* instruccion = leer_instruccion(pc); //instruccion?
+	uint32_t pc;			
 	
 	t_buffer* buffer_recibido = recibir_buffer(socket_cpu);
 
@@ -241,24 +269,17 @@ void enviar_instruccion(){
 	pthread_mutex_lock(&mutex_lista_procesos);
 	t_proceso* proceso = buscar_proceso(pid);
 	pthread_mutex_unlock(&mutex_lista_procesos);
-
-	//t_instruccion* instruccion = list_get(proceso->instrucciones, pc);
 	
-	/*FILE* archivo_inst = fopen( instrucciones_path, "r");
-	//codigo de instruccion?
+	t_instruccion* instruccion = list_get(proceso->lista_instrucciones, pc); //mutex?
 	
-	fseek(archivo_inst,codigoInstruccion, SEEK_SET);
-	fscanf(archivo_inst,"%s",ins_leida);*/
-		
-	//le envio a cpu la instruccion
-
 	buffer_instruccion = crear_buffer();	
 	buffer_write_instruccion(buffer_instruccion, instruccion);
 	enviar_buffer(buffer_instruccion,socket_cpu);
-	destruir_buffer(buffer_instruccion);
-	//fclose(archivo_inst);
+	destruir_buffer(buffer_instruccion);	
 }
+
 void terminar_programa(){
+	//terminar_conexiones?
 	if (logger_memoria) log_destroy(logger_memoria);
 	if (config_memoria) config_destroy(config_memoria);
 }
