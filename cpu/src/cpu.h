@@ -25,5 +25,6 @@ void iterator(char* );
 void inicializar_registros();
 void ejecutar_proceso();
 void cargar_registros(t_cde);
+void guardar_registros(t_cde*);
 
 #endif

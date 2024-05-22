@@ -35,9 +35,8 @@ void conectar(){
 
     pthread_create(&hilo_esperar_IOs, NULL, (void*) esperarIOs, NULL);
     pthread_detach(esperarIOs);
-
-	conectar_io();
 }
+
 void conectar_io(pthread_t* hilo_io){
 	int err = pthread_create(hilo_io, NULL, (void *)atender_io(), NULL);
 	if (err != 0) {
@@ -532,7 +531,6 @@ void enviar_cde_a_cpu(){
     sem_post(&cde_recibido);
 }
 
-
 void recibir_cde_de_cpu(){
     while(1){
         sem_wait(&cde_recibido);
@@ -782,7 +780,8 @@ void atender_io(){
             // la saco de la lista
             int indice = -1;
             t_interfaz interfaz = obtener_interfaz_en_lista(id_interfaz, &indice);
-            list_remove(interfacesIO, indice);
+            if (indice != -1)
+                list_remove(interfacesIO, indice);
             // libero sus recursos
         default:
             break;

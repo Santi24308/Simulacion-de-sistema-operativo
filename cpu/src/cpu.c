@@ -282,7 +282,7 @@ void cargar_registros(t_cde* cde){
 	registros_cpu->DI = cde->registros->DI;
 }
 
-void guardar_cde(t_cde* cde){
+void guardar_registros(t_cde* cde){
     cde->registros->AX = registros_cpu->AX;
     cde->registros->BX = registros_cpu->BX;
     cde->registros->CX = registros_cpu->CX;
@@ -374,7 +374,7 @@ void ejecutar_proceso(t_cde* cde){
         realizar_desalojo = 0;
         pthread_mutex_unlock(&mutex_realizar_desalojo);
         log_info(logger_cpu, "PID: %d - Volviendo a kernel por instruccion %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar));
-        cde->motivo = INTERRUPCION;
+        // el motivo lo señalamos cuando estamos sobre la instruccion para dar mas precision 
         desalojar_cde(cde, instruccion_a_ejecutar);
 	}else if (realizar_desalojo){ // salida por fin de quantum
 		interrupcion = 0;  
@@ -496,25 +496,17 @@ void ejecutar_instruccion(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
         case IO_GEN_SLEEP:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             
-            /* DEJO COMO EJEMPLO EL USO DE SLEEP
-            SLEEP (Tiempo): Esta instrucción representa una syscall bloqueante. 
-            Se deberá devolver el Contexto de Ejecución actualizado al Kernel 
-            junto a la cantidad de segundos que va a bloquearse el proceso.
-
-            interrumpir
-            actualizar cde
-            actualiza ultima instruccion de cde
-            devolver a kernel
+            /*
+            1. guardar instruccion_t instruccion_a_ejecutar en el cde como ultima instruccion
+            2. poner el motivo de desalojo en el cde
+            3. guardar los registros 
+            4. desalojar NO! porque se hace cuando se sale del while que ejecuta las instrucciones, si se interrumpe se desaloja
+            5. interrupcion = 1 
+            6. destruir_instruccion 
             */
-            parametro1 = leerEnteroParametroInstruccion(1, instruccion_a_ejecutar);
-            ejecutar_sleep(parametro1);
-            if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
-                destruir_instruccion(instruccion_a_ejecutar);
+
     
             break;
-
-
-
 
         // 3er CheckPoint
         case MOV_IN:
@@ -566,7 +558,7 @@ void ejecutar_instruccion(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
 
 void desalojar_cde(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
     // cde no puede devolver en su estructura ningun motivo de desalojamiento
-    guardar_cde(cde); //cargar registros de cpu en el cde
+    guardar_registros(cde); //cargar registros de cpu en el cde
     devolver_cde_a_kernel(cde, instruccion_a_ejecutar);
     destruir_cde(cde);
     

@@ -203,7 +203,7 @@ void conectar_kernel(){
 	pthread_detach(hilo_kernel);
 
 	// le mandamos el tipo a Kernel para poder definir desde Kernel si la IO va a satisfacer o no ciertas solicitudes
-	t_buffer* buffer = crear_buffer();
+	buffer = crear_buffer();
 	buffer_write_uint32(buffer, atoi(strlen(tipo)));
 	buffer_write_string(buffer, tipo);
 	enviar_buffer(buffer, socket_kernel);
