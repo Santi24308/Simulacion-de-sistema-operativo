@@ -43,7 +43,7 @@ typedef struct{
 
 // interfaces de IO
 typedef struct{
-	uint32_t interfazID;
+	char* nombre;
 	char* tipo;
 	int socket;
 	bool ocupada;

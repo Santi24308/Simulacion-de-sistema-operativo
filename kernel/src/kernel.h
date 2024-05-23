@@ -5,6 +5,7 @@
 #include <commons/string.h>
 #include <diccionarioKernel.h>
 
+
 void levantar_logger();
 void levantar_config();
 void terminar_programa();
@@ -21,29 +22,36 @@ void iterator(char*);
 // CHECKPOINT 2
 void inicializarListas();
 void inicializarSemaforos();
-t_pcb* crear_pcb(char* path);
-void destruir_pcb(t_pcb* pcb);
-t_pcb* encontrar_pcb_por_pid(uint32_t pid, int* encontrado);
-void retirar_pcb_de_su_respectivo_estado(uint32_t pid, int* resultado);
-void finalizar_pcb(t_pcb* pcb_a_finalizar, char* razon);
-void iniciar_proceso(char* path);
+t_pcb* crear_pcb(char*);
+void destruir_pcb(t_pcb*);
+t_pcb* encontrar_pcb_por_pid(uint32_t, int* );
+void retirar_pcb_de_su_respectivo_estado(uint32_t, int* );
+void finalizar_pcb(t_pcb*, char* );
+void iniciar_proceso(char*);
 void terminar_proceso();
-void iniciarPlanificacion();
-void detenerPlanificacion();
 void iniciar_quantum();
 void controlar_tiempo_de_ejecucion();
 void listar_procesos_por_estado();
 void enviar_cde_a_cpu();
 void ejecutar_comando_unico(char*, char**);
 void leer_y_ejecutar(char*);
+void esperarIOs();
+t_interfaz *obtener_interfaz_en_lista(char*, int *);
+t_interfaz* crear_interfaz(char*, char*, int );
+bool interfaz_valida(char*);
+void finalizarProceso(uint32_t pid_string);
+void despachar_pcb_a_interfaz(t_interfaz*, t_pcb*);
+bool io_puede_cumplir_solicitud(char* , codigoInstruccion );
 
-void agregar_pcb_a(t_queue* cola, t_pcb* pcb_a_agregar, pthread_mutex_t* mutex);
-t_pcb* retirar_pcb_de(t_queue* cola, pthread_mutex_t* mutex);
-char* obtener_elementos_cargados_en(t_queue* cola);
-char* obtener_nombre_estado(t_estados estado);
-t_recurso* inicializar_recurso(char* nombre_recu, int instancias_tot);
+void agregar_pcb_a(t_queue*, t_pcb*, pthread_mutex_t*);
+t_pcb* retirar_pcb_de(t_queue*, pthread_mutex_t*);
+char* obtener_elementos_cargados_en(t_queue*);
+char* obtener_nombre_estado(t_estados);
+t_recurso* inicializar_recurso(char*, int);
 
 // PLANIFICACION -------------------------------------------------------------------------------------------------------------------
+void iniciar_planificacion();
+void detener_planificacion();
 
 // TRANSICIONES
 

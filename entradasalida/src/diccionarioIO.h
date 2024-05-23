@@ -15,7 +15,7 @@
 #include <semaphore.h>
 
 char* tipo;
-
+char nombreIO[50];
 char* config_path;
 char* ip;
 char* puerto_mem;
@@ -29,5 +29,6 @@ pthread_t hilo_kernel;
 
 sem_t sema_memoria;
 sem_t sema_kernel;
+sem_t terminar_io;
 
 #endif

@@ -11,8 +11,9 @@ int main(int argc, char* argv[]) {
 
 	inicializar_modulo();
 	conectar();
-	esperar_desconexiones();
-
+	
+	sem_wait(&terminar_memoria);
+	
 	terminar_programa();
 
 	return 0;
@@ -22,8 +23,7 @@ void inicializar_modulo(){
 	levantar_logger();
 	levantar_config();
 
-	sem_init(&sema_cpu, 0, 0);
-	sem_init(&sema_kernel, 0, 1);
+	sem_init(&terminar_memoria, 0, 0);	
 }
 
 void conectar(){
@@ -38,11 +38,6 @@ void conectar(){
 	conectar_cpu();
 	conectar_kernel();
 	conectar_io();
-}
-
-void esperar_desconexiones(){ //usar un solo sem?
-	sem_wait(&sema_cpu);
-	sem_wait(&sema_kernel);
 }
 
 void levantar_logger(){
@@ -112,7 +107,7 @@ void atender_kernel(){
 		break;		
 		case -1:
 			log_error(logger_memoria, "Se desconecto KERNEL");
-			sem_post(&sema_kernel);
+			sem_post(&terminar_memoria);
 			return;		
 		default:
 		break;
@@ -126,14 +121,14 @@ void atender_cpu(){
 	int pedido_cpu = recibir_codigo(socket_cpu);
 	switch(pedido_cpu){
 		case PEDIDO_INSTRUCCION:
-			usleep((int)retardo_respuesta);
+			usleep(atoi(retardo_respuesta));
 		//Ante un pedido de lectura, devolver el valor que se encuentra a partir de la dirección física pedida
 		//Ante un pedido de escritura, escribir lo indicado a partir de la dirección física pedida. En caso satisfactorio se responderá un mensaje de ‘OK’
 			enviar_instruccion();
 			break;
 		case -1:
 			log_error(logger_memoria, "Se desconecto CPU");
-			sem_post(&sema_cpu);
+			sem_post(&terminar_memoria);
 			return;	
 		default:
 			break;			
@@ -146,9 +141,9 @@ void atender_io(){
 
 void iniciar_proceso(){	
 	t_buffer* buffer_recibido = recibir_buffer(socket_kernel);
-	int tam = 0;
+	uint32_t tam = 0;
 	uint32_t pid = buffer_read_uint32(buffer_recibido);
-    char* path_op = buffer_read_string(buffer_recibido,tam);  //path de kernel, inst del proceso a ejecutar 
+    char* path_op = buffer_read_string(buffer_recibido,&tam);  //path de kernel, inst del proceso a ejecutar 
 	destruir_buffer(buffer_recibido);
 	
 	t_list* lista_instrucciones = levantar_instrucciones(path_op);
@@ -174,13 +169,12 @@ void liberar_proceso(){
 	enviar_codigo(socket_kernel , FINALIZAR_PROCESO_OK);
 }
 
-void* eliminar_instruccion(t_instruccion* instruccion){
+void eliminar_instruccion(t_instruccion* instruccion){
 	free(instruccion->parametro1);
 	free(instruccion->parametro2);
 	free(instruccion->parametro3);
 	free(instruccion->parametro4);
 	free(instruccion->parametro5);
-	//free(instruccion->codigo); //? error
 	free(instruccion);
 }
 
@@ -199,20 +193,25 @@ t_proceso* crear_proceso(uint32_t pid, t_list* lista_instrucciones){
 t_list* levantar_instrucciones(char* path_op){
 	t_list* lista_instrucciones = list_create();	
 	FILE* archivo_instrucciones = fopen(path_op, "r");
-    char* s;
+    char* s = NULL;
 	t_instruccion* instruccion;
 	int i = 1;
     int leido = fscanf(archivo_instrucciones,"%s\n", s);
+	char* parametro = NULL;
 
     while (leido != EOF){		
-        char** intruccion_leida = string_split(s, " ");        
+        char** instruccion_leida = string_split(s, " ");    
+		int tamanio_linea = countStrings(instruccion_leida); 
+		codigoInstruccion codigo = s[0]; //???
+
+		instruccion = crear_instruccion(codigo,NULL,NULL,NULL,NULL,NULL);
 		
-		instruccion = crear_instruccion(s[0],NULL,NULL,NULL,NULL,NULL);// char -> enum ??
-		while(s[i] != NULL){
-			escribir_parametro(i, instruccion, s[i]);			
-			i++;			
+		while(i<tamanio_linea){	
+			strcpy(parametro, &s[i]);		
+			escribir_parametro(i, instruccion, parametro);			
+			i++;						
 		}
-        string_array_destroy(intruccion_leida); // no se si string_split usa memoria dinamica
+        string_array_destroy(instruccion_leida); // no se si string_split usa memoria dinamica
 
 		list_add(lista_instrucciones, instruccion);
 
@@ -223,38 +222,47 @@ t_list* levantar_instrucciones(char* path_op){
 	return lista_instrucciones;
 }
 
-void escribir_parametro(int i ,t_instruccion *inst , char* parametro){
+int countStrings(char **array) {
+    int count = 0;
+    while (array[count] != NULL) {
+        count++;
+    }
+    return count;
+}
+
+void escribir_parametro(int i ,t_instruccion* inst , char* parametro){
 	switch (i){
 		case 1 :
-		strcpy(inst->parametro1, parametro[i]);
+		strcpy(inst->parametro1, parametro);
 		break;
 		case 2 :
-		strcpy(inst->parametro2, parametro[i]);
+		strcpy(inst->parametro2, parametro);
 		break;
 		case 3 :
-		strcpy(inst->parametro3, parametro[i]);
+		strcpy(inst->parametro3, parametro);
 		break;
 		case 4 :
-		strcpy(inst->parametro4, parametro[i]);
+		strcpy(inst->parametro4, parametro);
 		break;
 		case 5 :
-		strcpy(inst->parametro5, parametro[i]);
+		strcpy(inst->parametro5, parametro);
 		break;
 		default: 
 		break;
 	}
 }
 
-t_proceso* buscar_proceso(uint32_t pid)
-{
+t_proceso* buscar_proceso(uint32_t pid){
 	t_proceso* proceso = malloc(sizeof(t_proceso));
 	for(int i = 0; i < list_size(lista_procesos); i++){
 		proceso = list_get(lista_procesos, i);
 		if(proceso->pid == pid){
 			return proceso;
-			}
+		}
 	}
+	return NULL;
 }
+
 void enviar_instruccion(){
 	
 	//instrucciones_path = config_get_string_value(config_memoria, "PATH_INSTRUCCIONES");
@@ -278,8 +286,7 @@ void enviar_instruccion(){
 	destruir_buffer(buffer_instruccion);	
 }
 
-void terminar_programa(){
-	//terminar_conexiones?
+void terminar_programa(){	
 	if (logger_memoria) log_destroy(logger_memoria);
 	if (config_memoria) config_destroy(config_memoria);
 }

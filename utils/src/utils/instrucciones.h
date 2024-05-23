@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include<commons/string.h>
 #include <ctype.h> // Para isDigit()
 #include <stdint.h> // Para uintX_t
 #include <stddef.h>

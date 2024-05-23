@@ -28,22 +28,25 @@ void conectar(){
 		perror("Fallo la creacion del servidor para memoria.\n");
 		exit(EXIT_FAILURE);
 	}
-
+    char c = 'a';
 	conectar_cpu_dispatch();
+    scanf("%c",&c);
 	conectar_cpu_interrupt();
+
+    scanf("%c",&c);
 	conectar_memoria();
 
     pthread_create(&hilo_esperar_IOs, NULL, (void*) esperarIOs, NULL);
-    pthread_detach(esperarIOs);
+    pthread_detach(hilo_esperar_IOs);
 }
 
 void conectar_io(pthread_t* hilo_io){
-	int err = pthread_create(hilo_io, NULL, (void *)atender_io(), NULL);
+	int err = pthread_create(hilo_io, NULL, (void*)atender_io, NULL);
 	if (err != 0) {
 		perror("Fallo la creacion de hilo para IO\n");
 		return;
 	}
-	pthread_detach(hilo_io);
+	pthread_detach(*(hilo_io));
 }
 
 void esperarIOs(){
@@ -51,32 +54,29 @@ void esperarIOs(){
         log_info(logger_kernel, "Esperando que se conecte una IO....");
         socket_io = esperar_cliente(socket_servidor, logger_kernel);
 
-        id_a_asignar = list_size(interfacesIO) + 1;
+        uint32_t tamanio_nombre = 0;
+        t_buffer* buffer = recibir_buffer(socket_io);
+        char* nombre = buffer_read_string(buffer, &tamanio_nombre);
 
-        t_buffer* buffer = crear_buffer();
-        buffer_write_uint32(buffer, id_a_asignar);
-        enviar_buffer(buffer, socket_io);
+        uint32_t tamanio_tipo = 0;
+        char* tipo = buffer_read_string(buffer, &tamanio_tipo);        
         destruir_buffer(buffer);
 
-        buffer = recibir_buffer(socket_io);
-        int tamanio = 0;
-        // recordar que es necesario que IO forme el buffer asi: [tamanio string, string]
-        // porque buffer_read_string primero lee un tamaño
-        char* tipo = buffer_read_string(buffer, &tamanio);        
-        
-        t_interfaz* interfaz = crear_interfaz(id_a_asignar, tipo, socket_io);
+        t_interfaz* interfaz = crear_interfaz(nombre, tipo, socket_io);
 
         list_add(interfacesIO, (void*)interfaz);
 
         conectar_io(&interfaz->hilo_io);
 
-        log_info(logger_kernel, "Se conecto la IO con ID: %u  TIPO: %s", id_a_asignar, tipo);
+        log_info(logger_kernel, "Se conecto la IO con ID (nombre): %s  TIPO: %s", nombre, tipo);
     }
 } 
 
-t_interfaz* crear_interfaz(uint32_t id, char* tipo, int socket){
+t_interfaz* crear_interfaz(char* nombre, char* tipo, int socket){
     t_interfaz* interfaz = malloc(sizeof(t_buffer));
-    interfaz->interfazID = id;
+    interfaz->nombre = NULL;
+    strcpy(interfaz->nombre, nombre);
+    interfaz->tipo = NULL;
     strcpy(interfaz->tipo, tipo);
     interfaz->socket = socket;
     interfaz->ocupada = false;
@@ -138,9 +138,9 @@ t_recurso* inicializar_recurso(char* nombre_recu, int instancias_tot){
 void consola(){ // CONSOLA INTERACTIVA EN BASE A LINEAMIENTO E IMPLEMENTACION
 	//char texto[100];
 	while (1) {
-        char* entrada;
-        char* comando;
-        char* parametro;
+        char* entrada = NULL;
+        char* comando = NULL;
+        char* parametro = NULL;
 
 		printf("Ingrese comando:\n");
 		printf("\tEJECUTAR_SCRIPT [PATH] -- Ejecutar script de operaciones\n");
@@ -173,9 +173,9 @@ void consola(){ // CONSOLA INTERACTIVA EN BASE A LINEAMIENTO E IMPLEMENTACION
 }
 
 void ejecutar_comando_unico(char* comando, char** palabras){
-    char* parametro;
+    char* parametro = NULL;
     if (strcmp(comando, "INICIAR_PROCESO") == 0){
-        strcpy(parametro, palabras[1]);
+        strcpy(parametro, palabras[1]); 
         if (!parametro || string_is_empty(parametro)) {
             printf("ERROR: Falta path para iniciar proceso, fue omitido.\n");
             return;   // Se debe tener en cuenta que frente a un fallo en la escritura de un comando en consola el sistema debe permanecer estable sin reacción alguna.
@@ -190,7 +190,7 @@ void ejecutar_comando_unico(char* comando, char** palabras){
             printf("ERROR: Falta id de proceso para finalizarlo, fue omitido.\n");
             return;
         }
-        finalizarProceso(palabras[1]);
+        finalizarProceso(atoi(palabras[1]));
     } else if (strcmp(comando, "DETENER_PLANIFICACION ") == 0) {
         detener_planificacion();
     } else if (strcmp(comando, "MULTIPROGRAMACION") == 0) {
@@ -208,7 +208,7 @@ void ejecutar_comando_unico(char* comando, char** palabras){
 
 void leer_y_ejecutar(char* path){
     FILE* script = fopen(path,"r");
-    char* s;
+    char* s = NULL;
     int leido = fscanf(script,"%s\n", s);
     while (leido != EOF){
         char** linea = string_split(s, " ");  // linea[0] contiene el comando y linea[1] el parametro
@@ -285,6 +285,7 @@ t_pcb* encontrar_pcb_por_pid(uint32_t pid, int* encontrado){
 
     return NULL; // si llega aca es porque no lo encontró
 }
+
 
 void retirar_pcb_de_su_respectivo_estado(uint32_t pid, int* resultado){
     t_pcb* pcb_a_retirar = encontrar_pcb_por_pid(pid, resultado);
@@ -379,14 +380,13 @@ void iniciar_proceso(char* path){
     
 }
 
-void finalizarProceso(char* pid_string){
+void finalizarProceso(uint32_t pid_string){
     // Antes de hacer finalizar proceso, hay que ver que como desde todos los estados podes pasar a exit, quiza conviene 
     // tener el estado en el pcb, para saber en que lista lo sacas? 
     // Aunque sin este parametro se puede hacer quiza es un poco mas rebuscado?
 
     int resultado = 0;
-    uint32_t pid = atoi(pid_string);
-    retirar_pcb_de_su_respectivo_estado(pid, &resultado);    
+    retirar_pcb_de_su_respectivo_estado(pid_string, &resultado);    
     // detectar deadlock se llama en menu.c
     return;
 }
@@ -503,7 +503,7 @@ void listar_procesos_por_estado(){
     else
         log_info(logger_kernel, "Proceso en %s: []", obtener_nombre_estado(EXEC));
     log_info(logger_kernel, "Procesos en %s: %s", obtener_nombre_estado(BLOCKED), procesos_cargados_en_blocked);
-    log_info(logger_kernel, "Procesos en %s: %s",  obtener_nombre_estado(FINISH), procesos_cargados_en_exit);
+    log_info(logger_kernel, "Procesos en %s: %s",  obtener_nombre_estado(TERMINADO), procesos_cargados_en_exit);
 
     free(procesos_cargados_en_new);
     free(procesos_cargados_en_ready);
@@ -556,12 +556,13 @@ void evaluar_instruccion(t_instruccion instruccion_actual){
     // con la interfaz involucrada, eso implica ver si existe y tambien ver si puede
     // cumplir ese pedido esa I/O
     if (instruccion_actual.codigo == IO_GEN_SLEEP) {
-        t_interfaz* interfaz_buscada;
-        if (!interfaz_valida(instruccion_actual.parametro1, interfaz_buscada)){
+        if (!interfaz_valida(instruccion_actual.parametro1)){
             finalizarProceso(pcb_en_ejecucion->cde->pid);
             return;
         }
 
+        int indice = -1;
+        t_interfaz* interfaz_buscada = obtener_interfaz_en_lista(instruccion_actual.parametro1, &indice);
         if (interfaz_buscada->ocupada){
             queue_push(interfaz_buscada->pcb_esperando, (void*)pcb_en_ejecucion);
             enviar_de_exec_a_block(); // al hacer esto se avisa que la cpu esta libre y se continua con el proximo pcb
@@ -583,12 +584,12 @@ void despachar_pcb_a_interfaz(t_interfaz* interfaz, t_pcb* pcb){
     destruir_buffer(buffer);
 }
 
-bool interfaz_valida(uint32_t id_IO_solicitada, t_interfaz* interfaz_buscada){
+bool interfaz_valida(char* nombre_io_solicitada){
     codigoInstruccion codigo = NULO;
     
     // chequeo si existe
     int indice = -1; // aca se va a guardar el indice en donde esta la interfaz guardada, solo si lo encuentra va a tener un valor valido
-    interfaz_buscada = obtener_interfaz_en_lista(id_IO_solicitada, &indice);
+    t_interfaz* interfaz_buscada = obtener_interfaz_en_lista(nombre_io_solicitada, &indice);
     if (!interfaz_buscada) 
         return false;
 
@@ -596,8 +597,8 @@ bool interfaz_valida(uint32_t id_IO_solicitada, t_interfaz* interfaz_buscada){
     int test_conexion = send(interfaz_buscada->socket, &codigo, sizeof(uint8_t), 0);
      // si hubo error..
     if(test_conexion < 0) {
-        t_interfaz interfaz_a_eliminar = list_get(interfacesIO, indice);
-        queue_destroy(interfaz_a_eliminar.pcb_esperando);
+        t_interfaz* interfaz_a_eliminar = list_get(interfacesIO, indice);
+        queue_destroy(interfaz_a_eliminar->pcb_esperando);
         list_remove(interfacesIO, indice);
         return false; 
     }
@@ -635,15 +636,14 @@ bool io_puede_cumplir_solicitud(char* tipo, codigoInstruccion instruccion){
         return false;
 }
 
-t_interfaz* obtener_interfaz_en_lista(uint32_t id, int* indice){
+t_interfaz* obtener_interfaz_en_lista(char* nombre, int* indice){
     t_interfaz* interfaz;
-    int i = 0;
     
     int encontrado = 0;
 
     for(int i = 0; i < list_size(interfacesIO); i++){
         interfaz = list_get(interfacesIO, i);
-        if(interfaz->interfazID == id){
+        if(strcmp(interfaz->nombre, nombre) == 0){
             encontrado = 1;
             *(indice) = i; 
             break;
@@ -748,16 +748,20 @@ void conectar_consola(){
 
 void atender_io(){
     while(1) {
+        t_buffer* buffer = NULL;
+        char* id_interfaz = NULL;
+        t_interfaz* interfaz = NULL;
+        uint32_t tamanio = 0;
+        int indice = -1;
         mensajeIOKernel codigo = recibir_codigo(socket_io);
         switch (codigo){
         case LIBRE:
             // recibo en un uint32 el id de la interfaz
-            t_buffer* buffer = recibir_buffer(socket_io);
-            uint32_t id_interfaz = buffer_read_uint32(buffer);
+            buffer = recibir_buffer(socket_io);
+            id_interfaz = buffer_read_string(buffer, &tamanio);
             destruir_buffer(buffer);
             // busco en la lista de interfaces
-            int indice = -1;
-            t_interfaz* interfaz = obtener_interfaz_en_lista(id_interfaz, &indice);
+            interfaz = obtener_interfaz_en_lista(id_interfaz, &indice);
             // al pcb ejecutando lo paso a READY porque ya esta listo para continuar
             enviar_pcb_de_block_a_ready(interfaz->pcb_ejecutando);
             // le cambio el estado del bool ocupada a false (esto es por si no tiene ninguno esperando)
@@ -774,12 +778,11 @@ void atender_io(){
             break;
         case DESCONEXION: // suponemos que hay alguna manera de avisar
             // recibo el id
-            t_buffer* buffer = recibir_buffer(socket_io);
-            uint32_t id_interfaz = buffer_read_uint32(buffer);
+            buffer = recibir_buffer(socket_io);
+            id_interfaz = buffer_read_string(buffer, &tamanio);
             destruir_buffer(buffer);
             // la saco de la lista
-            int indice = -1;
-            t_interfaz interfaz = obtener_interfaz_en_lista(id_interfaz, &indice);
+            interfaz = obtener_interfaz_en_lista(id_interfaz, &indice);
             if (indice != -1)
                 list_remove(interfacesIO, indice);
             // libero sus recursos

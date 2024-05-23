@@ -31,14 +31,12 @@ t_log* logger_memoria;
 t_config* config_memoria;
 t_list* lista_procesos;
 
-pthread_t mutex_lista_procesos;
+pthread_mutex_t mutex_lista_procesos;
 pthread_t hilo_cpu;
 pthread_t hilo_io;
 pthread_t hilo_kernel;
 
-sem_t sema_kernel;
-sem_t sema_cpu;
-sem_t sema_io;
+sem_t terminar_memoria;
 
 t_buffer* buffer_instruccion;
 #endif

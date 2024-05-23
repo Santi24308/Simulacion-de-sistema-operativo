@@ -6,6 +6,15 @@ t_instruccion* crear_instruccion(codigoInstruccion codigo, char* par1, char* par
 		perror("No se pudo reservar memoria para instruccion.\n");
 		return NULL;
 	}
+
+	// para que no se queje el compilador
+	instruccion->parametro1 = NULL;
+	instruccion->parametro2 = NULL;
+	instruccion->parametro3 = NULL;
+	instruccion->parametro4 = NULL;
+	instruccion->parametro5 = NULL;
+    // -----------------------------------
+
 	instruccion->codigo = codigo;
 	strcpy(instruccion->parametro1, par1);
 	strcpy(instruccion->parametro2, par2);

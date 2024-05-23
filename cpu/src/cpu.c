@@ -42,11 +42,16 @@ void conectar_kernel(){
 		perror("Fallo la creacion del servidor para Kernel dispatch.\n");
 		exit(EXIT_FAILURE);
 	}
+    conectar_kernel_dispatch();
+
+
 
 	if (socket_servidor_interrupt == -1) {
 		perror("Fallo la creacion del servidor para Kernel interrupt.\n");
 		exit(EXIT_FAILURE);
 	}
+
+    conectar_kernel_interrupt();
 }
 
 void inicializar_modulo(){
@@ -92,7 +97,6 @@ void inicializar_registros(){
 
 void inicializarSemaforos(){
 	pthread_mutex_init(&mutex_cde_ejecutando, NULL);
-	pthread_mutex_init(&mutex_interrupcion_consola, NULL);
 	pthread_mutex_init(&mutex_realizar_desalojo, NULL);
 	pthread_mutex_init(&mutex_instruccion_actualizada, NULL);
 }
@@ -153,14 +157,14 @@ void atender_kernel_dispatch(){
 
 		switch (op_code){
 			case EJECUTAR_PROCESO:
-				t_cde cde_recibido = buffer_read_cde(buffer);
+				t_cde* cde_recibido = buffer_read_cde(buffer);
 				destruir_buffer(buffer);
 
 				pthread_mutex_lock(&mutex_cde_ejecutando);
 				pid_de_cde_ejecutando = cde_recibido->pid;
 				pthread_mutex_unlock(&mutex_cde_ejecutando);
 
-				ejecutar_proceso(&cde_recibido);
+				ejecutar_proceso(cde_recibido);
 				break;
 			default:
 				break;
@@ -182,7 +186,7 @@ void atender_kernel_interrupt(){
         destruir_buffer(buffer);
         
         // asumimos que puede pasar que el pid recibido sea distinto del actual
-        if (cde->pid == pid_recibido) {
+        if (pid_de_cde_ejecutando == pid_recibido) {
             switch (op_code){
                 case INTERRUPT:
                     pthread_mutex_lock(&mutex_interrupcion);
@@ -236,7 +240,7 @@ void iterator(char* value) {
 
 // FUNCIONES AUXILIARES DE INSTRUCCIONES
 
-uint8_t buscar_valor_registro8(void* registro){
+uint8_t buscar_valor_registroUINT8(void* registro){
 	uint8_t valorLeido;
 
 	if(strcmp(registro, "AX") == 0)
@@ -251,7 +255,7 @@ uint8_t buscar_valor_registro8(void* registro){
 	return valorLeido;
 }
 
-uint32_t buscar_valor_registro32(void* registro){
+uint32_t buscar_valor_registroUINT32(void* registro){
 	uint32_t valorLeido;
 	if(strcmp(registro, "EAX") == 0)
 		valorLeido = registros_cpu->EAX;
@@ -282,6 +286,7 @@ void cargar_registros(t_cde* cde){
 	registros_cpu->DI = cde->registros->DI;
 }
 
+
 void guardar_registros(t_cde* cde){
     cde->registros->AX = registros_cpu->AX;
     cde->registros->BX = registros_cpu->BX;
@@ -295,8 +300,8 @@ void guardar_registros(t_cde* cde){
 	cde->registros->DI = registros_cpu->DI;
 }
 
-bool es_bloqueante(codigoInstruccion instruccion_actualizada){
-    switch(instruccion_actualizada){
+bool es_bloqueante(codigoInstruccion cod_instruccion){
+    switch(cod_instruccion){
     case WAIT:
         return true;
         break;
@@ -453,8 +458,7 @@ char* obtener_nombre_instruccion(t_instruccion* instruccion){
 }
 
 void ejecutar_instruccion(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
-    uint32_t parametro1;
-    uint32_t parametro2;
+    uint32_t parametro2 = 0;
     switch(instruccion_a_ejecutar->codigo){
         case SET:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
@@ -591,73 +595,87 @@ void devolver_cde_a_kernel(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
 // el registro y cargar el parametro que corresponda
 
 void ejecutar_set(char* registro, uint32_t valor_recibido){
+    uint8_t valor_reg_origen8 = buscar_valor_registroUINT8(registro);
+    uint32_t valor_reg_origen32 = buscar_valor_registroUINT32(registro);
 
-    if(strcmp(registro, "AX") == 0) registros_cpu->AX = (uint8_t)valor_recibido;   
+    if(strcmp(registro, "AX") == 0) registros_cpu->AX = (uint8_t)valor_reg_origen8;   
     else if(strcmp(registro, "BX") == 0)
-        registros_cpu->BX = (uint8_t) valor_recibido;
+        registros_cpu->BX = (uint8_t) valor_reg_origen8;
     else if(strcmp(registro, "CX") == 0)
-        registros_cpu->CX = (uint8_t) valor_recibido;
+        registros_cpu->CX = (uint8_t) valor_reg_origen8;
     else if(strcmp(registro, "DX") == 0)
-        registros_cpu->DX = (uint8_t) valor_recibido;
+        registros_cpu->DX = (uint8_t) valor_reg_origen8;
+
 	else if(strcmp(registro, "EAX") == 0)
-        registros_cpu->EAX= valor_recibido;
+        registros_cpu->EAX= valor_reg_origen32;
 	else if(strcmp(registro, "EBX") == 0)
-        registros_cpu->EBX = valor_recibido;
+        registros_cpu->EBX = valor_reg_origen32;
 	else if(strcmp(registro, "ECX") == 0)
-        registros_cpu->ECX = valor_recibido;	
+        registros_cpu->ECX = valor_reg_origen32;	
 	else if(strcmp(registro, "EDX") == 0)
-        registros_cpu->EDX = valor_recibido;	
+        registros_cpu->EDX = valor_reg_origen32;	
 	else if(strcmp(registro, "SI") == 0)
-        registros_cpu->SI = valor_recibido;		
+        registros_cpu->SI = valor_reg_origen32;		
 	else if(strcmp(registro, "DI") == 0)
-        registros_cpu->DI = valor_recibido;	
+        registros_cpu->DI = valor_reg_origen32;	
     else
         log_error(logger_cpu, "No se reconoce el registro %s", registro);
 }
 
 void ejecutar_sum(char* reg_dest, char* reg_origen){
-    uint32_t valor_reg_origen = buscar_valor_registro(reg_origen);
+    uint8_t valor_reg_origen8 = buscar_valor_registroUINT8(reg_origen);
+    uint32_t valor_reg_origen32 = buscar_valor_registroUINT32(reg_origen);
     
     if(strcmp(reg_dest, "AX") == 0)
-        registros_cpu->AX += (uint8_t) valor_reg_origen;
+        registros_cpu->AX += (uint8_t) valor_reg_origen8;
     else if(strcmp(reg_dest, "BX") == 0)
-        registros_cpu->BX += (uint8_t) valor_reg_origen;
+        registros_cpu->BX += (uint8_t) valor_reg_origen8;
     else if(strcmp(reg_dest, "CX") == 0)
-        registros_cpu->CX += (uint8_t) valor_reg_origen;
+        registros_cpu->CX += (uint8_t) valor_reg_origen8;
     else if(strcmp(reg_dest, "DX") == 0)
-        registros_cpu->DX += (uint8_t) valor_reg_origen;
+        registros_cpu->DX += (uint8_t) valor_reg_origen8;
+
     else if(strcmp(reg_dest, "EAX") == 0)
-        registros_cpu->EAX+= valor_reg_origen;
+        registros_cpu->EAX+= valor_reg_origen32;
 	else if(strcmp(reg_dest, "EBX") == 0)
-        registros_cpu->EBX += valor_reg_origen;
+        registros_cpu->EBX += valor_reg_origen32;
 	else if(strcmp(reg_dest, "ECX") == 0)
-        registros_cpu->ECX += valor_reg_origen;
+        registros_cpu->ECX += valor_reg_origen32;
 	else if(strcmp(reg_dest, "EDX") == 0)
-        registros_cpu->EDX += valor_reg_origen;
+        registros_cpu->EDX += valor_reg_origen32;
+    else if(strcmp(reg_dest, "SI") == 0)
+        registros_cpu->SI = valor_reg_origen32;		
+	else if(strcmp(reg_dest, "DI") == 0)
+        registros_cpu->DI = valor_reg_origen32;	
     else
         log_warning(logger_cpu, "Registro no reconocido");
 }
 
 void ejecutar_sub(char* reg_dest, char* reg_origen){
-    uint32_t valor_reg_origen= buscar_valor_registro(reg_origen);
+    uint8_t valor_reg_origen8 = buscar_valor_registroUINT8(reg_origen);
+    uint32_t valor_reg_origen32 = buscar_valor_registroUINT32(reg_origen);
 
     if(strcmp(reg_dest, "AX") == 0)
-        registros_cpu->AX -= (uint8_t) valor_reg_origen;
+        registros_cpu->AX -= (uint8_t) valor_reg_origen8;
     else if(strcmp(reg_dest, "BX") == 0)
-        registros_cpu->BX -= (uint8_t) valor_reg_origen;
+        registros_cpu->BX -= (uint8_t) valor_reg_origen8;
     else if(strcmp(reg_dest, "CX") == 0)
-        registros_cpu->CX -= (uint8_t) valor_reg_origen;
+        registros_cpu->CX -= (uint8_t) valor_reg_origen8;
     else if(strcmp(reg_dest, "DX") == 0)
-        registros_cpu->DX -= (uint8_t) valor_reg_origen;
+        registros_cpu->DX -= (uint8_t) valor_reg_origen8;
 
 	else if(strcmp(reg_dest, "EAX") == 0)
-        registros_cpu->EAX -= valor_reg_origen;
+        registros_cpu->EAX -= valor_reg_origen32;
 	else if(strcmp(reg_dest, "EBX") == 0)
-        registros_cpu->EBX -= valor_reg_origen;
+        registros_cpu->EBX -= valor_reg_origen32;
 	else if(strcmp(reg_dest, "ECX") == 0)
-        registros_cpu->ECX -= valor_reg_origen;
+        registros_cpu->ECX -= valor_reg_origen32;
 	else if(strcmp(reg_dest, "EDX") == 0)
-        registros_cpu->EDX -= valor_reg_origen;
+        registros_cpu->EDX -= valor_reg_origen32;
+    else if(strcmp(reg_dest, "SI") == 0)
+        registros_cpu->SI = valor_reg_origen32;		
+	else if(strcmp(reg_dest, "DI") == 0)
+        registros_cpu->DI = valor_reg_origen32;	
     else
         log_warning(logger_cpu, "Registro no reconocido");
 }
@@ -694,6 +712,14 @@ void ejecutar_jnz(void* registro, uint32_t nro_instruccion, t_cde* cde){
     }
 	else if(strcmp(registro, "EDX") == 0){
         if(registros_cpu->EDX != 0)
+            cde->pc = nro_instruccion;
+    }
+    else if(strcmp(registro, "DI") == 0){
+        if(registros_cpu->DI != 0)
+            cde->pc = nro_instruccion;
+    }
+    else if(strcmp(registro, "SI") == 0){
+        if(registros_cpu->SI != 0)
             cde->pc = nro_instruccion;
     }
     else

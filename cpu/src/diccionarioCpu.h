@@ -29,6 +29,7 @@ char* puerto_escucha;
 char* ip;
 char* puerto_mem;
 
+
 t_log* logger_cpu;
 t_config* config_cpu;
 

@@ -4,6 +4,7 @@
 #include <utils/conexiones.h>
 #include <commons/string.h>
 #include <diccionarioIO.h>
+#include <stdbool.h>
 
 // es buena idea pero en el enunciado piden que TIPO_INTERFAZ llegue 
 // como string desde config
@@ -14,8 +15,7 @@ typedef enum{
     DIALFS
 }tipoIO;
 
-char nombreIO[50];
-int chequeo_parametros(int, char**);
+bool chequeo_parametros(int, char**);
 void levantar_logger();
 void levantar_config();
 void terminar_programa();
