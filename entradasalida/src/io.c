@@ -11,7 +11,6 @@ int main(int argc, char* argv[]) {
 	// las interfaces tienen tipo y de eso me doy cuenta en tiempo de ejecucion, por lo que es
 	// necesario que main sepa preparar todo en base al tipo que toco (obtenido desde config)
 	conectar();
-
 	sem_wait(&terminar_io);
 
     terminar_programa();
@@ -29,9 +28,12 @@ bool chequeo_parametros(int argc, char** argv){
 	}
 
 	// asignamos el nombre
-	strcpy(nombreIO, argv[1]);
+	nombreIO = string_new();
+	string_append(&nombreIO, argv[1]);
+
 	// asignamos config
-	config_path = argv[2];
+	config_path = string_new();
+	string_append(&config_path, argv[2]);
 
 	return true;
 }
@@ -57,7 +59,6 @@ void atender_kernel_generica(){
 				sleep(leerEnteroParametroInstruccion(2, instruccion_recibida));
 				enviar_codigo(socket_kernel, LIBRE);
 				buffer = crear_buffer();
-				buffer_write_uint32(buffer, string_length(nombreIO));
 				buffer_write_string(buffer, nombreIO);
 				enviar_buffer(buffer, socket_kernel);
 				destruir_buffer(buffer);
@@ -186,14 +187,10 @@ void conectar_kernel(){
 		terminar_programa();
         exit(EXIT_FAILURE);
     }
-
 	t_buffer* buffer = crear_buffer();
-	buffer_write_uint32(buffer, string_length(nombreIO));
 	buffer_write_string(buffer, nombreIO);
-	buffer_write_uint32(buffer, string_length(tipo));
 	buffer_write_string(buffer, tipo);
 	enviar_buffer(buffer, socket_kernel);
-	destruir_buffer(buffer);
 
 	// notar que aca llamo a atender de manera generica ya que es esa funcion
 	// la encargada de derivar
@@ -203,6 +200,8 @@ void conectar_kernel(){
 		return;
 	}
 	pthread_detach(hilo_kernel);
+
+	destruir_buffer(buffer);
 }
 
 void levantar_logger(){

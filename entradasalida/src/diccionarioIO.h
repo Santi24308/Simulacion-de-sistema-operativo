@@ -15,7 +15,7 @@
 #include <semaphore.h>
 
 char* tipo;
-char nombreIO[50];
+char* nombreIO;
 char* config_path;
 char* ip;
 char* puerto_mem;
