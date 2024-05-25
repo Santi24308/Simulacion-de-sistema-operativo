@@ -5,6 +5,7 @@
   "configurations": [
     {
       "name": "run",
+      "miDebuggerPath": "/usr/bin/gdb",
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/bin/${workspaceFolderBasename}",

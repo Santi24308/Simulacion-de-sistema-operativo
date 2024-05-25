@@ -14,12 +14,75 @@
 #include<signal.h>
 #include<stdarg.h>
 #include<utils/serializacion.h>
+#include<utils/instrucciones.h>
+#include <commons/collections/queue.h>
 
 // AGREGAR LOS PROTOCOLOS
+
+// prototipo de protocolo entre memoria e IO
+typedef enum{
+	GUARDAR_EN_DIRECCION
+}mensajeIOMemoria;
+
+typedef enum{
+	PEDIDO_INSTRUCCION
+}mensajeCpuMem;
+
+typedef enum{
+    EJECUTAR_PROCESO,
+	ALGORITMO_PLANIFICACION,
+	INTERRUPT,
+	DESALOJO
+} mensajeKernelCpu;
+
+typedef enum
+{
+	INICIAR_PROCESO_SOLICITUD,
+	INICIAR_PROCESO_OK,
+	INICIAR_PROCESO_ERROR,
+	FINALIZAR_PROCESO_SOLICITUD,
+	FINALIZAR_PROCESO_OK
+} mensajeMemoriaKernel;
+
+typedef enum {
+	LIBRE,
+	DESCONEXION
+}mensajeIOKernel;
+
+//CONTEXTO DE EJECUCION CREADO PARA CONEXIONES CON KERNEL
+typedef struct{
+	uint32_t pid;
+	uint32_t pc;
+	t_registro* registros;
+}t_contexto;
+
 
 int crear_conexion(char* ip, char* puerto);
 int iniciar_servidor(char*, t_log*);
 int esperar_cliente(int, t_log*);
 void terminar_conexiones(int num_sockets, ...);
+
+/* BORRAR
+// PROCESOS KERNEL
+typedef enum
+{
+	CREAR_PROCESO,
+	FINALIZAR_PROCESO
+}op_kernel;
+
+typedef struct //COMPLETAR
+{
+    int id;
+    
+}t_pagina;
+
+typedef struct //COMPLETAR
+{
+    uint32_t pid;
+    t_pagina* paginas;
+}t_proceso_memo;
+
+
+*/
 
 #endif

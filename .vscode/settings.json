@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "memoria.h": "c",
+        "serializacion.h": "c",
+        "string.h": "c",
+        "diccionariomem.h": "c"
+    }
+}
