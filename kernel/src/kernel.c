@@ -11,6 +11,7 @@ int main(int argc, char* argv[]) {
 
 	inicializar_modulo();
 	conectar();
+
 	consola();
 
     sem_wait(&terminar_kernel);
@@ -30,18 +31,16 @@ void conectar(){
 	}
     char c = 'a';
 	conectar_cpu_dispatch();
-    scanf("%c",&c);
 	conectar_cpu_interrupt();
 
-    scanf("%c",&c);
 	conectar_memoria();
 
     pthread_create(&hilo_esperar_IOs, NULL, (void*) esperarIOs, NULL);
     pthread_detach(hilo_esperar_IOs);
 }
 
-void conectar_io(pthread_t* hilo_io){
-	int err = pthread_create(hilo_io, NULL, (void*)atender_io, NULL);
+void conectar_io(pthread_t* hilo_io, int* socket_io){
+	int err = pthread_create(hilo_io, NULL, (void*)atender_io, socket_io);
 	if (err != 0) {
 		perror("Fallo la creacion de hilo para IO\n");
 		return;
@@ -52,13 +51,13 @@ void conectar_io(pthread_t* hilo_io){
 void esperarIOs(){
     while (1){
         log_info(logger_kernel, "Esperando que se conecte una IO....");
-        socket_io = esperar_cliente(socket_servidor, logger_kernel);
+        int socket_io = esperar_cliente(socket_servidor, logger_kernel);
+        printf("SE CONECTO UNA IO\n");
 
-        uint32_t tamanio_nombre = 0;
+        uint32_t tamanio_nombre;
+        uint32_t tamanio_tipo;
         t_buffer* buffer = recibir_buffer(socket_io);
         char* nombre = buffer_read_string(buffer, &tamanio_nombre);
-
-        uint32_t tamanio_tipo = 0;
         char* tipo = buffer_read_string(buffer, &tamanio_tipo);        
         destruir_buffer(buffer);
 
@@ -66,7 +65,7 @@ void esperarIOs(){
 
         list_add(interfacesIO, (void*)interfaz);
 
-        conectar_io(&interfaz->hilo_io);
+        conectar_io(&interfaz->hilo_io, &interfaz->socket);
 
         log_info(logger_kernel, "Se conecto la IO con ID (nombre): %s  TIPO: %s", nombre, tipo);
     }
@@ -74,10 +73,10 @@ void esperarIOs(){
 
 t_interfaz* crear_interfaz(char* nombre, char* tipo, int socket){
     t_interfaz* interfaz = malloc(sizeof(t_buffer));
-    interfaz->nombre = NULL;
-    strcpy(interfaz->nombre, nombre);
-    interfaz->tipo = NULL;
-    strcpy(interfaz->tipo, tipo);
+    interfaz->nombre = string_new();
+    string_append(&interfaz->nombre, nombre);
+    interfaz->tipo = string_new();
+    string_append(&interfaz->tipo, tipo);
     interfaz->socket = socket;
     interfaz->ocupada = false;
     interfaz->pcb_ejecutando = NULL;
@@ -138,9 +137,7 @@ t_recurso* inicializar_recurso(char* nombre_recu, int instancias_tot){
 void consola(){ // CONSOLA INTERACTIVA EN BASE A LINEAMIENTO E IMPLEMENTACION
 	//char texto[100];
 	while (1) {
-        char* entrada = NULL;
-        char* comando = NULL;
-        char* parametro = NULL;
+        char* entrada = (char*)malloc(20 * sizeof(char));
 
 		printf("Ingrese comando:\n");
 		printf("\tEJECUTAR_SCRIPT [PATH] -- Ejecutar script de operaciones\n");
@@ -155,67 +152,65 @@ void consola(){ // CONSOLA INTERACTIVA EN BASE A LINEAMIENTO E IMPLEMENTACION
         scanf("%s", entrada);
 
         char** palabras = string_split(entrada, " ");
-        strcpy(comando, palabras[0]);
 
-        if(strcmp(comando, "FINALIZAR_SISTEMA") == 0){
+        if(strcmp(palabras[0], "FINALIZAR_SISTEMA") == 0){
             sem_post(&terminar_kernel);
+            free(entrada);
             return;
         }
 
-        if (strcmp(comando, "EJECUTAR_SCRIPT") == 0) {
-            strcpy(parametro, palabras[1]);
-            leer_y_ejecutar(parametro);
+        if (strcmp(palabras[0], "EJECUTAR_SCRIPT") == 0) {
+            leer_y_ejecutar(palabras[1]);
         } else {
-            ejecutar_comando_unico(comando, palabras); // pasamos palabras completo para sacar el parametro cuando se pueda
+            ejecutar_comando_unico(palabras); // pasamos palabras completo para sacar el parametro cuando se pueda
         }
-        string_array_destroy(palabras); // no se si string_split usa memoria dinamica
+        string_array_destroy(palabras); 
+
+        free(entrada);
     }
 }
 
-void ejecutar_comando_unico(char* comando, char** palabras){
-    char* parametro = NULL;
-    if (strcmp(comando, "INICIAR_PROCESO") == 0){
-        strcpy(parametro, palabras[1]); 
-        if (!parametro || string_is_empty(parametro)) {
+void ejecutar_comando_unico(char** palabras){
+    if (strcmp(palabras[0], "INICIAR_PROCESO") == 0){
+        if (!palabras[1] || string_is_empty(palabras[1])) {
             printf("ERROR: Falta path para iniciar proceso, fue omitido.\n");
-            return;   // Se debe tener en cuenta que frente a un fallo en la escritura de un comando en consola el sistema debe permanecer estable sin reacción alguna.
+            return;   // Se debe tener en cuenta que frente a un fallo en la escritura de un palabras[0] en consola el sistema debe permanecer estable sin reacción alguna.
         }
         iniciar_proceso(palabras[1]);
-    } else if (strcmp(comando, "INICIAR_PLANIFICACION") == 0) {
+    } else if (strcmp(palabras[0], "INICIAR_PLANIFICACION") == 0) {
         if (planificacion_detenida) 
             iniciar_planificacion();
-    } else if (strcmp(comando, "FINALIZAR_PROCESO ") == 0) {
-        strcpy(parametro, palabras[1]);
-        if (!parametro || string_is_empty(parametro)) {
+    } else if (strcmp(palabras[0], "FINALIZAR_PROCESO ") == 0) {
+        if (!palabras[1] || string_is_empty(palabras[1])) {
             printf("ERROR: Falta id de proceso para finalizarlo, fue omitido.\n");
             return;
         }
         finalizarProceso(atoi(palabras[1]));
-    } else if (strcmp(comando, "DETENER_PLANIFICACION ") == 0) {
+    } else if (strcmp(palabras[0], "DETENER_PLANIFICACION ") == 0) {
         detener_planificacion();
-    } else if (strcmp(comando, "MULTIPROGRAMACION") == 0) {
-        strcpy(parametro, palabras[1]);
-        if (!parametro || string_is_empty(parametro)) {
+    } else if (strcmp(palabras[0], "MULTIPROGRAMACION") == 0) {
+        if (!palabras[1] || string_is_empty(palabras[1])) {
             printf("ERROR: Falta el valor a asignar para multiprogramación, fue omitido.\n");
         }
         grado_max_multiprogramacion = atoi(palabras[1]);
-    } else if (strcmp(comando, "PROCESO_ESTADO") == 0) {
+    } else if (strcmp(palabras[0], "PROCESO_ESTADO") == 0) {
         listar_procesos_por_estado();
     } else {
-        printf("ERROR: Comando \"%s\" no reconocido, fue omitido.\n", comando);
+        printf("ERROR: Comando \"%s\" no reconocido, fue omitido.\n", palabras[0]);
     }
 }
 
 void leer_y_ejecutar(char* path){
     FILE* script = fopen(path,"r");
-    char* s = NULL;
+    char* s = (char*)malloc(20 * sizeof(char));
     int leido = fscanf(script,"%s\n", s);
     while (leido != EOF){
-        char** linea = string_split(s, " ");  // linea[0] contiene el comando y linea[1] el parametro
-        ejecutar_comando_unico(linea[0], linea); // linea y palabras son lo mismo, es el resultado de split
-        string_array_destroy(linea); // no se si string_split usa memoria dinamica
+        char** linea = string_split(s, " ");
+        ejecutar_comando_unico(linea);
+        string_array_destroy(linea); 
         leido = fscanf(script,"%s\n", s);
     }
+    free(s);
     fclose(script);
 }
 
@@ -746,18 +741,19 @@ void conectar_consola(){
 	pthread_detach(hilo_consola);
 }
 
-void atender_io(){
+void atender_io(void* socket_io){
+    int socket_interfaz_io = *((int*)socket_io);
     while(1) {
         t_buffer* buffer = NULL;
         char* id_interfaz = NULL;
         t_interfaz* interfaz = NULL;
         uint32_t tamanio = 0;
         int indice = -1;
-        mensajeIOKernel codigo = recibir_codigo(socket_io);
+        mensajeIOKernel codigo = recibir_codigo(socket_interfaz_io);
         switch (codigo){
         case LIBRE:
             // recibo en un uint32 el id de la interfaz
-            buffer = recibir_buffer(socket_io);
+            buffer = recibir_buffer(socket_interfaz_io);
             id_interfaz = buffer_read_string(buffer, &tamanio);
             destruir_buffer(buffer);
             // busco en la lista de interfaces
@@ -778,7 +774,7 @@ void atender_io(){
             break;
         case DESCONEXION: // suponemos que hay alguna manera de avisar
             // recibo el id
-            buffer = recibir_buffer(socket_io);
+            buffer = recibir_buffer(socket_interfaz_io);
             id_interfaz = buffer_read_string(buffer, &tamanio);
             destruir_buffer(buffer);
             // la saco de la lista

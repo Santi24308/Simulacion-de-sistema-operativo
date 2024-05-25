@@ -33,7 +33,7 @@ void iniciar_quantum();
 void controlar_tiempo_de_ejecucion();
 void listar_procesos_por_estado();
 void enviar_cde_a_cpu();
-void ejecutar_comando_unico(char*, char**);
+void ejecutar_comando_unico(char**);
 void leer_y_ejecutar(char*);
 void esperarIOs();
 t_interfaz *obtener_interfaz_en_lista(char*, int *);

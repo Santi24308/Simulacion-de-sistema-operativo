@@ -139,13 +139,17 @@ void atender_cpu(){
 void atender_io(){
 }
 
-void iniciar_proceso(){	
+void iniciar_proceso(){	//ver atender io de kernel
 	t_buffer* buffer_recibido = recibir_buffer(socket_kernel);
 	uint32_t tam = 0;
 	uint32_t pid = buffer_read_uint32(buffer_recibido);
-    char* path_op = buffer_read_string(buffer_recibido,&tam);  //path de kernel, inst del proceso a ejecutar 
+
+    char* path_op = (char*)malloc(20 * sizeof(char));
+
+	path_op = buffer_read_string(buffer_recibido,&tam);  //path de kernel, inst del proceso a ejecutar 
+
 	destruir_buffer(buffer_recibido);
-	
+
 	t_list* lista_instrucciones = levantar_instrucciones(path_op);
 
 	t_proceso* proceso_nuevo = crear_proceso(pid,lista_instrucciones);
