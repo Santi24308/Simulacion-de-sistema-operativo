@@ -8,9 +8,27 @@
 1. Levantar **Memoria**
 2. Levantar **Cpu**
 3. Levantar **Kernel**
-4. Levantar **Entradasalida**
+4. Levantar **Entradasalida**, en este caso la linea es `./modulo nombreIO config-path`
 5. Interactuar con las consolas
 6. Al finalizar apagar **Entradasalida y Kernel** por consola
+
+# Entrega: Checkpoint 2
+
+- Módulo Kernel:
+  - Es capaz de crear un PCB y planificarlo por FIFO y RR. OK
+  - Es capaz de enviar un proceso a la CPU para que sea procesado. OK
+- Módulo CPU:
+  - Se conecta a Kernel y recibe un PCB. OK
+  - Es capaz de conectarse a la memoria y solicitar las instrucciones. OK
+  - Es capaz de ejecutar un ciclo básico de instrucción. OK
+  - Es capaz de resolver las operaciones: SET, SUM, SUB, JNZ e IO_GEN_SLEEP. OK
+- Módulo Memoria:
+  - Se encuentra creado y acepta las conexiones. OK
+  - Es capaz de abrir los archivos de pseudocódigo y envía las instrucciones al CPU. OK
+- Módulo Interfaz I/O:
+  - Se encuentra desarrollada la Interfaz Genérica. OK
+
+**Aclaración**: en momento de ejecución tenemos un segmentation fault que se da cuando kernel esta conectandose con el modulo de I/O, debuggeamos y nos dimos cuenta que ejecutando paso a paso con gdb se evita el segmentation por lo que seguimos intentando corregir eso, pero la estructura de todo lo que se pide en el checkpoint esta implementada y compilando.
 
 # Entrega: Checkpoint 1
 
