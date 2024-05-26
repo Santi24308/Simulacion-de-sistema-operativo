@@ -52,6 +52,9 @@ typedef struct{
 	pthread_t hilo_io;
 }t_interfaz;
 
+int socket_io_AUX;
+pthread_t hilo_io_AUX;
+
 char* config_path;
 char* puerto_escucha;
 char* puerto_cpu_dispatch;

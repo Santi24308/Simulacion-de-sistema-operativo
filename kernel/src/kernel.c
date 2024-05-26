@@ -12,7 +12,7 @@ int main(int argc, char* argv[]) {
 	inicializar_modulo();
 	conectar();
 
-	consola();
+//	consola();
 
     sem_wait(&terminar_kernel);
 
@@ -29,15 +29,47 @@ void conectar(){
 		perror("Fallo la creacion del servidor para memoria.\n");
 		exit(EXIT_FAILURE);
 	}
-    char c = 'a';
+
 	conectar_cpu_dispatch();
 	conectar_cpu_interrupt();
 
 	conectar_memoria();
 
+    conectar_io_AUX();
+
+/*
     pthread_create(&hilo_esperar_IOs, NULL, (void*) esperarIOs, NULL);
     pthread_detach(hilo_esperar_IOs);
+*/
 }
+
+void conectar_io_AUX(){
+    log_info(logger_kernel, "Esperando que se conecte una IO....");
+    socket_io_AUX = esperar_cliente(socket_servidor, logger_kernel);
+    printf("SE CONECTO IO\n");
+
+    sleep(1);
+
+    uint32_t tamanio_nombre;
+    uint32_t tamanio_tipo;
+    t_buffer* buffer = recibir_buffer(socket_io_AUX);
+    char* nombre = buffer_read_string(buffer, &tamanio_nombre);
+    char* tipo = buffer_read_string(buffer, &tamanio_tipo);        
+    destruir_buffer(buffer);
+
+    t_interfaz* interfaz = crear_interfaz(nombre, tipo, socket_io_AUX);
+
+    list_add(interfacesIO, (void*)interfaz);
+    log_info(logger_kernel, "Se conecto la IO con ID (nombre): %s  TIPO: %s", nombre, tipo);
+
+    int err = pthread_create(&hilo_io_AUX, NULL, (void*)atender_io, &interfaz->socket);
+	if (err != 0) {
+		perror("Fallo la creacion de hilo para IO\n");
+		return;
+	}
+	pthread_detach(hilo_io_AUX);
+}
+
 
 void conectar_io(pthread_t* hilo_io, int* socket_io){
 	int err = pthread_create(hilo_io, NULL, (void*)atender_io, socket_io);
@@ -52,7 +84,6 @@ void esperarIOs(){
     while (1){
         log_info(logger_kernel, "Esperando que se conecte una IO....");
         int socket_io = esperar_cliente(socket_servidor, logger_kernel);
-        printf("SE CONECTO UNA IO\n");
 
         uint32_t tamanio_nombre;
         uint32_t tamanio_tipo;

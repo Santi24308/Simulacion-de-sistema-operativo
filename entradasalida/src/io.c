@@ -187,13 +187,13 @@ void conectar_kernel(){
 		terminar_programa();
         exit(EXIT_FAILURE);
     }
+
 	t_buffer* buffer = crear_buffer();
 	buffer_write_string(buffer, nombreIO);
 	buffer_write_string(buffer, tipo);
 	enviar_buffer(buffer, socket_kernel);
+	destruir_buffer(buffer);
 
-	// notar que aca llamo a atender de manera generica ya que es esa funcion
-	// la encargada de derivar
 	int err = pthread_create(&hilo_kernel, NULL, (void *)atender, NULL);
 	if (err != 0) {
 		perror("Fallo la creacion de hilo para Kernel\n");
@@ -201,7 +201,6 @@ void conectar_kernel(){
 	}
 	pthread_detach(hilo_kernel);
 
-	destruir_buffer(buffer);
 }
 
 void levantar_logger(){

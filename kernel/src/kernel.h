@@ -5,6 +5,7 @@
 #include <commons/string.h>
 #include <diccionarioKernel.h>
 
+void conectar_io_AUX();
 
 void levantar_logger();
 void levantar_config();
