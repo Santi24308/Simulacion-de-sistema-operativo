@@ -12,7 +12,7 @@ int main(int argc, char* argv[]) {
 	inicializar_modulo();
 	conectar();
 
-//	consola();
+	consola();
 
     sem_wait(&terminar_kernel);
 
@@ -35,38 +35,10 @@ void conectar(){
 
 	conectar_memoria();
 
-    //conectar_io_AUX();
-
     pthread_create(&hilo_esperar_IOs, NULL, (void*) esperarIOs, NULL);
     pthread_detach(hilo_esperar_IOs);
 
 }
-
-void conectar_io_AUX(){
-    log_info(logger_kernel, "Esperando que se conecte una IO....");
-    socket_io_AUX = esperar_cliente(socket_servidor, logger_kernel);
-    printf("SE CONECTO IO\n");
-
-    uint32_t tamanio_nombre;
-    uint32_t tamanio_tipo;
-    t_buffer* buffer = recibir_buffer(socket_io_AUX);
-    char* nombre = buffer_read_string(buffer, &tamanio_nombre);
-    char* tipo = buffer_read_string(buffer, &tamanio_tipo);        
-    destruir_buffer(buffer);
-
-    t_interfaz* interfaz = crear_interfaz(nombre, tipo, socket_io_AUX);
-
-    list_add(interfacesIO, (void*)interfaz);
-    log_info(logger_kernel, "Se conecto la IO con ID (nombre): %s  TIPO: %s", nombre, tipo);
-
-    int err = pthread_create(&hilo_io_AUX, NULL, (void*)atender_io, &interfaz->socket);
-	if (err != 0) {
-		perror("Fallo la creacion de hilo para IO\n");
-		return;
-	}
-	pthread_detach(hilo_io_AUX);
-}
-
 
 void conectar_io(pthread_t* hilo_io, int* socket_io){
 	int err = pthread_create(hilo_io, NULL, (void*)atender_io, socket_io);
@@ -176,10 +148,8 @@ t_recurso* inicializar_recurso(char* nombre_recu, int instancias_tot){
 	return recurso;
 }
 
-void consola(){ // CONSOLA INTERACTIVA EN BASE A LINEAMIENTO E IMPLEMENTACION
-	//char texto[100];
+void consola(){
 	while (1) {
-        char* entrada = (char*)malloc(20 * sizeof(char));
 
 		printf("Ingrese comando:\n");
 		printf("\tEJECUTAR_SCRIPT [PATH] -- Ejecutar script de operaciones\n");
@@ -191,9 +161,14 @@ void consola(){ // CONSOLA INTERACTIVA EN BASE A LINEAMIENTO E IMPLEMENTACION
 		printf("\tPROCESO_ESTADO -- Listar procesos por estado\n");
         printf("\x1b[31m""\tFINALIZAR_SISTEMA -- Finalizar todo el sistema, todos los modulos\n""\x1b[0m""\n");
 
-        scanf("%s", entrada);
+        char* entrada = readline("> ");
 
         char** palabras = string_split(entrada, " ");
+        printf("\nLA CANTIDAD DE PALABRAS ENCONTRADAS ES: %i", string_array_size(palabras));
+
+        printf("\n\tINSTRUCCION: %s\n", palabras[0]);
+        if (palabras[1])
+            printf("\n\tPARAMETRO: %s\n", palabras[1]);
 
         if(strcmp(palabras[0], "FINALIZAR_SISTEMA") == 0){
             sem_post(&terminar_kernel);
@@ -218,25 +193,33 @@ void ejecutar_comando_unico(char** palabras){
             printf("ERROR: Falta path para iniciar proceso, fue omitido.\n");
             return;   // Se debe tener en cuenta que frente a un fallo en la escritura de un palabras[0] en consola el sistema debe permanecer estable sin reacción alguna.
         }
-        iniciar_proceso(palabras[1]);
+        printf("\n\tLlego la instruccion INICIAR_PROCESO con parametro: %s \n", palabras[1]);
+        //iniciar_proceso(palabras[1]);
     } else if (strcmp(palabras[0], "INICIAR_PLANIFICACION") == 0) {
-        if (planificacion_detenida) 
-            iniciar_planificacion();
-    } else if (strcmp(palabras[0], "FINALIZAR_PROCESO ") == 0) {
+        if (planificacion_detenida) {
+            printf("\n\tLlego la instruccion INICIAR_PLANIFICACION\n");
+            //iniciar_planificacion();
+        }
+    } else if (strcmp(palabras[0], "FINALIZAR_PROCESO") == 0) {
         if (!palabras[1] || string_is_empty(palabras[1])) {
             printf("ERROR: Falta id de proceso para finalizarlo, fue omitido.\n");
             return;
         }
-        finalizarProceso(atoi(palabras[1]));
-    } else if (strcmp(palabras[0], "DETENER_PLANIFICACION ") == 0) {
-        detener_planificacion();
+        printf("\n\tLlego la instruccion FINALIZAR_PROCESO con parametro: %s\n", palabras[1]);
+        //finalizarProceso(atoi(palabras[1]));
+    } else if (strcmp(palabras[0], "DETENER_PLANIFICACION") == 0) {
+        printf("\n\tLlego la instruccion DETENER_PLANIFICACION\n");
+        //detener_planificacion();
     } else if (strcmp(palabras[0], "MULTIPROGRAMACION") == 0) {
         if (!palabras[1] || string_is_empty(palabras[1])) {
             printf("ERROR: Falta el valor a asignar para multiprogramación, fue omitido.\n");
+            return;
         }
-        grado_max_multiprogramacion = atoi(palabras[1]);
+        printf("\n\tLlego la instruccion MULTIPROGRAMACION con parametro: %s\n", palabras[1]);
+        //grado_max_multiprogramacion = atoi(palabras[1]);
     } else if (strcmp(palabras[0], "PROCESO_ESTADO") == 0) {
-        listar_procesos_por_estado();
+        printf("\n\tLlego la instruccion PROCESO_ESTADO\n");
+        //listar_procesos_por_estado();
     } else {
         printf("ERROR: Comando \"%s\" no reconocido, fue omitido.\n", palabras[0]);
     }
@@ -244,18 +227,31 @@ void ejecutar_comando_unico(char** palabras){
 
 void leer_y_ejecutar(char* path){
     FILE* script = fopen(path,"r");
-    char* s = (char*)malloc(20 * sizeof(char));
-    int leido = fscanf(script,"%s\n", s);
-    while (leido != EOF){
-        char** linea = string_split(s, " ");
+    if (!script){
+        perror("Error al abrir archivo, revisar el path.");
+        return;
+    }
+    char leido[200];
+
+    while (fgets(leido, 200, script) != NULL && !feof(script)){
+        trim_trailing_whitespace(leido);
+        char** linea = string_split(leido, " ");
         ejecutar_comando_unico(linea);
         string_array_destroy(linea); 
-        leido = fscanf(script,"%s\n", s);
+        sleep(1);
     }
-    free(s);
-    fclose(script);
+
 }
 
+// esta funcion fixea los casos en donde fgets al leer del archivo lee algo que deberia ser
+// "palabra" como "palabra           ".
+void trim_trailing_whitespace(char *str) {
+    int len = strlen(str);
+    while (len > 0 && (str[len - 1] == ' ' || str[len - 1] == '\n' || str[len - 1] == '\t')) {
+        str[len - 1] = '\0';
+        len--;
+    }
+}
 
 ///////// CHECKPOINT 2 PLANIFICACION /////////////////
 

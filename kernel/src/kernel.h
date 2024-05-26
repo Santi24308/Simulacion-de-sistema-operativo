@@ -5,7 +5,6 @@
 #include <commons/string.h>
 #include <diccionarioKernel.h>
 
-void conectar_io_AUX();
 void imprimir_ios();
 
 void levantar_logger();
@@ -44,6 +43,7 @@ bool interfaz_valida(char*);
 void finalizarProceso(uint32_t pid_string);
 void despachar_pcb_a_interfaz(t_interfaz*, t_pcb*);
 bool io_puede_cumplir_solicitud(char* , codigoInstruccion );
+void trim_trailing_whitespace(char*);
 
 void agregar_pcb_a(t_queue*, t_pcb*, pthread_mutex_t*);
 t_pcb* retirar_pcb_de(t_queue*, pthread_mutex_t*);
