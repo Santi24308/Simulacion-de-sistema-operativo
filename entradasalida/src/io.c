@@ -94,6 +94,7 @@ void atender_kernel_stdout(){
 		codigoInstruccion cod = recibir_codigo(socket_kernel);
 		switch (cod){
 			case IO_STDOUT_WRITE:
+				leer_y_mostrar_resultado();
 				break;	
 			case -1:
 				log_info(logger_io, "Se desconecto Kernel");
@@ -163,7 +164,35 @@ void leer_y_enviar_a_memoria(){
 	destruir_buffer(buffer_recibido);
 	destruir_buffer(buffer_a_enviar);
 }
+void leer_y_mostrar_resultado(){
 
+	//falta saber cual es la direccion que quiero leer
+
+	
+	//Le aviso a memoria que quiero leer tal direccion
+
+	enviar_codigo(socket_memoria , LEER_DIRECCION);
+
+	//Memoria me responde con un buffer que contiene la direccion
+	t_buffer buffer_recibido = recibir_buffer(socket_memoria);
+	uint32_t tamanio_direccion;
+	char* direccion_memoria = buffer_read_string(buffer_recibido , &tamanio_direccion)   //deberia verificar que sea valida esa direccion (futuro refinamiento del tp)
+
+	//leo el valor de la direccion con funcion de las common y la guardo en una variable
+	char* contenido_a_imprimir  = mem_hexstring(direccion_memoria, string_length(direccion_memoria) + 1);
+	//duermo 1 unidad de tiempo
+	sleep(1);
+
+	//imprimo el valor guardado de la direccion
+	// podria hacerse con printf tambien pero me parecio que estaba bueno dejar el logg
+	log_info(logger_io ,contenido_a_imprimir);
+
+
+	//destruyo estructuras creadas
+	destruir_buffer(buffer_recibido);
+	free(contenido_a_imprimir);
+
+}
 //--------------------------------------------------------------------------------------------------------------
 
 
