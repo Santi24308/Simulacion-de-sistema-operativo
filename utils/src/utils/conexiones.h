@@ -21,7 +21,8 @@
 
 // prototipo de protocolo entre memoria e IO
 typedef enum{
-	GUARDAR_EN_DIRECCION
+	GUARDAR_EN_DIRECCION,
+	LEER_DIRECCION
 }mensajeIOMemoria;
 
 typedef enum{
