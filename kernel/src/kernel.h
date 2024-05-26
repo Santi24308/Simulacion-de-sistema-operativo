@@ -6,6 +6,7 @@
 #include <diccionarioKernel.h>
 
 void conectar_io_AUX();
+void imprimir_ios();
 
 void levantar_logger();
 void levantar_config();

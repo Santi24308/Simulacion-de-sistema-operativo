@@ -40,12 +40,16 @@ bool chequeo_parametros(int argc, char** argv){
 
 void conectar(){
 	conectar_kernel();
-	conectar_memoria();
+	//conectar_memoria();
 }
 
 void inicializar_modulo(){
 	levantar_logger();
 	levantar_config();
+
+	// seteamos el tipo de la interfaz 
+	tipo = string_new();
+	string_append(&tipo, config_get_string_value(config_io, "TIPO_INTERFAZ"));
 }
 
 void atender_kernel_generica(){
@@ -128,9 +132,6 @@ void atender_kernel_dialfs(){
 }
 
 void atender(){
-	// IMPORTANTE: el tipo se va a preguntar una sola vez en todo el programa ya que las I/O 
-	// no pueden cambiar
-	tipo = config_get_string_value(config_io, "TIPO_INTERFAZ");
 	if (strcmp(tipo, "GENERICA")==0)
 		atender_kernel_generica();
 	else if (strcmp(tipo, "STDIN")==0)
@@ -174,9 +175,9 @@ void leer_y_mostrar_resultado(){
 	enviar_codigo(socket_memoria , LEER_DIRECCION);
 
 	//Memoria me responde con un buffer que contiene la direccion
-	t_buffer buffer_recibido = recibir_buffer(socket_memoria);
+	t_buffer* buffer_recibido = recibir_buffer(socket_memoria);
 	uint32_t tamanio_direccion;
-	char* direccion_memoria = buffer_read_string(buffer_recibido , &tamanio_direccion)   //deberia verificar que sea valida esa direccion (futuro refinamiento del tp)
+	char* direccion_memoria = buffer_read_string(buffer_recibido , &tamanio_direccion);   //deberia verificar que sea valida esa direccion (futuro refinamiento del tp)
 
 	//leo el valor de la direccion con funcion de las common y la guardo en una variable
 	char* contenido_a_imprimir  = mem_hexstring(direccion_memoria, string_length(direccion_memoria) + 1);

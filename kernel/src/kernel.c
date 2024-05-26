@@ -35,20 +35,17 @@ void conectar(){
 
 	conectar_memoria();
 
-    conectar_io_AUX();
+    //conectar_io_AUX();
 
-/*
     pthread_create(&hilo_esperar_IOs, NULL, (void*) esperarIOs, NULL);
     pthread_detach(hilo_esperar_IOs);
-*/
+
 }
 
 void conectar_io_AUX(){
     log_info(logger_kernel, "Esperando que se conecte una IO....");
     socket_io_AUX = esperar_cliente(socket_servidor, logger_kernel);
     printf("SE CONECTO IO\n");
-
-    sleep(1);
 
     uint32_t tamanio_nombre;
     uint32_t tamanio_tipo;
@@ -99,8 +96,22 @@ void esperarIOs(){
         conectar_io(&interfaz->hilo_io, &interfaz->socket);
 
         log_info(logger_kernel, "Se conecto la IO con ID (nombre): %s  TIPO: %s", nombre, tipo);
+
+        imprimir_ios();
     }
 } 
+
+void imprimir_ios(){
+    int cantidad = list_size(interfacesIO);
+    int i = 0;
+    printf("\nLas IOs conectadas hasta el momento son:\n");
+    while (i<cantidad){
+        t_interfaz* interfaz = list_get(interfacesIO, i);
+        printf("\n\tNOMBRE:  %s,  TIPO:  %s", interfaz->nombre, interfaz->tipo);
+        i++;
+    }
+    printf("\n\n");
+}
 
 t_interfaz* crear_interfaz(char* nombre, char* tipo, int socket){
     t_interfaz* interfaz = malloc(sizeof(t_buffer));
