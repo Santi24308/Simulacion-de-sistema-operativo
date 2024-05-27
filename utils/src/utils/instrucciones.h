@@ -44,11 +44,13 @@ typedef struct{
     char* parametro5;
 }t_instruccion;
 
-t_instruccion* crear_instruccion(codigoInstruccion, char*, char*, char*, char*, char*);
+t_instruccion* crear_instruccion(codigoInstruccion);
 
 uint32_t leerEnteroParametroInstruccion(int indice, t_instruccion* instr);
 
 void escribirCharParametroInstruccion(int indice, t_instruccion* instr, char* string);
 char* leerCharParametroInstruccion(int indice, t_instruccion* instr);
+char* obtener_nombre_instruccion(t_instruccion* instruccion);
+codigoInstruccion obtener_codigo_instruccion(char* cod_char);
 
 #endif /* SRC_UTILS_INSTRUCCIONES_H_ */

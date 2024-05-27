@@ -23,6 +23,9 @@ void inicializar_modulo(){
 	levantar_logger();
 	levantar_config();
 
+	lista_procesos = list_create();
+
+	pthread_mutex_init(&mutex_lista_procesos, NULL);
 	sem_init(&terminar_memoria, 0, 0);	
 }
 
@@ -37,7 +40,8 @@ void conectar(){
 
 	conectar_cpu();
 	conectar_kernel();
-	conectar_io();
+	//conectar_io();
+	sem_wait(&terminar_memoria);
 }
 
 void levantar_logger(){
@@ -101,19 +105,19 @@ void atender_kernel(){
 	switch(cod_kernel){
 		case INICIAR_PROCESO_SOLICITUD:			
 			iniciar_proceso();
-		break;		
+			break;		
 		case FINALIZAR_PROCESO_SOLICITUD:		
 			liberar_proceso();			
-		break;		
+			break;		
 		case -1:
 			log_error(logger_memoria, "Se desconecto KERNEL");
 			sem_post(&terminar_memoria);
 			return;		
 		default:
-		break;
-		}
+			break;
 		}
 	}
+}
 
 void atender_cpu(){		
 	retardo_respuesta = config_get_string_value(config_memoria, "RETARDO_RESPUESTA");
@@ -144,33 +148,51 @@ void iniciar_proceso(){	//ver atender io de kernel
 	uint32_t tam = 0;
 	uint32_t pid = buffer_read_uint32(buffer_recibido);
 
-    char* path_op = (char*)malloc(20 * sizeof(char));
-
-	path_op = buffer_read_string(buffer_recibido,&tam);  //path de kernel, inst del proceso a ejecutar 
+    char* nombre_archivo = buffer_read_string(buffer_recibido,&tam);  //path de kernel, inst del proceso a ejecutar 
 
 	destruir_buffer(buffer_recibido);
 
-	t_list* lista_instrucciones = levantar_instrucciones(path_op);
+	char* ruta_completa = string_new();
+	string_append(&ruta_completa, config_get_string_value(config_memoria, "PATH_INSTRUCCIONES"));
+	string_append(&ruta_completa, nombre_archivo);
+
+	t_list* lista_instrucciones = levantar_instrucciones(ruta_completa);
+	if (!lista_instrucciones)
+		return;
 
 	t_proceso* proceso_nuevo = crear_proceso(pid,lista_instrucciones);
 		
-	log_info(logger_memoria, "Creación: PID: %d - Tamaño: 0", pid);
+	log_info(logger_memoria, "Creación: PID: %d", pid);
 
 	pthread_mutex_lock(&mutex_lista_procesos);
 	list_add(lista_procesos, proceso_nuevo);
 	pthread_mutex_unlock(&mutex_lista_procesos);
 
-	enviar_codigo(socket_kernel, INICIAR_PROCESO_OK);	
+	enviar_codigo(socket_kernel, INICIAR_PROCESO_OK);
 }
 
 
 void liberar_proceso(){
+	printf("\nProcesos en el sistema antes de eliminar");
+	imprimir_pids();
 	t_buffer* buffer_recibido = recibir_buffer(socket_kernel);
 	uint32_t pid = buffer_read_uint32(buffer_recibido);
-	t_proceso* proceso_a_eliminar = buscar_proceso(pid);
-	eliminar_proceso(proceso_a_eliminar);
-	log_info(logger_memoria, "Destruccion: PID: %d - Tamaño: 0", pid);
+	buscar_y_eliminar_proceso(pid);
+	printf("\nProcesos en el sistema DESPUES de eliminar");
+	imprimir_pids();
+	log_info(logger_memoria, "Destruccion: PID: %d", pid);
 	enviar_codigo(socket_kernel , FINALIZAR_PROCESO_OK);
+}
+
+void imprimir_pids(){
+	int i = 0;
+	printf("\n");
+	while (i < list_size(lista_procesos)) {
+		t_proceso* proceso = list_get(lista_procesos, i);
+		printf("\tPROCESO PID: %i\n", proceso->pid);
+		i++;
+	}
+	printf("\n");
 }
 
 void eliminar_instruccion(t_instruccion* instruccion){
@@ -180,11 +202,6 @@ void eliminar_instruccion(t_instruccion* instruccion){
 	free(instruccion->parametro4);
 	free(instruccion->parametro5);
 	free(instruccion);
-}
-
-void eliminar_proceso(t_proceso* proceso){
-	list_destroy_and_destroy_elements(proceso->lista_instrucciones, (void* ) eliminar_instruccion);
-	free(proceso);
 }
 
 t_proceso* crear_proceso(uint32_t pid, t_list* lista_instrucciones){
@@ -197,74 +214,85 @@ t_proceso* crear_proceso(uint32_t pid, t_list* lista_instrucciones){
 t_list* levantar_instrucciones(char* path_op){
 	t_list* lista_instrucciones = list_create();	
 	FILE* archivo_instrucciones = fopen(path_op, "r");
-    char* s = NULL;
+	if (!archivo_instrucciones){
+		printf("\nNO SE PUDO ABRIR EL ARCHIVO DE INSTRUCCIONES!!\n");
+		list_destroy(lista_instrucciones);
+		return NULL;
+	}
 	t_instruccion* instruccion;
-	int i = 1;
-    int leido = fscanf(archivo_instrucciones,"%s\n", s);
-	char* parametro = NULL;
 
-    while (leido != EOF){		
-        char** instruccion_leida = string_split(s, " ");    
-		int tamanio_linea = countStrings(instruccion_leida); 
-		codigoInstruccion codigo = s[0]; //???
+    char leido[200];
 
-		instruccion = crear_instruccion(codigo,NULL,NULL,NULL,NULL,NULL);
-		
-		while(i<tamanio_linea){	
-			strcpy(parametro, &s[i]);		
-			escribir_parametro(i, instruccion, parametro);			
-			i++;						
+    while (fgets(leido, 200, archivo_instrucciones) != NULL && !feof(archivo_instrucciones)){
+        trim_trailing_whitespace(leido);
+        char** linea = string_split(leido, " ");
+
+		if (!string_is_empty(linea[0])){
+
+			instruccion = crear_instruccion(obtener_codigo_instruccion(linea[0]));
+
+			int i = 1;
+			while(linea[i]){	
+				escribirCharParametroInstruccion(i, instruccion, linea[i]);			
+				i++;						
+			}
+
+			list_add(lista_instrucciones, instruccion);
+			imprimir_instruccion(instruccion);
 		}
-        string_array_destroy(instruccion_leida); // no se si string_split usa memoria dinamica
 
-		list_add(lista_instrucciones, instruccion);
-
-        leido = fscanf(archivo_instrucciones,"%s\n", s);
+        string_array_destroy(linea); 
     }
+
     fclose(archivo_instrucciones);	
 
 	return lista_instrucciones;
 }
 
-int countStrings(char **array) {
-    int count = 0;
-    while (array[count] != NULL) {
-        count++;
-    }
-    return count;
-}
-
-void escribir_parametro(int i ,t_instruccion* inst , char* parametro){
-	switch (i){
-		case 1 :
-		strcpy(inst->parametro1, parametro);
-		break;
-		case 2 :
-		strcpy(inst->parametro2, parametro);
-		break;
-		case 3 :
-		strcpy(inst->parametro3, parametro);
-		break;
-		case 4 :
-		strcpy(inst->parametro4, parametro);
-		break;
-		case 5 :
-		strcpy(inst->parametro5, parametro);
-		break;
-		default: 
-		break;
+void imprimir_instruccion(t_instruccion* instruccion){
+	printf("\tINSTRUCCION LEIDA: %s \n", obtener_nombre_instruccion(instruccion));
+	int i = 1;
+	while(i <= 5){
+		char* par = leerCharParametroInstruccion(i, instruccion);
+		if (par)
+			printf("\tPARAMETRO %i: %s\n", i, leerCharParametroInstruccion(i, instruccion));
+		i++;
 	}
 }
 
-t_proceso* buscar_proceso(uint32_t pid){
-	t_proceso* proceso = malloc(sizeof(t_proceso));
+// esta funcion fixea los casos en donde fgets al leer del archivo lee algo que deberia ser
+// "palabra" como "palabra           ".
+void trim_trailing_whitespace(char *str) {
+    int len = strlen(str);
+    while (len > 0 && (str[len - 1] == ' ' || str[len - 1] == '\n' || str[len - 1] == '\t')) {
+        str[len - 1] = '\0';
+        len--;
+    }
+}
+
+void buscar_y_eliminar_proceso(uint32_t pid){
+	t_proceso* proceso = NULL;
 	for(int i = 0; i < list_size(lista_procesos); i++){
 		proceso = list_get(lista_procesos, i);
 		if(proceso->pid == pid){
-			return proceso;
+			eliminar_lista_instrucciones(proceso->lista_instrucciones);
+			free(proceso);
+			list_remove(lista_procesos, i);
+			return;
 		}
 	}
-	return NULL;
+	log_warning(logger_memoria, "Proceso no encontrado, no hay cambios.");
+}
+
+void eliminar_lista_instrucciones(t_list* lista){
+	int i = 0;
+	while(i < list_size(lista)){
+		t_instruccion* instruccion = list_get(lista, i);
+		eliminar_instruccion(instruccion);
+		list_remove(lista, i);
+		i++;
+	}
+	list_destroy(lista);
 }
 
 void enviar_instruccion(){
@@ -297,4 +325,14 @@ void terminar_programa(){
 
 void iterator(char* value) {
 	log_info(logger_memoria,"%s", value);
+}
+t_proceso* buscar_proceso(uint32_t pid){
+	t_proceso* proceso = malloc(sizeof(t_proceso));
+	for(int i = 0; i < list_size(lista_procesos); i++){
+		proceso = list_get(lista_procesos, i);
+		if(proceso->pid == pid){
+			return proceso;
+		}
+	}
+	return NULL;
 }

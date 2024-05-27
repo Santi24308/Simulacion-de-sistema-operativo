@@ -194,11 +194,10 @@ void ejecutar_comando_unico(char** palabras){
             return;   // Se debe tener en cuenta que frente a un fallo en la escritura de un palabras[0] en consola el sistema debe permanecer estable sin reacción alguna.
         }
         printf("\n\tLlego la instruccion INICIAR_PROCESO con parametro: %s \n", palabras[1]);
-        //iniciar_proceso(palabras[1]);
+        iniciar_proceso(palabras[1]);
     } else if (strcmp(palabras[0], "INICIAR_PLANIFICACION") == 0) {
         if (planificacion_detenida) {
-            printf("\n\tLlego la instruccion INICIAR_PLANIFICACION\n");
-            //iniciar_planificacion();
+            iniciar_planificacion();
         }
     } else if (strcmp(palabras[0], "FINALIZAR_PROCESO") == 0) {
         if (!palabras[1] || string_is_empty(palabras[1])) {
@@ -206,20 +205,19 @@ void ejecutar_comando_unico(char** palabras){
             return;
         }
         printf("\n\tLlego la instruccion FINALIZAR_PROCESO con parametro: %s\n", palabras[1]);
-        //finalizarProceso(atoi(palabras[1]));
+        terminar_proceso_consola(atoi(palabras[1]));
     } else if (strcmp(palabras[0], "DETENER_PLANIFICACION") == 0) {
-        printf("\n\tLlego la instruccion DETENER_PLANIFICACION\n");
-        //detener_planificacion();
+        detener_planificacion();
     } else if (strcmp(palabras[0], "MULTIPROGRAMACION") == 0) {
         if (!palabras[1] || string_is_empty(palabras[1])) {
             printf("ERROR: Falta el valor a asignar para multiprogramación, fue omitido.\n");
             return;
         }
-        printf("\n\tLlego la instruccion MULTIPROGRAMACION con parametro: %s\n", palabras[1]);
-        //grado_max_multiprogramacion = atoi(palabras[1]);
+        // deberia ir un mutex?
+        grado_max_multiprogramacion = atoi(palabras[1]);
     } else if (strcmp(palabras[0], "PROCESO_ESTADO") == 0) {
         printf("\n\tLlego la instruccion PROCESO_ESTADO\n");
-        //listar_procesos_por_estado();
+        listar_procesos_por_estado();
     } else {
         printf("ERROR: Comando \"%s\" no reconocido, fue omitido.\n", palabras[0]);
     }
@@ -384,7 +382,7 @@ void iniciar_proceso(char* path){
     t_buffer* buffer = crear_buffer();
 
     buffer_write_uint32(buffer, pcb_a_new->cde->pid);
-    buffer_write_string(buffer, path); 
+    buffer_write_string(buffer, path); // el path es algo como instrucciones.txt, memoria le da la ruta completa con su carpeta
 	
     enviar_buffer(buffer, socket_memoria);
 
@@ -393,6 +391,13 @@ void iniciar_proceso(char* path){
 	//Recibo la respuesta de la memoria
     mensajeMemoriaKernel cod_op = recibir_codigo(socket_memoria);
 
+    if (cod_op == INICIAR_PROCESO_OK){
+        printf("\nMEMORIA CREO CORRECTAMENTE EL PROCESO\n");
+    } else if (cod_op == INICIAR_PROCESO_ERROR) {
+        printf("\nERROR AL CREAR EL PROCESO DESDE MEMORIA\n");
+    }
+
+/*
     if(cod_op == INICIAR_PROCESO_OK){
         // Poner en new
         agregar_pcb_a(procesosNew, pcb_a_new, &mutex_new); // se agrega a la cola de procesos
@@ -410,7 +415,7 @@ void iniciar_proceso(char* path){
         log_info(logger_kernel, "No se pudo crear el proceso %d", pcb_a_new->cde->pid);
         destruir_pcb(pcb_a_new);
     }
-    
+  */  
 }
 
 void finalizarProceso(uint32_t pid_string){
@@ -424,6 +429,24 @@ void finalizarProceso(uint32_t pid_string){
     return;
 }
 
+void terminar_proceso_consola(uint32_t pid){
+    enviar_codigo(socket_memoria, FINALIZAR_PROCESO_SOLICITUD);
+
+    t_buffer* buffer = crear_buffer();
+    buffer_write_uint32(buffer, pid);
+    enviar_buffer(buffer, socket_memoria);
+    destruir_buffer(buffer);
+
+    mensajeMemoriaKernel rta_memoria = recibir_codigo(socket_memoria);
+
+    if(rta_memoria == FINALIZAR_PROCESO_OK){
+        log_info(logger_kernel, "SE ELIMINO PROCESO PID: %i DE MEMORIA", pid);
+    }
+    else{
+        log_error(logger_kernel, "Memoria no logró liberar correctamente las estructuras");
+        exit(1);
+    }
+}
 
 void terminar_proceso(){
     while(1){
