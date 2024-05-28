@@ -346,7 +346,6 @@ void ejecutar_proceso(t_cde* cde){
 	t_instruccion* instruccion_a_ejecutar;
 
     while(interrupcion != 1 && realizar_desalojo != 1){
-        log_info(logger_cpu, "PID: %d - FETCH - Program Counter: %d", cde->pid, cde->pc);
 
         enviar_codigo(socket_memoria, PEDIDO_INSTRUCCION); // fetch
         t_buffer* buffer_envio = crear_buffer();
@@ -357,22 +356,32 @@ void ejecutar_proceso(t_cde* cde){
 
         destruir_buffer(buffer_envio);
         
-        // mientras estemos en un mismo proceso las instrucciones se encuentran ubicadas en memoria SECUENCIALMENTE
-        // por lo que se puede ir moviendo el program counter en 1 para tener la direccion de la siguiente instruccion
-        // PERO cuando se termine el proceso YA NO se puede asegurar esto, por lo que si o si se pide la direccion nueva a memoria
-        cde->pc++;
+        mensajeCpuMem cod = recibir_codigo(socket_memoria);
+        if (cod == PEDIDO_OK) {
+            log_info(logger_cpu, "PID: %d - FETCH - Program Counter: %d", cde->pid, cde->pc);
+            
+            t_buffer* buffer_recibido = recibir_buffer(socket_memoria);
+            instruccion_a_ejecutar = buffer_read_instruccion(buffer_recibido);
+            destruir_buffer(buffer_recibido);
+            
+            pthread_mutex_lock(&mutex_instruccion_actualizada);
+            instruccion_actualizada = instruccion_a_ejecutar->codigo;
+            pthread_mutex_unlock(&mutex_instruccion_actualizada);
 
-        t_buffer* buffer_recibido = recibir_buffer(socket_memoria);
-        instruccion_a_ejecutar = buffer_read_instruccion(buffer_recibido);
-        destruir_buffer(buffer_recibido);
-        
-        pthread_mutex_lock(&mutex_instruccion_actualizada);
-        instruccion_actualizada = instruccion_a_ejecutar->codigo;
-        pthread_mutex_unlock(&mutex_instruccion_actualizada);
-
-        ejecutar_instruccion(cde, instruccion_a_ejecutar);
+            printf("\nRECIBI LA SIGUIENTE INSTRUCCION CON EL PC: %i", cde->pc);
+            imprimir_instruccion(instruccion_a_ejecutar);
+            ejecutar_instruccion(cde, instruccion_a_ejecutar);
+            // mientras estemos en un mismo proceso las instrucciones se encuentran ubicadas en memoria SECUENCIALMENTE
+            // por lo que se puede ir moviendo el program counter en 1 para tener la direccion de la siguiente instruccion
+            // PERO cuando se termine el proceso YA NO se puede asegurar esto, por lo que si o si se pide la direccion nueva a memoria
+            cde->pc++;
+            sleep(1);
+        } else if (cod == FIN_INSTRUCCIONES) {
+            // aca habria que aclarar que es porque terminó
+            realizar_desalojo = 1;    
+        }
 	}
-
+    return;
 	if(interrupcion){
 		interrupcion = 0;
         pthread_mutex_lock(&mutex_realizar_desalojo);
@@ -390,6 +399,17 @@ void ejecutar_proceso(t_cde* cde){
         cde->motivo = FIN_DE_QUANTUM;
         desalojar_cde(cde, instruccion_a_ejecutar);
     }
+}
+
+void imprimir_instruccion(t_instruccion* instruccion){
+	printf("\tINSTRUCCION LEIDA: %s \n", obtener_nombre_instruccion(instruccion));
+	int i = 1;
+	while(i <= 5){
+		char* par = leerCharParametroInstruccion(i, instruccion);
+		if (par)
+			printf("\tPARAMETRO %i: %s\n", i, leerCharParametroInstruccion(i, instruccion));
+		i++;
+	}
 }
 
 void ejecutar_instruccion(t_cde* cde, t_instruccion* instruccion_a_ejecutar){

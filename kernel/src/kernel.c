@@ -164,11 +164,6 @@ void consola(){
         char* entrada = readline("> ");
 
         char** palabras = string_split(entrada, " ");
-        printf("\nLA CANTIDAD DE PALABRAS ENCONTRADAS ES: %i", string_array_size(palabras));
-
-        printf("\n\tINSTRUCCION: %s\n", palabras[0]);
-        if (palabras[1])
-            printf("\n\tPARAMETRO: %s\n", palabras[1]);
 
         if(strcmp(palabras[0], "FINALIZAR_SISTEMA") == 0){
             sem_post(&terminar_kernel);
@@ -193,7 +188,7 @@ void ejecutar_comando_unico(char** palabras){
             printf("ERROR: Falta path para iniciar proceso, fue omitido.\n");
             return;   // Se debe tener en cuenta que frente a un fallo en la escritura de un palabras[0] en consola el sistema debe permanecer estable sin reacción alguna.
         }
-        printf("\n\tLlego la instruccion INICIAR_PROCESO con parametro: %s \n", palabras[1]);
+        printf("\nLlego la instruccion INICIAR_PROCESO con parametro: %s \n", palabras[1]);
         iniciar_proceso(palabras[1]);
     } else if (strcmp(palabras[0], "INICIAR_PLANIFICACION") == 0) {
         if (planificacion_detenida) {
@@ -204,7 +199,7 @@ void ejecutar_comando_unico(char** palabras){
             printf("ERROR: Falta id de proceso para finalizarlo, fue omitido.\n");
             return;
         }
-        printf("\n\tLlego la instruccion FINALIZAR_PROCESO con parametro: %s\n", palabras[1]);
+        printf("\nLlego la instruccion FINALIZAR_PROCESO con parametro: %s\n", palabras[1]);
         terminar_proceso_consola(atoi(palabras[1]));
     } else if (strcmp(palabras[0], "DETENER_PLANIFICACION") == 0) {
         detener_planificacion();
@@ -216,7 +211,7 @@ void ejecutar_comando_unico(char** palabras){
         // deberia ir un mutex?
         grado_max_multiprogramacion = atoi(palabras[1]);
     } else if (strcmp(palabras[0], "PROCESO_ESTADO") == 0) {
-        printf("\n\tLlego la instruccion PROCESO_ESTADO\n");
+        printf("\nLlego la instruccion PROCESO_ESTADO\n");
         listar_procesos_por_estado();
     } else {
         printf("ERROR: Comando \"%s\" no reconocido, fue omitido.\n", palabras[0]);
@@ -393,6 +388,8 @@ void iniciar_proceso(char* path){
 
     if (cod_op == INICIAR_PROCESO_OK){
         printf("\nMEMORIA CREO CORRECTAMENTE EL PROCESO\n");
+        pcb_en_ejecucion = pcb_a_new;
+        enviar_cde_a_cpu();
     } else if (cod_op == INICIAR_PROCESO_ERROR) {
         printf("\nERROR AL CREAR EL PROCESO DESDE MEMORIA\n");
     }
@@ -570,8 +567,7 @@ void listar_procesos_por_estado(){
 // IDA Y VUELTA CON CPU
 
 void enviar_cde_a_cpu(){
-    mensajeKernelCpu codigo = EJECUTAR_PROCESO;
-    enviar_codigo(socket_cpu_dispatch, codigo);
+    enviar_codigo(socket_cpu_dispatch, EJECUTAR_PROCESO);
 
     t_buffer* buffer_dispatch = crear_buffer();
     pthread_mutex_lock(&mutex_pcb_en_ejecucion);
@@ -584,6 +580,7 @@ void enviar_cde_a_cpu(){
 
     enviar_buffer(buffer_dispatch, socket_cpu_dispatch);
     destruir_buffer(buffer_dispatch);
+        sem_wait(&terminar_kernel);
     sem_post(&cde_recibido);
 }
 

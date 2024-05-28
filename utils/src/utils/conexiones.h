@@ -26,7 +26,9 @@ typedef enum{
 }mensajeIOMemoria;
 
 typedef enum{
-	PEDIDO_INSTRUCCION
+	PEDIDO_INSTRUCCION,
+	PEDIDO_OK,
+	FIN_INSTRUCCIONES
 }mensajeCpuMem;
 
 typedef enum{

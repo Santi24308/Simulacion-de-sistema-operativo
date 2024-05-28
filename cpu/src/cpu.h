@@ -40,6 +40,7 @@ void cargar_registros(t_cde*);
 void guardar_registros(t_cde*);
 uint32_t buscar_valor_registroUINT32(void*);
 uint8_t buscar_valor_registroUINT8(void*);
+void imprimir_instruccion(t_instruccion*);
 
 
 void desalojar_cde(t_cde*, t_instruccion*);

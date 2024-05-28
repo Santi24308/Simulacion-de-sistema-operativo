@@ -50,6 +50,8 @@ t_pcb* retirar_pcb_de(t_queue*, pthread_mutex_t*);
 char* obtener_elementos_cargados_en(t_queue*);
 char* obtener_nombre_estado(t_estados);
 t_recurso* inicializar_recurso(char*, int);
+void terminar_proceso_consola(uint32_t);
+
 
 // PLANIFICACION -------------------------------------------------------------------------------------------------------------------
 void iniciar_planificacion();

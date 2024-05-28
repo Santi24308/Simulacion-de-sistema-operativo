@@ -211,6 +211,7 @@ t_proceso* crear_proceso(uint32_t pid, t_list* lista_instrucciones){
 	return proceso;
 }
 
+// para que no haya error el archivo tiene que terminar con un salto de linea
 t_list* levantar_instrucciones(char* path_op){
 	t_list* lista_instrucciones = list_create();	
 	FILE* archivo_instrucciones = fopen(path_op, "r");
@@ -310,7 +311,18 @@ void enviar_instruccion(){
 	t_proceso* proceso = buscar_proceso(pid);
 	pthread_mutex_unlock(&mutex_lista_procesos);
 	
+	// asumo que es memoria quien tiene la responsabilidad de saber que no quedan instrucciones por pedir
+	if(pc >= list_size(proceso->lista_instrucciones)){
+		enviar_codigo(socket_cpu, FIN_INSTRUCCIONES);
+		return;
+	} else {
+		enviar_codigo(socket_cpu, PEDIDO_OK);
+	}
+
 	t_instruccion* instruccion = list_get(proceso->lista_instrucciones, pc); //mutex?
+
+	printf("\nLE ENVIE LA SIGUIENTE INSTRUCCION a CPU CON EL pc: %i\n", pc);
+    imprimir_instruccion(instruccion);
 	
 	buffer_instruccion = crear_buffer();	
 	buffer_write_instruccion(buffer_instruccion, instruccion);
