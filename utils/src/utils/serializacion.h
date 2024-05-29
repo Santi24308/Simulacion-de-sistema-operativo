@@ -56,7 +56,7 @@ typedef struct{
 	uint32_t pc;
 	t_registro* registros;
 	cod_desalojo motivo;
-	t_instruccion ultima_instruccion; // se usa mas que nada para los casos en donde I/O necesite data  
+	t_instruccion* ultima_instruccion; // se usa mas que nada para los casos en donde I/O necesite data  
 }t_cde;
 
 t_buffer* crear_buffer();

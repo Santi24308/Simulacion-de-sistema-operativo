@@ -395,8 +395,10 @@ void ejecutar_proceso(t_cde* cde){
         pthread_mutex_lock(&mutex_realizar_desalojo);
         realizar_desalojo = 0;
         pthread_mutex_unlock(&mutex_realizar_desalojo);
-        log_info(logger_cpu, "PID: %d - Desalojado por fin de Quantum", cde->pid); 
-        cde->motivo = FIN_DE_QUANTUM;
+        //log_info(logger_cpu, "PID: %d - Desalojado por fin de Quantum", cde->pid); 
+        log_info(logger_cpu, "PID: %d - Desalojado por finalizacion", cde->pid); 
+        //cde->motivo = FIN_DE_QUANTUM;
+        cde->motivo = FINALIZACION_EXIT;   //Solamente para testing
         desalojar_cde(cde, instruccion_a_ejecutar);
     }
 }
@@ -417,29 +419,29 @@ void ejecutar_instruccion(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
     switch(instruccion_a_ejecutar->codigo){
         case SET:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
-            parametro2 = leerEnteroParametroInstruccion(2, instruccion_a_ejecutar);
+           /* parametro2 = leerEnteroParametroInstruccion(2, instruccion_a_ejecutar);
             ejecutar_set(instruccion_a_ejecutar->parametro1, parametro2);
             if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
-                destruir_instruccion(instruccion_a_ejecutar);
+                destruir_instruccion(instruccion_a_ejecutar); */
             break;
         case SUM:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
-            ejecutar_sum(instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
+            /* ejecutar_sum(instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
-                destruir_instruccion(instruccion_a_ejecutar);
+                destruir_instruccion(instruccion_a_ejecutar); */
             break;
         case SUB:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
-            ejecutar_sub(instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
+            /* ejecutar_sub(instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
-                destruir_instruccion(instruccion_a_ejecutar);
+                destruir_instruccion(instruccion_a_ejecutar); */
             break;
         case JNZ:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
-            parametro2 = leerEnteroParametroInstruccion(2, instruccion_a_ejecutar);
+            /* parametro2 = leerEnteroParametroInstruccion(2, instruccion_a_ejecutar);
             ejecutar_jnz(instruccion_a_ejecutar->parametro1, parametro2, cde);
             if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
-                destruir_instruccion(instruccion_a_ejecutar);
+                destruir_instruccion(instruccion_a_ejecutar); */
             break;
 
         /*
@@ -509,6 +511,8 @@ void ejecutar_instruccion(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
             break;
         case EXIT:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar));
+            realizar_desalojo = 1;
+            break;
         default:
             log_warning(logger_cpu, "Instruccion no reconocida");
             break;
@@ -537,11 +541,39 @@ void desalojar_cde(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
 void devolver_cde_a_kernel(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
 
     t_buffer* buffer = crear_buffer();
+    copiar_ultima_instruccion(cde, instruccion_a_ejecutar);
     buffer_write_cde(buffer, cde);
-    buffer_write_instruccion(buffer, instruccion_a_ejecutar);
-
     enviar_buffer(buffer, socket_kernel_dispatch);
     destruir_buffer(buffer);
+}
+
+void copiar_ultima_instruccion(t_cde* cde, t_instruccion* instruccion){
+    cde->ultima_instruccion->codigo = instruccion->codigo;
+    if(instruccion.parametro1){
+        free(cde->ultima_instruccion.parametro1);
+        cde->ultima_instruccion.parametro1 = string_new();
+        string_append(&cde->ultima_instruccion.parametro1, instruccion->parametro1);
+    }
+    if(instruccion.parametro2){
+        free(cde->ultima_instruccion.parametro2);
+        cde->ultima_instruccion.parametro2 = string_new();
+        string_append(&cde->ultima_instruccion.parametro2, instruccion->parametro2);
+    }
+    if(instruccion.parametro3){
+        free(cde->ultima_instruccion.parametro3);
+        cde->ultima_instruccion.parametro3 = string_new();
+        string_append(&cde->ultima_instruccion.parametro3, instruccion->parametro3);
+    }
+    if(instruccion.parametro4){
+        free(cde->ultima_instruccion.parametro4);
+        cde->ultima_instruccion.parametro4 = string_new();
+        string_append(&cde->ultima_instruccion.parametro4, instruccion->parametro4);
+    }
+    if(instruccion.parametro5){
+        free(cde->ultima_instruccion.parametro5);
+        cde->ultima_instruccion.parametro5 = string_new();
+        string_append(&cde->ultima_instruccion.parametro5, instruccion->parametro5);
+    }
 }
 
 // FUNCIONES INSTRUCCIONES

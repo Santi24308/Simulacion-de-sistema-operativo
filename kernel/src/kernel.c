@@ -253,6 +253,13 @@ t_pcb* crear_pcb(char* path){
     // Asigno memoria a las estructuras
     pcb_creado->cde = malloc(sizeof(t_cde)); 
     pcb_creado->cde->registros = malloc(sizeof(t_registro));
+    pcb_creado->cde->ultima_instruccion = crear_instruccion(NULO);
+    pcb_creado->cde->ultima_instruccion->parametro1 = string_new();
+    pcb_creado->cde->ultima_instruccion->parametro2 = string_new();
+    pcb_creado->cde->ultima_instruccion->parametro3 = string_new();
+    pcb_creado->cde->ultima_instruccion->parametro4 = string_new();
+    pcb_creado->cde->ultima_instruccion->parametro5 = string_new();
+
 
 	//Inicializo el quantum, pid y el PC
 	pcb_creado->quantum = quantum;  // el valor de quantum ya esta seteado
@@ -385,16 +392,16 @@ void iniciar_proceso(char* path){
 
 	//Recibo la respuesta de la memoria
     mensajeMemoriaKernel cod_op = recibir_codigo(socket_memoria);
-
+    /*
     if (cod_op == INICIAR_PROCESO_OK){
         printf("\nMEMORIA CREO CORRECTAMENTE EL PROCESO\n");
         pcb_en_ejecucion = pcb_a_new;
-        enviar_cde_a_cpu();
+       // enviar_cde_a_cpu();
     } else if (cod_op == INICIAR_PROCESO_ERROR) {
         printf("\nERROR AL CREAR EL PROCESO DESDE MEMORIA\n");
-    }
+    } */
 
-/*
+
     if(cod_op == INICIAR_PROCESO_OK){
         // Poner en new
         agregar_pcb_a(procesosNew, pcb_a_new, &mutex_new); // se agrega a la cola de procesos
@@ -412,7 +419,7 @@ void iniciar_proceso(char* path){
         log_info(logger_kernel, "No se pudo crear el proceso %d", pcb_a_new->cde->pid);
         destruir_pcb(pcb_a_new);
     }
-  */  
+ 
 }
 
 void finalizarProceso(uint32_t pid_string){
@@ -597,7 +604,7 @@ void recibir_cde_de_cpu(){
         pcb_en_ejecucion->cde = buffer_read_cde(buffer);
         pthread_mutex_unlock(&mutex_exec);
 
-        evaluar_instruccion(pcb_en_ejecucion->cde->ultima_instruccion);
+        //evaluar_instruccion(pcb_en_ejecucion->cde->ultima_instruccion);
 
         destruir_buffer(buffer);
     }
@@ -625,6 +632,10 @@ void evaluar_instruccion(t_instruccion instruccion_actual){
         despachar_pcb_a_interfaz(interfaz_buscada, pcb_en_ejecucion); 
         
         enviar_de_exec_a_block();
+        
+    }
+    else if (instruccion_actual.codigo == EXIT){
+        enviar_de_exec_a_finalizado();
     }
 
 }
