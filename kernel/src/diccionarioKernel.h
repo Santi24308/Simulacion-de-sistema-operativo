@@ -76,6 +76,9 @@ pthread_t hilo_esperar_IOs;
 pthread_t hilo_io;
 pthread_t hilo_consola;
 pthread_t hilo_memoria;
+pthread_t hilo_plani_corto;
+pthread_t hilo_plani_largo;
+pthread_t hilo_recepcion_cde;
 
 uint32_t id_a_asignar;
 

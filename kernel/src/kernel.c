@@ -12,7 +12,11 @@ int main(int argc, char* argv[]) {
 	inicializar_modulo();
 	conectar();
 
-	consola();
+	//consola();
+    iniciar_proceso("instruccionesP1.txt");
+    iniciar_proceso("instruccionesP2.txt");
+    iniciar_proceso("instruccionesP3.txt");
+
 
     sem_wait(&terminar_kernel);
 
@@ -127,7 +131,39 @@ void inicializar_modulo(){
     
     inicializarListas();
     inicializarSemaforos();
+
+    levantar_planificador_largo_plazo();
+    levantar_planificador_corto_plazo();
+    levantar_recepcion_cde();
 }
+
+void levantar_planificador_largo_plazo(){
+    int err = pthread_create(&hilo_plani_largo, NULL, (void*)enviar_de_new_a_ready, NULL);
+	if (err != 0) {
+		perror("Fallo la creacion de hilo para planificador de largo plazo\n");
+		return;
+	}
+	pthread_detach(hilo_plani_largo);
+}
+
+void levantar_planificador_corto_plazo(){
+    int err = pthread_create(&hilo_plani_corto, NULL, (void*)enviar_de_ready_a_exec, NULL);
+	if (err != 0) {
+		perror("Fallo la creacion de hilo para planificador de corto plazo\n");
+		return;
+	}
+	pthread_detach(hilo_plani_corto);
+}
+
+void levantar_recepcion_cde(){
+    int err = pthread_create(&hilo_recepcion_cde, NULL, (void*)recibir_cde_de_cpu, NULL);
+	if (err != 0) {
+		perror("Fallo la creacion de hilo para la recepcion de cde\n");
+		return;
+	}
+	pthread_detach(hilo_recepcion_cde);
+}
+
 
 t_recurso* inicializar_recurso(char* nombre_recu, int instancias_tot){
 	t_recurso* recurso = malloc(sizeof(t_recurso));
@@ -253,13 +289,13 @@ t_pcb* crear_pcb(char* path){
     // Asigno memoria a las estructuras
     pcb_creado->cde = malloc(sizeof(t_cde)); 
     pcb_creado->cde->registros = malloc(sizeof(t_registro));
+    
     pcb_creado->cde->ultima_instruccion = crear_instruccion(NULO);
-    pcb_creado->cde->ultima_instruccion->parametro1 = string_new();
-    pcb_creado->cde->ultima_instruccion->parametro2 = string_new();
-    pcb_creado->cde->ultima_instruccion->parametro3 = string_new();
-    pcb_creado->cde->ultima_instruccion->parametro4 = string_new();
-    pcb_creado->cde->ultima_instruccion->parametro5 = string_new();
-
+    escribirCharParametroInstruccion(1, pcb_creado->cde->ultima_instruccion, "");
+    escribirCharParametroInstruccion(2, pcb_creado->cde->ultima_instruccion, "");
+    escribirCharParametroInstruccion(3, pcb_creado->cde->ultima_instruccion, "");
+    escribirCharParametroInstruccion(4, pcb_creado->cde->ultima_instruccion, "");
+    escribirCharParametroInstruccion(5, pcb_creado->cde->ultima_instruccion, "");
 
 	//Inicializo el quantum, pid y el PC
 	pcb_creado->quantum = quantum;  // el valor de quantum ya esta seteado
@@ -481,7 +517,6 @@ void terminar_proceso(){
             log_error(logger_kernel, "Memoria no logró liberar correctamente las estructuras");
             exit(1);
         }
-        
     }
 }
 
@@ -587,7 +622,6 @@ void enviar_cde_a_cpu(){
 
     enviar_buffer(buffer_dispatch, socket_cpu_dispatch);
     destruir_buffer(buffer_dispatch);
-        sem_wait(&terminar_kernel);
     sem_post(&cde_recibido);
 }
 
@@ -599,30 +633,76 @@ void recibir_cde_de_cpu(){
 
         pthread_mutex_lock(&mutex_exec);
         // retiramos el cde anterior a ser ejecutado
-        destruir_cde(pcb_en_ejecucion->cde);        
-        // actualizamos con el cde post desalojo
-        pcb_en_ejecucion->cde = buffer_read_cde(buffer);
+        t_cde* cde_recibido = buffer_read_cde(buffer);
+        actualizar_cde(cde_recibido);        
         pthread_mutex_unlock(&mutex_exec);
 
-        //evaluar_instruccion(pcb_en_ejecucion->cde->ultima_instruccion);
+        evaluar_instruccion(pcb_en_ejecucion->cde->ultima_instruccion);
 
         destruir_buffer(buffer);
     }
 }
 
-void evaluar_instruccion(t_instruccion instruccion_actual){
+void actualizar_cde(t_cde* cde_recibido){
+    pcb_en_ejecucion->cde->pc = cde_recibido->pc;
+    pcb_en_ejecucion->cde->registros->AX = cde_recibido->registros->AX;
+    pcb_en_ejecucion->cde->registros->BX = cde_recibido->registros->BX;
+    pcb_en_ejecucion->cde->registros->CX = cde_recibido->registros->CX;
+    pcb_en_ejecucion->cde->registros->DX = cde_recibido->registros->DX;
+	pcb_en_ejecucion->cde->registros->EAX = cde_recibido->registros->EAX;
+    pcb_en_ejecucion->cde->registros->EBX = cde_recibido->registros->EBX;
+    pcb_en_ejecucion->cde->registros->ECX = cde_recibido->registros->ECX;
+    pcb_en_ejecucion->cde->registros->EDX = cde_recibido->registros->EDX;
+	pcb_en_ejecucion->cde->registros->PC = cde_recibido->registros->PC;
+    pcb_en_ejecucion->cde->registros->SI = cde_recibido->registros->SI;
+    pcb_en_ejecucion->cde->registros->DI = cde_recibido->registros->DI;
+    pcb_en_ejecucion->cde->motivo = cde_recibido->motivo;
+    copiar_ultima_instruccion(pcb_en_ejecucion->cde, cde_recibido->ultima_instruccion);
+
+}
+
+void copiar_ultima_instruccion(t_cde* cde, t_instruccion* instruccion){
+    cde->ultima_instruccion->codigo = instruccion->codigo;
+    if(instruccion->parametro1){
+        free(cde->ultima_instruccion->parametro1);
+        cde->ultima_instruccion->parametro1 = string_new();
+        string_append(&cde->ultima_instruccion->parametro1, instruccion->parametro1);
+    }
+    if(instruccion->parametro2){
+        free(cde->ultima_instruccion->parametro2);
+        cde->ultima_instruccion->parametro2 = string_new();
+        string_append(&cde->ultima_instruccion->parametro2, instruccion->parametro2);
+    }
+    if(instruccion->parametro3){
+        free(cde->ultima_instruccion->parametro3);
+        cde->ultima_instruccion->parametro3 = string_new();
+        string_append(&cde->ultima_instruccion->parametro3, instruccion->parametro3);
+    }
+    if(instruccion->parametro4){
+        free(cde->ultima_instruccion->parametro4);
+        cde->ultima_instruccion->parametro4 = string_new();
+        string_append(&cde->ultima_instruccion->parametro4, instruccion->parametro4);
+    }
+    if(instruccion->parametro5){
+        free(cde->ultima_instruccion->parametro5);
+        cde->ultima_instruccion->parametro5 = string_new();
+        string_append(&cde->ultima_instruccion->parametro5, instruccion->parametro5);
+    }
+}
+
+void evaluar_instruccion(t_instruccion* instruccion_actual){
     // aca vamos a tener que analizar dependiendo de la ultima instruccion ejecutada que hacer
     // por ejemplo, en los llamados a I/O vamos a tener que gestionar el ida y vuelta
     // con la interfaz involucrada, eso implica ver si existe y tambien ver si puede
     // cumplir ese pedido esa I/O
-    if (instruccion_actual.codigo == IO_GEN_SLEEP) {
-        if (!interfaz_valida(instruccion_actual.parametro1)){
+    if (instruccion_actual->codigo == IO_GEN_SLEEP) {
+        if (!interfaz_valida(instruccion_actual->parametro1)){
             finalizarProceso(pcb_en_ejecucion->cde->pid);
             return;
         }
 
         int indice = -1;
-        t_interfaz* interfaz_buscada = obtener_interfaz_en_lista(instruccion_actual.parametro1, &indice);
+        t_interfaz* interfaz_buscada = obtener_interfaz_en_lista(instruccion_actual->parametro1, &indice);
         if (interfaz_buscada->ocupada){
             queue_push(interfaz_buscada->pcb_esperando, (void*)pcb_en_ejecucion);
             enviar_de_exec_a_block(); // al hacer esto se avisa que la cpu esta libre y se continua con el proximo pcb
@@ -634,16 +714,16 @@ void evaluar_instruccion(t_instruccion instruccion_actual){
         enviar_de_exec_a_block();
         
     }
-    else if (instruccion_actual.codigo == EXIT){
+    else if (instruccion_actual->codigo == EXIT){
         enviar_de_exec_a_finalizado();
     }
 
 }
 
 void despachar_pcb_a_interfaz(t_interfaz* interfaz, t_pcb* pcb){
-    enviar_codigo(interfaz->socket, pcb->cde->ultima_instruccion.codigo);
+    enviar_codigo(interfaz->socket, pcb->cde->ultima_instruccion->codigo);
     t_buffer* buffer = crear_buffer();
-    buffer_write_instruccion(buffer, &(pcb->cde->ultima_instruccion));
+    buffer_write_instruccion(buffer, pcb->cde->ultima_instruccion);
     enviar_buffer(buffer, interfaz->socket);
     destruir_buffer(buffer);
 }
@@ -668,7 +748,7 @@ bool interfaz_valida(char* nombre_io_solicitada){
     }
 
     // chequeo si puede satisfacer la solicitud
-    if(!io_puede_cumplir_solicitud(interfaz_buscada->tipo, pcb_en_ejecucion->cde->ultima_instruccion.codigo))
+    if(!io_puede_cumplir_solicitud(interfaz_buscada->tipo, pcb_en_ejecucion->cde->ultima_instruccion->codigo))
         return false; // en este caso no es necesario destruir la IO ya que no es su culpa, sino la del proceso
 
     return true;
@@ -757,6 +837,8 @@ void inicializarSemaforos(){ // TERMINAR DE VER
 
     pthread_mutex_init(&mutex_pcb_en_ejecucion, NULL);
 
+    sem_init(&procesos_en_exec, 0, 0);
+
     sem_init(&pausar_new_a_ready, 0, 0);
     sem_init(&pausar_ready_a_exec, 0, 0);
     sem_init(&pausar_exec_a_finalizado, 0, 0);
@@ -764,6 +846,7 @@ void inicializarSemaforos(){ // TERMINAR DE VER
     sem_init(&pausar_exec_a_blocked, 0, 0);
     sem_init(&pausar_blocked_a_ready, 0, 0);
 
+    sem_init(&cpu_libre, 0, 1);
     sem_init(&sem_iniciar_quantum, 0, 0);
     sem_init(&sem_reloj_destruido, 0, 1);
     sem_init(&no_end_kernel, 0, 0);
@@ -1083,7 +1166,7 @@ void enviar_de_ready_a_exec(){
 		// Primer post de ese semaforo ya que se envia por primera vez
 		sem_post(&procesos_en_exec); // dsps se hace el wait cuando quiero sacar de exec (x block, etc)
         
-        if(strcmp(algoritmo, "RR") == 0){
+        if(strcmp(algoritmo, "RR") == 0 || (strcmp(algoritmo, "VRR") == 0)){
             pcb_en_ejecucion->fin_q = false;
             sem_wait(&sem_reloj_destruido); // si hay un ciclo de quantum ejecutandose se espera a que termine
             sem_post(&sem_iniciar_quantum); // da comienzo a un nuevo ciclo

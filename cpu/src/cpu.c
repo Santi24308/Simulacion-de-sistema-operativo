@@ -381,7 +381,6 @@ void ejecutar_proceso(t_cde* cde){
             realizar_desalojo = 1;    
         }
 	}
-    return;
 	if(interrupcion){
 		interrupcion = 0;
         pthread_mutex_lock(&mutex_realizar_desalojo);
@@ -512,6 +511,7 @@ void ejecutar_instruccion(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
         case EXIT:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar));
             realizar_desalojo = 1;
+            sleep(3);
             break;
         default:
             log_warning(logger_cpu, "Instruccion no reconocida");
@@ -540,39 +540,42 @@ void desalojar_cde(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
 
 void devolver_cde_a_kernel(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
 
+    printf("\n\tCODIGO ULTIMA INSTRUCCION: %d\n",cde->ultima_instruccion->codigo);
     t_buffer* buffer = crear_buffer();
     copiar_ultima_instruccion(cde, instruccion_a_ejecutar);
     buffer_write_cde(buffer, cde);
     enviar_buffer(buffer, socket_kernel_dispatch);
+
+    printf("\n\tLE ENVIE EL CDE A KERNEL\n");
     destruir_buffer(buffer);
 }
 
 void copiar_ultima_instruccion(t_cde* cde, t_instruccion* instruccion){
     cde->ultima_instruccion->codigo = instruccion->codigo;
-    if(instruccion.parametro1){
-        free(cde->ultima_instruccion.parametro1);
-        cde->ultima_instruccion.parametro1 = string_new();
-        string_append(&cde->ultima_instruccion.parametro1, instruccion->parametro1);
+    if(instruccion->parametro1){
+        free(cde->ultima_instruccion->parametro1);
+        cde->ultima_instruccion->parametro1 = string_new();
+        string_append(&cde->ultima_instruccion->parametro1, instruccion->parametro1);
     }
-    if(instruccion.parametro2){
-        free(cde->ultima_instruccion.parametro2);
-        cde->ultima_instruccion.parametro2 = string_new();
-        string_append(&cde->ultima_instruccion.parametro2, instruccion->parametro2);
+    if(instruccion->parametro2){
+        free(cde->ultima_instruccion->parametro2);
+        cde->ultima_instruccion->parametro2 = string_new();
+        string_append(&cde->ultima_instruccion->parametro2, instruccion->parametro2);
     }
-    if(instruccion.parametro3){
-        free(cde->ultima_instruccion.parametro3);
-        cde->ultima_instruccion.parametro3 = string_new();
-        string_append(&cde->ultima_instruccion.parametro3, instruccion->parametro3);
+    if(instruccion->parametro3){
+        free(cde->ultima_instruccion->parametro3);
+        cde->ultima_instruccion->parametro3 = string_new();
+        string_append(&cde->ultima_instruccion->parametro3, instruccion->parametro3);
     }
-    if(instruccion.parametro4){
-        free(cde->ultima_instruccion.parametro4);
-        cde->ultima_instruccion.parametro4 = string_new();
-        string_append(&cde->ultima_instruccion.parametro4, instruccion->parametro4);
+    if(instruccion->parametro4){
+        free(cde->ultima_instruccion->parametro4);
+        cde->ultima_instruccion->parametro4 = string_new();
+        string_append(&cde->ultima_instruccion->parametro4, instruccion->parametro4);
     }
-    if(instruccion.parametro5){
-        free(cde->ultima_instruccion.parametro5);
-        cde->ultima_instruccion.parametro5 = string_new();
-        string_append(&cde->ultima_instruccion.parametro5, instruccion->parametro5);
+    if(instruccion->parametro5){
+        free(cde->ultima_instruccion->parametro5);
+        cde->ultima_instruccion->parametro5 = string_new();
+        string_append(&cde->ultima_instruccion->parametro5, instruccion->parametro5);
     }
 }
 

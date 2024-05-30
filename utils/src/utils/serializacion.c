@@ -131,6 +131,7 @@ void buffer_write_cde(t_buffer* buffer, t_cde* cde){
 	buffer_write_uint32(buffer, cde->pid);
 	buffer_write_uint32(buffer, cde->pc);
 	buffer_write_registros(buffer, cde->registros);
+	buffer_write_instruccion(buffer, cde->ultima_instruccion);
 }
 
 t_cde* buffer_read_cde(t_buffer* buffer){
@@ -138,6 +139,7 @@ t_cde* buffer_read_cde(t_buffer* buffer){
 	cde->pid = buffer_read_uint32(buffer);
 	cde->pc = buffer_read_uint32(buffer);
 	cde->registros = buffer_read_registros(buffer);
+	cde->ultima_instruccion = buffer_read_instruccion(buffer);
 	
 	return cde;
 }
@@ -165,6 +167,15 @@ void buffer_write_instruccion(t_buffer* buffer, t_instruccion* instruccion){
 	else
 		buffer_write_string(buffer, "");
 
+	if (instruccion->parametro4 != NULL)
+		buffer_write_string(buffer, instruccion->parametro4);
+	else
+		buffer_write_string(buffer, "");
+
+	if (instruccion->parametro5 != NULL)
+		buffer_write_string(buffer, instruccion->parametro5);
+	else
+		buffer_write_string(buffer, "");
 }
 
 t_instruccion* buffer_read_instruccion(t_buffer* buffer){
@@ -172,6 +183,9 @@ t_instruccion* buffer_read_instruccion(t_buffer* buffer){
 	instr->parametro1 = NULL;
 	instr->parametro2 = NULL;
 	instr->parametro3 = NULL;
+	instr->parametro4 = NULL;
+	instr->parametro5 = NULL;
+
 	uint32_t tam;
 
 	instr->codigo = buffer_read_uint8(buffer);
@@ -179,6 +193,8 @@ t_instruccion* buffer_read_instruccion(t_buffer* buffer){
 	instr->parametro1 = buffer_read_string(buffer, &tam);
 	instr->parametro2 = buffer_read_string(buffer, &tam);
 	instr->parametro3 = buffer_read_string(buffer, &tam);
+	instr->parametro4 = buffer_read_string(buffer, &tam);
+	instr->parametro5 = buffer_read_string(buffer, &tam);
 
 	return instr;
 }
@@ -187,6 +203,8 @@ void destruir_instruccion(t_instruccion* instruccion){
 	free(instruccion->parametro1);
 	free(instruccion->parametro2);
 	free(instruccion->parametro3);
+	free(instruccion->parametro4);
+	free(instruccion->parametro5);
 	free(instruccion);
 }
 

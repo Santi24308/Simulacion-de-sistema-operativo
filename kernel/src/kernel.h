@@ -82,8 +82,18 @@ int esta_proceso_en_cola_bloqueados(t_pcb*);
 char* obtener_elementos_cargados_en(t_queue*);
 
 void enviar_cde_a_cpu();
-void evaluar_instruccion(t_instruccion);
+void evaluar_instruccion(t_instruccion*);
 void recibir_cde_de_cpu();
+
+void levantar_planificador_largo_plazo();
+void levantar_recepcion_cde();
+void levantar_planificador_corto_plazo();
+
 // FIN PLANIFICACION
+
+void actualizar_cde(t_cde*);
+void copiar_ultima_instruccion(t_cde*, t_instruccion*);
+
+
 
 #endif
