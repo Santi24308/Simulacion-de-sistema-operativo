@@ -30,8 +30,6 @@ typedef struct{
 	t_estados estado; 
 	char* path;
     int quantum;
-	bool flag_clock;
-	bool fin_q;
 }t_pcb;
 
 typedef struct{
@@ -115,6 +113,7 @@ pthread_mutex_t mutex_readyPlus;
 pthread_mutex_t mutex_block;
 pthread_mutex_t mutex_finalizados;
 pthread_mutex_t mutex_exec;
+pthread_mutex_t mutex_interfaz;
 
 pthread_mutex_t mutex_pcb_en_ejecucion;
 

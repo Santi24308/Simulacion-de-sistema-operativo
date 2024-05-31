@@ -49,7 +49,7 @@ int iniciar_servidor(char* puerto, t_log* logger)
 	socket_servidor = socket(servinfo->ai_family,servinfo->ai_socktype,servinfo->ai_protocol);
 
 	if (setsockopt(socket_servidor, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0) 
-    	error("setsockopt(SO_REUSEADDR) failed");
+    	perror("setsockopt(SO_REUSEADDR) failed");
 
 	if (bind(socket_servidor, servinfo->ai_addr, servinfo->ai_addrlen) == -1) {
 		perror("Fallo el bind del socket\n");

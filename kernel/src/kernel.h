@@ -27,7 +27,7 @@ t_pcb* crear_pcb(char*);
 void destruir_pcb(t_pcb*);
 t_pcb* encontrar_pcb_por_pid(uint32_t, int* );
 void retirar_pcb_de_su_respectivo_estado(uint32_t, int* );
-void finalizar_pcb(t_pcb*, char* );
+void finalizar_pcb(t_pcb*);
 void iniciar_proceso(char*);
 void terminar_proceso();
 void iniciar_quantum();
@@ -51,6 +51,8 @@ char* obtener_elementos_cargados_en(t_queue*);
 char* obtener_nombre_estado(t_estados);
 t_recurso* inicializar_recurso(char*, int);
 void terminar_proceso_consola(uint32_t);
+
+char* obtener_nombre_motivo_finalizacion(cod_finalizacion);
 
 
 // PLANIFICACION -------------------------------------------------------------------------------------------------------------------

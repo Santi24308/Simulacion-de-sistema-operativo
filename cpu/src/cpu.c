@@ -62,6 +62,7 @@ void inicializar_modulo(){
 	inicializarSemaforos();
     interrupcion =0;
     interrupcion_consola = 0;
+    fin_q = 0;
 }
 
 void levantar_logger(){
@@ -97,7 +98,7 @@ void inicializar_registros(){
 
 void inicializarSemaforos(){
 	pthread_mutex_init(&mutex_cde_ejecutando, NULL);
-	pthread_mutex_init(&mutex_realizar_desalojo, NULL);
+	pthread_mutex_init(&mutex_desalojar, NULL);
 	pthread_mutex_init(&mutex_instruccion_actualizada, NULL);
 }
 
@@ -189,9 +190,9 @@ void atender_kernel_interrupt(){
         if (pid_de_cde_ejecutando == pid_recibido) {
             switch (op_code){
                 case INTERRUPT:
-                    pthread_mutex_lock(&mutex_interrupcion);
+                    pthread_mutex_lock(&mutex_desalojar);
                     interrupcion = 1;
-                    pthread_mutex_unlock(&mutex_interrupcion);
+                    pthread_mutex_unlock(&mutex_desalojar);
                     break;
                 case DESALOJO:
                     // caso FIFO: no existe desalojo, kernel NUNCA deberia mandar este mensaje si esta seteado fifo como algoritmo
@@ -201,11 +202,11 @@ void atender_kernel_interrupt(){
                     // este es el unico chequeo que quizas es necesario considerar (a confirmar) ya que si la instruccion es bloqueante
                     // se desaloja solo el cde y - en la practica se considera que si se termina el quantum pero JUSTO llego a la rafaga I/O
                     // se deja completar la misma y quien lo desaloja es I/O -
-                    if(es_bloqueante(instruccion_actualizada)) break;
+                    //if(es_bloqueante(instruccion_actualizada)) break;
                     
-                    pthread_mutex_lock(&mutex_realizar_desalojo);
-                    realizar_desalojo = 1;
-                    pthread_mutex_unlock(&mutex_realizar_desalojo);
+                    pthread_mutex_lock(&mutex_desalojar);
+                    fin_q = 1;
+                    pthread_mutex_unlock(&mutex_desalojar);
                     break;
                 default:
                     break;
@@ -345,7 +346,7 @@ void ejecutar_proceso(t_cde* cde){
 	cargar_registros(cde);	
 	t_instruccion* instruccion_a_ejecutar;
 
-    while(interrupcion != 1 && realizar_desalojo != 1){
+    while(interrupcion != 1 && realizar_desalojo != 1 && fin_q != 1){
 
         enviar_codigo(socket_memoria, PEDIDO_INSTRUCCION); // fetch
         t_buffer* buffer_envio = crear_buffer();
@@ -370,6 +371,8 @@ void ejecutar_proceso(t_cde* cde){
 
             printf("\nRECIBI LA SIGUIENTE INSTRUCCION CON EL PC: %i", cde->pc);
             imprimir_instruccion(instruccion_a_ejecutar);
+            // actualizamos la ultima instruccion aca ya que es mas eficiente hacerlo directamente para cualquier caso de salida
+            copiar_ultima_instruccion(cde, instruccion_a_ejecutar);
             ejecutar_instruccion(cde, instruccion_a_ejecutar);
             // mientras estemos en un mismo proceso las instrucciones se encuentran ubicadas en memoria SECUENCIALMENTE
             // por lo que se puede ir moviendo el program counter en 1 para tener la direccion de la siguiente instruccion
@@ -382,23 +385,51 @@ void ejecutar_proceso(t_cde* cde){
         }
 	}
 	if(interrupcion){
+        pthread_mutex_lock(&mutex_desalojar);
+        fin_q = 0;
 		interrupcion = 0;
-        pthread_mutex_lock(&mutex_realizar_desalojo);
         realizar_desalojo = 0;
-        pthread_mutex_unlock(&mutex_realizar_desalojo);
+        pthread_mutex_unlock(&mutex_desalojar);
         log_info(logger_cpu, "PID: %d - Volviendo a kernel por instruccion %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar));
-        // el motivo lo señalamos cuando estamos sobre la instruccion para dar mas precision 
+        cde->motivo_desalojo = INTERRUPCION;
         desalojar_cde(cde, instruccion_a_ejecutar);
 	}else if (realizar_desalojo){ // salida por fin de quantum
+        pthread_mutex_lock(&mutex_desalojar);
+        fin_q = 0;
 		interrupcion = 0;  
-        pthread_mutex_lock(&mutex_realizar_desalojo);
         realizar_desalojo = 0;
-        pthread_mutex_unlock(&mutex_realizar_desalojo);
-        //log_info(logger_cpu, "PID: %d - Desalojado por fin de Quantum", cde->pid); 
-        log_info(logger_cpu, "PID: %d - Desalojado por finalizacion", cde->pid); 
-        //cde->motivo = FIN_DE_QUANTUM;
-        cde->motivo = FINALIZACION_EXIT;   //Solamente para testing
+        pthread_mutex_unlock(&mutex_desalojar);
+        log_info(logger_cpu, "PID: %d - Desalojado por %s", cde->pid, obtener_nombre_motivo_desalojo(cde->motivo_desalojo)); 
         desalojar_cde(cde, instruccion_a_ejecutar);
+    }else if (fin_q){
+        pthread_mutex_lock(&mutex_desalojar);
+        fin_q = 0;
+		interrupcion = 0;  
+        realizar_desalojo = 0;
+        pthread_mutex_unlock(&mutex_desalojar);
+        log_warning(logger_cpu, "PID: %d - Desalojado por fin de Quantum", cde->pid); 
+        printf("\n\tULTIMA INSTRUCCION QUE EJECUTA ANTES DE FIN DE QUANTUM:\n");
+        imprimir_instruccion(cde->ultima_instruccion);
+        cde->motivo_desalojo = FIN_DE_QUANTUM;
+        desalojar_cde(cde, instruccion_a_ejecutar);
+    }
+    return;
+}
+
+char* obtener_nombre_motivo_desalojo(cod_desalojo cod){
+    switch(cod){
+        case LLAMADA_IO:
+            return "LLAMADA_IO";
+	    case FINALIZACION_EXIT:
+            return "FINALIZACION_EXIT";
+	    case INTERRUPCION:
+            return "INTERRUPCION";
+	    case FIN_DE_QUANTUM:
+            return "FIN_DE_QUANTUM";
+	    case FINALIZACION_ERROR:
+            return "FINALIZACION_ERROR";
+        default:
+            return NULL;  // nunca deberia entrar aca, esta pueso por los warning de retorno
     }
 }
 
@@ -464,8 +495,8 @@ void ejecutar_instruccion(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
             5. interrupcion = 1 
             6. destruir_instruccion 
             */
-
-    
+            cde->motivo_desalojo = LLAMADA_IO;
+            realizar_desalojo = 1;
             break;
 
         // 3er CheckPoint
@@ -511,6 +542,7 @@ void ejecutar_instruccion(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
         case EXIT:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar));
             realizar_desalojo = 1;
+            cde->motivo_desalojo = FINALIZACION_EXIT;
             sleep(3);
             break;
         default:
@@ -520,7 +552,6 @@ void ejecutar_instruccion(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
 }
 
 void desalojar_cde(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
-    // cde no puede devolver en su estructura ningun motivo de desalojamiento
     guardar_registros(cde); //cargar registros de cpu en el cde
     devolver_cde_a_kernel(cde, instruccion_a_ejecutar);
     destruir_cde(cde);
@@ -539,14 +570,10 @@ void desalojar_cde(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
 }
 
 void devolver_cde_a_kernel(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
-
-    printf("\n\tCODIGO ULTIMA INSTRUCCION: %d\n",cde->ultima_instruccion->codigo);
+    // elimine la linea en donde se copia la ultima instruccion porque ya lo hace antes de ejecutarla apenas la obtiene de memoria
     t_buffer* buffer = crear_buffer();
-    copiar_ultima_instruccion(cde, instruccion_a_ejecutar);
     buffer_write_cde(buffer, cde);
     enviar_buffer(buffer, socket_kernel_dispatch);
-
-    printf("\n\tLE ENVIE EL CDE A KERNEL\n");
     destruir_buffer(buffer);
 }
 

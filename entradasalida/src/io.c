@@ -58,9 +58,11 @@ void atender_kernel_generica(){
 		switch (cod){
 			case IO_GEN_SLEEP:
 				t_buffer* buffer = recibir_buffer(socket_kernel);
+				uint32_t pid = buffer_read_uint32(buffer);
 				t_instruccion* instruccion_recibida = buffer_read_instruccion(buffer);
 				destruir_buffer(buffer);
 				sleep(leerEnteroParametroInstruccion(2, instruccion_recibida));
+				log_info(logger_io, "PID: %d - Operacion: %s", pid, obtener_nombre_instruccion(instruccion_recibida));
 				enviar_codigo(socket_kernel, LIBRE);
 				buffer = crear_buffer();
 				buffer_write_string(buffer, nombreIO);
@@ -234,7 +236,11 @@ void conectar_kernel(){
 }
 
 void levantar_logger(){
-	logger_io = log_create("io_log.log", "IO",true, LOG_LEVEL_INFO);
+	char* nombreLog = string_new();
+	string_append(&nombreLog, nombreIO);
+	string_append(&nombreLog, "_log.log");
+
+	logger_io = log_create(nombreLog, "IO",true, LOG_LEVEL_INFO);
 	if (!logger_io) {
 		perror("Error al iniciar logger de IO\n");
 		exit(EXIT_FAILURE);

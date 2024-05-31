@@ -34,27 +34,22 @@ void escribirCharParametroInstruccion(int indice, t_instruccion* instr, char* st
 		case 1:
 			instr->parametro1 = malloc(tam);
 			strcpy(instr->parametro1, string);
-			//string_append(&(instr->parametro1), "\0");
 			break;
 		case 2:
 			instr->parametro2 = malloc(tam);
 			strcpy(instr->parametro2, string);
-			//string_append(&(instr->parametro2), "\0");
 			break;
 		case 3:
 			instr->parametro3 = malloc(tam);
 			strcpy(instr->parametro3, string);
-			//string_append(&(instr->parametro3), "\0");
 			break;
 		case 4:
 			instr->parametro4 = malloc(tam);
 			strcpy(instr->parametro4, string);
-			//string_append(&(instr->parametro4), "\0");
 			break;
 		case 5:
 			instr->parametro5 = malloc(tam);
 			strcpy(instr->parametro5, string);
-			//string_append(&(instr->parametro5), "\0");
 			break;
 	}
 }

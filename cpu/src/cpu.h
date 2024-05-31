@@ -46,5 +46,6 @@ void imprimir_instruccion(t_instruccion*);
 
 void desalojar_cde(t_cde*, t_instruccion*);
 char* obtener_nombre_instruccion(t_instruccion* );
+char* obtener_nombre_motivo_desalojo(cod_desalojo);
 
 #endif

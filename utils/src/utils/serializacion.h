@@ -43,6 +43,15 @@ typedef enum{
 	NO_DESALOJADO
 }cod_desalojo;
 
+typedef enum{
+	SUCCESS,
+	INVALID_RESOURCE,
+	INVALID_INTERFACE,
+	OUT_OF_MEMORY,
+	INTERRUMPED_BY_USER,
+	NO_FINALIZADO
+}cod_finalizacion;
+
 // CONTEXTO DE EJECUCION
 // la colocamos en serializacion porque necesitamos que tanto CPU como Kernel entiendan el TDA
 
@@ -55,7 +64,8 @@ typedef struct{
 	uint32_t pid;
 	uint32_t pc;
 	t_registro* registros;
-	cod_desalojo motivo;
+	cod_desalojo motivo_desalojo;
+	cod_finalizacion motivo_finalizacion;
 	t_instruccion* ultima_instruccion; // se usa mas que nada para los casos en donde I/O necesite data  
 }t_cde;
 
