@@ -61,7 +61,9 @@ void atender_kernel_generica(){
 				uint32_t pid = buffer_read_uint32(buffer);
 				t_instruccion* instruccion_recibida = buffer_read_instruccion(buffer);
 				destruir_buffer(buffer);
-				sleep(leerEnteroParametroInstruccion(2, instruccion_recibida));
+				int tiempo_unidad_trabajo = config_get_int_value(config_io, "TIEMPO_UNIDAD_TRABAJO");
+				int cantidad_recibida = leerEnteroParametroInstruccion(2, instruccion_recibida);
+				usleep(tiempo_unidad_trabajo * cantidad_recibida * 1000);
 				log_info(logger_io, "PID: %d - Operacion: %s", pid, obtener_nombre_instruccion(instruccion_recibida));
 				enviar_codigo(socket_kernel, LIBRE);
 				buffer = crear_buffer();

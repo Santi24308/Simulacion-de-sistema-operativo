@@ -29,7 +29,8 @@ typedef struct{
 	t_cde* cde; // contiene el pc, pid y registros
 	t_estados estado; 
 	char* path;
-    int quantum;
+    t_temporal* clock;
+	int flag_fin_q;
 }t_pcb;
 
 typedef struct{
@@ -50,8 +51,8 @@ typedef struct{
 	pthread_t hilo_io;
 }t_interfaz;
 
-int socket_io_AUX;
-pthread_t hilo_io_AUX;
+
+int flag_frenar_reloj;
 
 char* config_path;
 char* puerto_escucha;
@@ -75,7 +76,8 @@ pthread_t hilo_io;
 pthread_t hilo_consola;
 pthread_t hilo_memoria;
 pthread_t hilo_plani_corto;
-pthread_t hilo_plani_largo;
+pthread_t hilo_plani_largo_new;
+pthread_t hilo_plani_largo_exit;
 pthread_t hilo_recepcion_cde;
 
 uint32_t id_a_asignar;
@@ -117,6 +119,8 @@ pthread_mutex_t mutex_interfaz;
 
 pthread_mutex_t mutex_pcb_en_ejecucion;
 
+pthread_mutex_t mutex_frenar_reloj;
+
 
 sem_t procesos_en_new;
 sem_t procesos_en_ready;
@@ -131,6 +135,8 @@ sem_t grado_de_multiprogramacion;
 sem_t bin_recibir_cde;
 sem_t sem_liberar_archivos;
 
+sem_t clock_VRR;
+
 
 sem_t pausar_new_a_ready;
 sem_t pausar_ready_a_exec;
@@ -138,6 +144,7 @@ sem_t pausar_exec_a_finalizado;
 sem_t pausar_exec_a_ready;
 sem_t pausar_exec_a_blocked;
 sem_t pausar_blocked_a_ready;
+sem_t pausar_blocked_a_readyPlus;
 sem_t bin_recibir_cde;
 
 

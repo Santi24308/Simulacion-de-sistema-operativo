@@ -40,6 +40,7 @@ typedef enum{
 	LLAMADA_IO,
 	INTERRUPCION,
 	FIN_DE_QUANTUM,
+	RECURSOS,
 	NO_DESALOJADO
 }cod_desalojo;
 

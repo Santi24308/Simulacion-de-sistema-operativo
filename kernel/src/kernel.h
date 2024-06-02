@@ -66,6 +66,7 @@ void enviar_de_ready_a_exec();
 void enviar_de_exec_a_ready();
 void enviar_de_exec_a_block();
 void enviar_pcb_de_block_a_ready(t_pcb*);
+void enviar_pcb_de_block_a_readyPlus(t_pcb*);
 
 void enviar_de_exec_a_finalizado();
 char* obtener_nombre_estado(t_estados);
@@ -74,6 +75,7 @@ char* obtener_nombre_motivo(cod_desalojo);
 // FIN TRANSICIONES 
 
 // PLANIFICACION 
+void cambiar_grado_multiprogramacion(char*);
 
 t_pcb* retirar_pcb_de_ready_segun_algoritmo();
 t_pcb* elegir_segun_fifo();
@@ -96,6 +98,8 @@ void levantar_planificador_corto_plazo();
 void actualizar_cde(t_cde*);
 void copiar_ultima_instruccion(t_cde*, t_instruccion*);
 
+void controlar_tiempo_de_ejecucion_VRR();
+void reloj_quantum_VRR(t_pcb*);
 
 
 #endif

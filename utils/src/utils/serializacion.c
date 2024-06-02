@@ -132,6 +132,8 @@ void buffer_write_cde(t_buffer* buffer, t_cde* cde){
 	buffer_write_uint32(buffer, cde->pc);
 	buffer_write_registros(buffer, cde->registros);
 	buffer_write_instruccion(buffer, cde->ultima_instruccion);
+	buffer_write_uint32(buffer, cde->motivo_desalojo);
+	buffer_write_uint32(buffer, cde->motivo_finalizacion);
 }
 
 t_cde* buffer_read_cde(t_buffer* buffer){
@@ -140,6 +142,8 @@ t_cde* buffer_read_cde(t_buffer* buffer){
 	cde->pc = buffer_read_uint32(buffer);
 	cde->registros = buffer_read_registros(buffer);
 	cde->ultima_instruccion = buffer_read_instruccion(buffer);
+	cde->motivo_desalojo = buffer_read_uint32(buffer);
+	cde->motivo_finalizacion = buffer_read_uint32(buffer);
 	
 	return cde;
 }

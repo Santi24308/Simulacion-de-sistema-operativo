@@ -12,10 +12,10 @@ int main(int argc, char* argv[]) {
 	inicializar_modulo();
 	conectar();
 
-	//consola();
-    iniciar_proceso("instruccionesP1.txt");
-    iniciar_proceso("instruccionesP2.txt");
-    iniciar_proceso("instruccionesP3.txt");
+	consola();
+    //iniciar_proceso("instruccionesP1.txt");
+    //iniciar_proceso("instruccionesP2.txt");
+    //iniciar_proceso("instruccionesP3.txt");
 
     sem_wait(&terminar_kernel);
 
@@ -114,6 +114,8 @@ void inicializar_modulo(){
 	char **instancias = config_get_array_value(config_kernel,"INSTANCIAS_RECURSOS");
 	recursos = list_create();
 
+    flag_frenar_reloj = 0; // para VRR
+
 	int a = 0;
 	while(recursos_config[a]!= NULL){
 		int num_instancias = strtol(instancias[a],NULL,10);
@@ -139,12 +141,19 @@ void inicializar_modulo(){
 }
 
 void levantar_planificador_largo_plazo(){
-    int err = pthread_create(&hilo_plani_largo, NULL, (void*)enviar_de_new_a_ready, NULL);
+    int err = pthread_create(&hilo_plani_largo_new, NULL, (void*)enviar_de_new_a_ready, NULL);
 	if (err != 0) {
-		perror("Fallo la creacion de hilo para planificador de largo plazo\n");
+		perror("Fallo la creacion de hilo para planificador de largo plazo NEW\n");
 		return;
 	}
-	pthread_detach(hilo_plani_largo);
+	pthread_detach(hilo_plani_largo_new);
+
+    err = pthread_create(&hilo_plani_largo_exit, NULL, (void*)terminar_proceso, NULL);
+	if (err != 0) {
+		perror("Fallo la creacion de hilo para planificador de largo plazo EXIT\n");
+		return;
+	}
+	pthread_detach(hilo_plani_largo_exit);
 }
 
 void levantar_planificador_corto_plazo(){
@@ -168,18 +177,14 @@ void levantar_recepcion_cde(){
 
 t_recurso* inicializar_recurso(char* nombre_recu, int instancias_tot){
 	t_recurso* recurso = malloc(sizeof(t_recurso));
-	int tam = 0;
 
-	while(nombre_recu[tam])
-		tam++;
-
-	recurso->nombre = malloc(tam);
-	strcpy(recurso->nombre, nombre_recu);
+	recurso->nombre = string_new();
+    string_append(&recurso->nombre, nombre_recu);
 
 	recurso->instancias = instancias_tot;
     recurso->procesos_bloqueados = list_create();
     sem_t sem;
-    sem_init(&sem, instancias_tot, 1);
+    sem_init(&sem, 1, instancias_tot);
     recurso->sem_recurso = sem;
 	
 	return recurso;
@@ -245,8 +250,7 @@ void ejecutar_comando_unico(char** palabras){
             printf("ERROR: Falta el valor a asignar para multiprogramación, fue omitido.\n");
             return;
         }
-        // deberia ir un mutex?
-        grado_max_multiprogramacion = atoi(palabras[1]);
+        cambiar_grado_multiprogramacion(palabras[1]);
     } else if (strcmp(palabras[0], "PROCESO_ESTADO") == 0) {
         printf("\nLlego la instruccion PROCESO_ESTADO\n");
         listar_procesos_por_estado();
@@ -268,7 +272,6 @@ void leer_y_ejecutar(char* path){
         char** linea = string_split(leido, " ");
         ejecutar_comando_unico(linea);
         string_array_destroy(linea); 
-        sleep(1);
     }
 
 }
@@ -280,6 +283,22 @@ void trim_trailing_whitespace(char *str) {
     while (len > 0 && (str[len - 1] == ' ' || str[len - 1] == '\n' || str[len - 1] == '\t')) {
         str[len - 1] = '\0';
         len--;
+    }
+}
+
+void cambiar_grado_multiprogramacion(char* nuevo_grado){
+    //para cambiarlo la planificacion debe estar detendida
+    int grado_a_asignar = atoi(nuevo_grado);
+    if(planificacion_detenida == 1){
+        // se puede cambiar el grado de multiprogramacion
+        
+        grado_de_multiprogramacion.__align = grado_a_asignar - grado_max_multiprogramacion + grado_de_multiprogramacion.__align - 1;
+        sem_post(&grado_de_multiprogramacion);
+        grado_max_multiprogramacion = grado_a_asignar; // el grado_max_multiprog se actualiza para siempre contener el grado maximo de multirpg actual
+    }
+    else{
+        // no se puede realizar el cambio
+        log_warning(logger_kernel, "La planificacion no se detuvo. No se puede cambiar el grado de multiprogramacion");
     }
 }
 
@@ -299,7 +318,6 @@ t_pcb* crear_pcb(char* path){
     escribirCharParametroInstruccion(5, pcb_creado->cde->ultima_instruccion, "");
 
 	//Inicializo el quantum, pid y el PC
-	pcb_creado->quantum = quantum;  // el valor de quantum ya esta seteado
     pcb_creado->cde->pid = pid_a_asignar; // arranca en 0 y va sumando 1 cada vez que se crea un pcb
     pcb_creado->cde->pc = 0;
     pcb_creado->cde->motivo_desalojo = NO_DESALOJADO;
@@ -326,6 +344,11 @@ t_pcb* crear_pcb(char* path){
 
 	// Incremento su valor, para usar un nuevo PID la proxima vez que se cree un proceso
     pid_a_asignar ++;
+
+    // Para VRR
+    pcb_creado->flag_fin_q = 0;
+    pcb_creado->clock = NULL;
+
     return pcb_creado;
 }
 
@@ -523,7 +546,10 @@ void terminar_proceso(){
 
 void iniciar_quantum(){
     pthread_t clock_rr;
-    pthread_create(&clock_rr, NULL, (void*) controlar_tiempo_de_ejecucion, NULL);
+    if (strcmp(algoritmo, "VRR") == 0)
+        pthread_create(&clock_rr, NULL, (void*) controlar_tiempo_de_ejecucion_VRR, NULL);
+    else 
+        pthread_create(&clock_rr, NULL, (void*) controlar_tiempo_de_ejecucion, NULL);
     pthread_detach(clock_rr);
 }
 
@@ -539,11 +565,56 @@ void controlar_tiempo_de_ejecucion(){
             enviar_codigo(socket_cpu_interrupt, DESALOJO);
 
             t_buffer* buffer = crear_buffer();
-            buffer_write_uint32(buffer, pcb_en_ejecucion->cde->pid); // lo enviamos porque interrupt recibe un buffer, pero no hacemos nada con esto
+            buffer_write_uint32(buffer, pcb_en_ejecucion->cde->pid); 
             enviar_buffer(buffer, socket_cpu_interrupt);
             destruir_buffer(buffer);
         }
         sem_post(&sem_reloj_destruido);
+    }
+}
+
+void controlar_tiempo_de_ejecucion_VRR(){
+    while(1){
+        sem_wait(&sem_iniciar_quantum);
+
+        t_pcb* pcb_actual = pcb_en_ejecucion;
+
+        if (pcb_en_ejecucion->clock) { // el clock a esta altura solo existe si es que le sobro en su previa ejecucion
+            log_warning(logger_kernel, "Entra el proceso %d con tiempo restante %ld ms", pcb_en_ejecucion->cde->pid, quantum - temporal_gettime(pcb_en_ejecucion->clock));
+            temporal_resume(pcb_en_ejecucion->clock);
+        } else {
+            log_warning(logger_kernel, "Entra el proceso %d con tiempo restante %d", pcb_en_ejecucion->cde->pid, quantum); 
+            pcb_en_ejecucion->clock = temporal_create();
+        }
+        pthread_mutex_lock(&mutex_frenar_reloj);
+        flag_frenar_reloj = 0;
+        pthread_mutex_unlock(&mutex_frenar_reloj);
+
+        reloj_quantum_VRR(pcb_actual);
+
+        if (pcb_en_ejecucion->flag_fin_q) {
+            enviar_codigo(socket_cpu_interrupt, DESALOJO);
+
+            t_buffer* buffer = crear_buffer();
+            buffer_write_uint32(buffer, pcb_en_ejecucion->cde->pid); 
+            enviar_buffer(buffer, socket_cpu_interrupt);
+            destruir_buffer(buffer);
+        } 
+
+        sem_post(&clock_VRR);
+    }
+}
+
+void reloj_quantum_VRR(t_pcb* pcb_actual){
+    while(!flag_frenar_reloj){
+        if (pcb_actual->cde->pid == pcb_en_ejecucion->cde->pid && temporal_gettime(pcb_actual->clock) >= quantum){
+            temporal_stop(pcb_en_ejecucion->clock);
+            // eliminamos el clock para que se cree nuevamente cuando pase de ready a exec
+            temporal_destroy(pcb_en_ejecucion->clock);
+            pcb_en_ejecucion->clock = NULL;
+            pcb_en_ejecucion->flag_fin_q = 1;
+            return;
+        }
     }
 }
 
@@ -569,6 +640,10 @@ void iniciar_planificacion(){
         sem_wait(&pausar_exec_a_blocked);
     
     sem_post(&pausar_blocked_a_ready);
+    if(pausar_blocked_a_ready.__align == 1)
+        sem_wait(&pausar_blocked_a_ready);
+    
+    sem_post(&pausar_blocked_a_readyPlus);
     if(pausar_blocked_a_ready.__align == 1)
         sem_wait(&pausar_blocked_a_ready);
     
@@ -623,67 +698,37 @@ void recibir_cde_de_cpu(){
         sem_wait(&cde_recibido);
 
         t_buffer* buffer = recibir_buffer(socket_cpu_dispatch);
+        // considero este el momento en donde hay que frenar el clock en caso de que no haya vuelto por fin de quantum
+        if (strcmp(algoritmo, "VRR") == 0 && pcb_en_ejecucion->clock){
+            temporal_stop(pcb_en_ejecucion->clock);
+            pthread_mutex_lock(&mutex_frenar_reloj);
+            flag_frenar_reloj = 1;
+            pthread_mutex_unlock(&mutex_frenar_reloj);
+        }
+
+        t_cde* cde_recibido = buffer_read_cde(buffer);
+
+        if (strcmp(algoritmo, "VRR") == 0){
+            if (pcb_en_ejecucion->clock) {
+                temporal_stop(pcb_en_ejecucion->clock);
+                log_warning(logger_kernel, "Vuelve el proceso %d con tiempo restante %ld ms con motivo %s", pcb_en_ejecucion->cde->pid, quantum - temporal_gettime(pcb_en_ejecucion->clock), obtener_nombre_motivo(cde_recibido->motivo_desalojo));
+            } else {
+                log_warning(logger_kernel, "Vuelve el proceso %d SIN tiempo restante con motivo %s", pcb_en_ejecucion->cde->pid, obtener_nombre_motivo(cde_recibido->motivo_desalojo));
+            }
+        }
 
         pthread_mutex_lock(&mutex_exec);
         // retiramos el cde anterior a ser ejecutado
-        t_cde* cde_recibido = buffer_read_cde(buffer);
-        actualizar_cde(cde_recibido);        
+        destruir_cde(pcb_en_ejecucion->cde);
+        pcb_en_ejecucion->cde = cde_recibido;
         pthread_mutex_unlock(&mutex_exec);
 
-
-        evaluar_instruccion(pcb_en_ejecucion->cde->ultima_instruccion);
-        
+        evaluar_instruccion(pcb_en_ejecucion->cde->ultima_instruccion);        
 
         destruir_buffer(buffer);
     }
 }
 
-void actualizar_cde(t_cde* cde_recibido){
-    pcb_en_ejecucion->cde->pc = cde_recibido->pc;
-    pcb_en_ejecucion->cde->registros->AX = cde_recibido->registros->AX;
-    pcb_en_ejecucion->cde->registros->BX = cde_recibido->registros->BX;
-    pcb_en_ejecucion->cde->registros->CX = cde_recibido->registros->CX;
-    pcb_en_ejecucion->cde->registros->DX = cde_recibido->registros->DX;
-	pcb_en_ejecucion->cde->registros->EAX = cde_recibido->registros->EAX;
-    pcb_en_ejecucion->cde->registros->EBX = cde_recibido->registros->EBX;
-    pcb_en_ejecucion->cde->registros->ECX = cde_recibido->registros->ECX;
-    pcb_en_ejecucion->cde->registros->EDX = cde_recibido->registros->EDX;
-	pcb_en_ejecucion->cde->registros->PC = cde_recibido->registros->PC;
-    pcb_en_ejecucion->cde->registros->SI = cde_recibido->registros->SI;
-    pcb_en_ejecucion->cde->registros->DI = cde_recibido->registros->DI;
-    pcb_en_ejecucion->cde->motivo_desalojo = cde_recibido->motivo_desalojo;
-    copiar_ultima_instruccion(pcb_en_ejecucion->cde, cde_recibido->ultima_instruccion);
-
-}
-
-void copiar_ultima_instruccion(t_cde* cde, t_instruccion* instruccion){
-    cde->ultima_instruccion->codigo = instruccion->codigo;
-    if(instruccion->parametro1){
-        free(cde->ultima_instruccion->parametro1);
-        cde->ultima_instruccion->parametro1 = string_new();
-        string_append(&cde->ultima_instruccion->parametro1, instruccion->parametro1);
-    }
-    if(instruccion->parametro2){
-        free(cde->ultima_instruccion->parametro2);
-        cde->ultima_instruccion->parametro2 = string_new();
-        string_append(&cde->ultima_instruccion->parametro2, instruccion->parametro2);
-    }
-    if(instruccion->parametro3){
-        free(cde->ultima_instruccion->parametro3);
-        cde->ultima_instruccion->parametro3 = string_new();
-        string_append(&cde->ultima_instruccion->parametro3, instruccion->parametro3);
-    }
-    if(instruccion->parametro4){
-        free(cde->ultima_instruccion->parametro4);
-        cde->ultima_instruccion->parametro4 = string_new();
-        string_append(&cde->ultima_instruccion->parametro4, instruccion->parametro4);
-    }
-    if(instruccion->parametro5){
-        free(cde->ultima_instruccion->parametro5);
-        cde->ultima_instruccion->parametro5 = string_new();
-        string_append(&cde->ultima_instruccion->parametro5, instruccion->parametro5);
-    }
-}
 
 void evaluar_instruccion(t_instruccion* instruccion_actual){
     // aca vamos a tener que analizar dependiendo de la ultima instruccion ejecutada que hacer
@@ -707,13 +752,14 @@ void evaluar_instruccion(t_instruccion* instruccion_actual){
             return; 
         }
       
-        despachar_pcb_a_interfaz(interfaz_buscada, pcb_en_ejecucion); 
+        despachar_pcb_a_interfaz(interfaz_buscada, pcb_en_ejecucion);
+
         enviar_de_exec_a_block();
         
     } else if (instruccion_actual->codigo == EXIT){
         pcb_en_ejecucion->cde->motivo_finalizacion = SUCCESS;
         enviar_de_exec_a_finalizado();
-    } else {
+    } else { // en este caso se entra por desalojo con instrucciones no bloqueantes, o sea, fin de quantum, FIFO no entra aca
         enviar_de_exec_a_ready();
     }
 
@@ -830,6 +876,8 @@ void inicializarListas(){
     procesos_globales = list_create();
     procesosNew = queue_create();
     procesosReady = queue_create();
+    if (strcmp(algoritmo, "VRR") == 0)
+        procesosReadyPlus = queue_create();
     procesosBloqueados = queue_create();
     procesosFinalizados = queue_create();
     interfacesIO = list_create();
@@ -843,8 +891,11 @@ void inicializarSemaforos(){ // TERMINAR DE VER
     pthread_mutex_init(&mutex_exec, NULL);
     pthread_mutex_init(&mutex_procesos_globales, NULL);
     pthread_mutex_init(&mutex_interfaz, NULL);
-
+    pthread_mutex_init(&mutex_readyPlus, NULL);
+    pthread_mutex_init(&mutex_frenar_reloj, NULL);
     pthread_mutex_init(&mutex_pcb_en_ejecucion, NULL);
+
+
 
     sem_init(&procesos_en_exec, 0, 0);
 
@@ -854,6 +905,9 @@ void inicializarSemaforos(){ // TERMINAR DE VER
     sem_init(&pausar_exec_a_ready, 0, 0);
     sem_init(&pausar_exec_a_blocked, 0, 0);
     sem_init(&pausar_blocked_a_ready, 0, 0);
+    sem_init(&pausar_blocked_a_readyPlus, 0, 0);
+
+    sem_init(&clock_VRR, 0, 1);
 
     sem_init(&cpu_libre, 0, 1);
     sem_init(&sem_iniciar_quantum, 0, 0);
@@ -920,7 +974,14 @@ void atender_io(void* socket_io){
             // busco en la lista de interfaces
             interfaz = obtener_interfaz_en_lista(id_interfaz, &indice);
             // al pcb ejecutando lo paso a READY porque ya esta listo para continuar
-            enviar_pcb_de_block_a_ready(interfaz->pcb_ejecutando);
+
+            // si es VRR hay que pasarlo a la cola prioritaria
+            if (strcmp(algoritmo, "VRR") == 0 && interfaz->pcb_ejecutando->clock){
+                log_warning(logger_kernel, "Vuelve el proceso %d de IO con tiempo restante %ld", interfaz->pcb_ejecutando->cde->pid, quantum - temporal_gettime(interfaz->pcb_ejecutando->clock));
+                enviar_pcb_de_block_a_readyPlus(interfaz->pcb_ejecutando);
+            } // si existe el clock entonces le resta quantum
+            else 
+                enviar_pcb_de_block_a_ready(interfaz->pcb_ejecutando);
             // le cambio el estado del bool ocupada a false (esto es por si no tiene ninguno esperando)
             interfaz->ocupada = false;
             if (!queue_is_empty(interfaz->pcb_esperando)){
@@ -1080,6 +1141,8 @@ char* obtener_nombre_motivo(cod_desalojo motivo){
             return "INTERRUPCION";
 	    case FIN_DE_QUANTUM:
             return "FIN_DE_QUANTUM";
+        case RECURSOS:
+            return "RECURSOS";
         default:
             return NULL;  // nunca deberia entrar aca, esta pueso por los warning de retorno
     }
@@ -1109,6 +1172,7 @@ void enviar_de_exec_a_ready(){
     }
     agregar_pcb_a(procesosReady, pcb_en_ejecucion, &mutex_ready);
     pcb_en_ejecucion->estado = READY;
+    pcb_en_ejecucion->cde->motivo_desalojo = NO_DESALOJADO;
     
     log_info(logger_kernel, "PID: %d - Estado anterior: %s - Estado actual: %s", pcb_en_ejecucion->cde->pid, obtener_nombre_estado(EXEC), obtener_nombre_estado(READY));
 
@@ -1164,11 +1228,37 @@ void enviar_pcb_de_block_a_ready(t_pcb* pcb){
 
     agregar_pcb_a(procesosReady, pcb_a_ready, &mutex_ready);
     pcb_a_ready->estado = READY;
+    pcb_a_ready->cde->motivo_desalojo = NO_DESALOJADO;
 
     log_info(logger_kernel, "PID: %d - Estado anterior: %s - Estado actual: %s", pcb_a_ready->cde->pid, obtener_nombre_estado(BLOCKED), obtener_nombre_estado(READY));
 
     sem_post(&procesos_en_ready);
 }
+
+void enviar_pcb_de_block_a_readyPlus(t_pcb* pcb){
+    sem_wait(&procesos_en_blocked);
+    
+    if(planificacion_detenida == 1){
+        sem_wait(&pausar_blocked_a_readyPlus);
+    }
+
+    int posicion_pcb = esta_proceso_en_cola_bloqueados(pcb);
+
+    t_pcb* pcb_a_readyPlus = list_get(procesosBloqueados->elements,posicion_pcb);
+
+    pthread_mutex_lock(&mutex_block);
+    list_remove_element(procesosBloqueados->elements, pcb);
+    pthread_mutex_unlock(&mutex_block);
+
+    agregar_pcb_a(procesosReadyPlus, pcb_a_readyPlus, &mutex_readyPlus);
+    pcb_a_readyPlus->estado = READY;
+    pcb_a_readyPlus->cde->motivo_desalojo = NO_DESALOJADO;
+
+    log_info(logger_kernel, "PID: %d - Estado anterior: %s - Estado actual: %s", pcb_a_readyPlus->cde->pid, obtener_nombre_estado(BLOCKED), obtener_nombre_estado(READY));
+
+    sem_post(&procesos_en_ready);
+}
+
 
 void enviar_de_ready_a_exec(){
     while(1){
@@ -1180,6 +1270,12 @@ void enviar_de_ready_a_exec(){
         char* lista_pcbs_en_ready = obtener_elementos_cargados_en(procesosReady);
         log_info(logger_kernel, "Cola Ready %s: %s", algoritmo, lista_pcbs_en_ready);
         free(lista_pcbs_en_ready);
+
+        if (strcmp(algoritmo, "VRR") == 0) {
+            char* lista_pcbs_en_readyPlus = obtener_elementos_cargados_en(procesosReadyPlus);
+            log_info(logger_kernel, "Cola Ready+ (prioritaria) %s: %s", algoritmo, lista_pcbs_en_readyPlus);
+            free(lista_pcbs_en_readyPlus);
+        }
 
         if(planificacion_detenida == 1){
             sem_wait(&pausar_ready_a_exec);
@@ -1195,10 +1291,16 @@ void enviar_de_ready_a_exec(){
 		// Primer post de ese semaforo ya que se envia por primera vez
 		sem_post(&procesos_en_exec); // dsps se hace el wait cuando quiero sacar de exec (x block, etc)
         
-        if(strcmp(algoritmo, "RR") == 0 || (strcmp(algoritmo, "VRR") == 0)){
+        if(strcmp(algoritmo, "RR") == 0){
             sem_wait(&sem_reloj_destruido); // si hay un ciclo de quantum ejecutandose se espera a que termine
             sem_post(&sem_iniciar_quantum); // da comienzo a un nuevo ciclo
         }
+
+        if((strcmp(algoritmo, "VRR") == 0)) {
+            sem_wait(&clock_VRR);
+            sem_post(&sem_iniciar_quantum);
+        }
+
         enviar_cde_a_cpu(); //avisarle al kernel que empiece a correr el proceso en el cpu y le mande las cosas necesarias
     }
 }

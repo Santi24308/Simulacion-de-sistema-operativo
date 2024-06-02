@@ -310,14 +310,6 @@ void enviar_instruccion(){
 	pthread_mutex_lock(&mutex_lista_procesos);
 	t_proceso* proceso = buscar_proceso(pid);
 	pthread_mutex_unlock(&mutex_lista_procesos);
-	
-	// asumo que es memoria quien tiene la responsabilidad de saber que no quedan instrucciones por pedir
-	if(pc >= list_size(proceso->lista_instrucciones)){
-		enviar_codigo(socket_cpu, FIN_INSTRUCCIONES);
-		return;
-	} else {
-		enviar_codigo(socket_cpu, PEDIDO_OK);
-	}
 
 	t_instruccion* instruccion = list_get(proceso->lista_instrucciones, pc); //mutex?
 
