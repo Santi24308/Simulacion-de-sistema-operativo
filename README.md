@@ -27,8 +27,7 @@
   - Es capaz de abrir los archivos de pseudocódigo y envía las instrucciones al CPU. OK
 - Módulo Interfaz I/O:
   - Se encuentra desarrollada la Interfaz Genérica. OK
-
-**Aclaración**: en momento de ejecución tenemos un segmentation fault que se da cuando kernel esta conectandose con el modulo de I/O, debuggeamos y nos dimos cuenta que ejecutando paso a paso con gdb se evita el segmentation por lo que seguimos intentando corregir eso, pero la estructura de todo lo que se pide en el checkpoint esta implementada y compilando.
+    
 
 # Entrega: Checkpoint 1
 
