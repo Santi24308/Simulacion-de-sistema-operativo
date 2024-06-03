@@ -385,7 +385,7 @@ void ejecutar_proceso(t_cde* cde){
 		interrupcion = 0;
         realizar_desalojo = 0;
         pthread_mutex_unlock(&mutex_desalojar);
-        log_info(logger_cpu, "PID: %d - Volviendo a kernel por instruccion %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar));
+        log_warning(logger_cpu, "PID: %d - Volviendo a kernel por instruccion %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar));
         cde->motivo_desalojo = INTERRUPCION;
         desalojar_cde(cde, instruccion_a_ejecutar);
 	} else if (realizar_desalojo){ // salida por fin de quantum
@@ -394,7 +394,7 @@ void ejecutar_proceso(t_cde* cde){
 		interrupcion = 0;  
         realizar_desalojo = 0;
         pthread_mutex_unlock(&mutex_desalojar);
-        log_info(logger_cpu, "PID: %d - Desalojado por %s", cde->pid, obtener_nombre_motivo_desalojo(cde->motivo_desalojo)); 
+        log_warning(logger_cpu, "PID: %d - Desalojado por %s", cde->pid, obtener_nombre_motivo_desalojo(cde->motivo_desalojo)); 
         desalojar_cde(cde, instruccion_a_ejecutar);
     } else if (fin_q){
         pthread_mutex_lock(&mutex_desalojar);

@@ -31,6 +31,8 @@ typedef struct{
 	char* path;
     t_temporal* clock;
 	int flag_fin_q;
+	t_list* recursos_asignados;
+	t_list* recursos_solicitados;
 }t_pcb;
 
 typedef struct{
@@ -116,6 +118,7 @@ pthread_mutex_t mutex_block;
 pthread_mutex_t mutex_finalizados;
 pthread_mutex_t mutex_exec;
 pthread_mutex_t mutex_interfaz;
+pthread_mutex_t mutex_fin_q_VRR;
 
 pthread_mutex_t mutex_pcb_en_ejecucion;
 

@@ -12,10 +12,10 @@ int main(int argc, char* argv[]) {
 	inicializar_modulo();
 	conectar();
 
-	consola();
-    //iniciar_proceso("instruccionesP1.txt");
-    //iniciar_proceso("instruccionesP2.txt");
-    //iniciar_proceso("instruccionesP3.txt");
+	//consola();
+    iniciar_proceso("instruccionesP4.txt");
+    iniciar_proceso("instruccionesP5.txt");
+    iniciar_proceso("instruccionesP6.txt");
 
     sem_wait(&terminar_kernel);
 
@@ -345,9 +345,11 @@ t_pcb* crear_pcb(char* path){
 	// Incremento su valor, para usar un nuevo PID la proxima vez que se cree un proceso
     pid_a_asignar ++;
 
-    // Para VRR
     pcb_creado->flag_fin_q = 0;
     pcb_creado->clock = NULL;
+
+    pcb_creado->recursos_asignados = list_create();
+    pcb_creado->recursos_solicitados = list_create();
 
     return pcb_creado;
 }
@@ -562,6 +564,9 @@ void controlar_tiempo_de_ejecucion(){
         usleep(quantum * 1000);
 
         if(pcb_en_ejecucion != NULL && pid_pcb_pre_clock == pcb_en_ejecucion->cde->pid){
+            pthread_mutex_lock(&mutex_fin_q_VRR);
+            pcb_en_ejecucion->flag_fin_q = 1;
+            pthread_mutex_unlock(&mutex_fin_q_VRR);
             enviar_codigo(socket_cpu_interrupt, DESALOJO);
 
             t_buffer* buffer = crear_buffer();
@@ -611,8 +616,10 @@ void reloj_quantum_VRR(t_pcb* pcb_actual){
             temporal_stop(pcb_en_ejecucion->clock);
             // eliminamos el clock para que se cree nuevamente cuando pase de ready a exec
             temporal_destroy(pcb_en_ejecucion->clock);
+            pthread_mutex_lock(&mutex_fin_q_VRR);
             pcb_en_ejecucion->clock = NULL;
             pcb_en_ejecucion->flag_fin_q = 1;
+            pthread_mutex_unlock(&mutex_fin_q_VRR);
             return;
         }
     }
@@ -698,19 +705,19 @@ void recibir_cde_de_cpu(){
         sem_wait(&cde_recibido);
 
         t_buffer* buffer = recibir_buffer(socket_cpu_dispatch);
+        t_cde* cde_recibido = buffer_read_cde(buffer);
         // considero este el momento en donde hay que frenar el clock en caso de que no haya vuelto por fin de quantum
-        if (strcmp(algoritmo, "VRR") == 0 && pcb_en_ejecucion->clock){
+        // se hace el chequeo de que la instruccion no sea relacionada a SIGNAL o WAIT porque en ese caso no quiero frenar el reloj
+        // ya que en caso de que el recurso no tenga demoras y el quantum no se haya consumido el cde vuelve DIRECTAMENTE a cpu
+        if (strcmp(algoritmo, "VRR") == 0 && pcb_en_ejecucion->clock && cde_recibido->motivo_desalojo != RECURSOS){
             temporal_stop(pcb_en_ejecucion->clock);
             pthread_mutex_lock(&mutex_frenar_reloj);
             flag_frenar_reloj = 1;
             pthread_mutex_unlock(&mutex_frenar_reloj);
         }
 
-        t_cde* cde_recibido = buffer_read_cde(buffer);
-
         if (strcmp(algoritmo, "VRR") == 0){
             if (pcb_en_ejecucion->clock) {
-                temporal_stop(pcb_en_ejecucion->clock);
                 log_warning(logger_kernel, "Vuelve el proceso %d con tiempo restante %ld ms con motivo %s", pcb_en_ejecucion->cde->pid, quantum - temporal_gettime(pcb_en_ejecucion->clock), obtener_nombre_motivo(cde_recibido->motivo_desalojo));
             } else {
                 log_warning(logger_kernel, "Vuelve el proceso %d SIN tiempo restante con motivo %s", pcb_en_ejecucion->cde->pid, obtener_nombre_motivo(cde_recibido->motivo_desalojo));
@@ -729,40 +736,221 @@ void recibir_cde_de_cpu(){
     }
 }
 
+bool instruccion_de_recursos(codigoInstruccion cod){
+    return (cod == WAIT || cod == SIGNAL);
+} 
 
-void evaluar_instruccion(t_instruccion* instruccion_actual){
-    // aca vamos a tener que analizar dependiendo de la ultima instruccion ejecutada que hacer
-    // por ejemplo, en los llamados a I/O vamos a tener que gestionar el ida y vuelta
-    // con la interfaz involucrada, eso implica ver si existe y tambien ver si puede
-    // cumplir ese pedido esa I/O
-    if (instruccion_actual->codigo == IO_GEN_SLEEP) {
-        if (!interfaz_valida(instruccion_actual->parametro1)){
-            finalizarProceso(pcb_en_ejecucion->cde->pid);
-            return;
-        }
+void evaluar_instruccion(t_instruccion* ultima_instruccion){
+    switch (ultima_instruccion->codigo){
+        case IO_GEN_SLEEP:
+            evaluar_io_gen_sleep(ultima_instruccion);
+            break;
+        case WAIT:
+            evaluar_wait(ultima_instruccion->parametro1);
+            break;
+        case SIGNAL:
+            evaluar_signal(ultima_instruccion->parametro1);
+            break;
+        case IO_STDIN_READ:
+            break;
+        case IO_STDOUT_WRITE:
+            break;
+        case IO_FS_CREATE:
+            break;
+        case IO_FS_TRUNCATE:
+            break;
+        case IO_FS_WRITE:
+            break;
+        case IO_FS_READ:
+            break;
+        case EXIT:
+            pcb_en_ejecucion->cde->motivo_finalizacion = SUCCESS;
+            enviar_de_exec_a_finalizado();
+            break;
+        default:    
+            // aca solo entraria por fin de quantum
+            enviar_de_exec_a_ready();
+            break;
+    }
+}
 
-        int indice = -1;
-        t_interfaz* interfaz_buscada = obtener_interfaz_en_lista(instruccion_actual->parametro1, &indice);
-        if (interfaz_buscada->ocupada){
-            pthread_mutex_lock(&mutex_interfaz);
-            queue_push(interfaz_buscada->pcb_esperando, (void*)pcb_en_ejecucion);
-            pthread_mutex_unlock(&mutex_interfaz);
-            
-            enviar_de_exec_a_block(); // al hacer esto se avisa que la cpu esta libre y se continua con el proximo pcb
-            return; 
-        }
-      
-        despachar_pcb_a_interfaz(interfaz_buscada, pcb_en_ejecucion);
-
-        enviar_de_exec_a_block();
-        
-    } else if (instruccion_actual->codigo == EXIT){
-        pcb_en_ejecucion->cde->motivo_finalizacion = SUCCESS;
-        enviar_de_exec_a_finalizado();
-    } else { // en este caso se entra por desalojo con instrucciones no bloqueantes, o sea, fin de quantum, FIFO no entra aca
-        enviar_de_exec_a_ready();
+void evaluar_io_gen_sleep(t_instruccion* ultima_instruccion){
+    if (!interfaz_valida(ultima_instruccion->parametro1)){
+        finalizarProceso(pcb_en_ejecucion->cde->pid);
+        return;
     }
 
+    int indice = -1;
+    t_interfaz* interfaz_buscada = obtener_interfaz_en_lista(ultima_instruccion->parametro1, &indice);
+    if (interfaz_buscada->ocupada){
+        pthread_mutex_lock(&mutex_interfaz);
+        queue_push(interfaz_buscada->pcb_esperando, (void*)pcb_en_ejecucion);
+        pthread_mutex_unlock(&mutex_interfaz);
+        
+        enviar_de_exec_a_block(); // al hacer esto se avisa que la cpu esta libre y se continua con el proximo pcb
+        return; 
+    }
+
+    despachar_pcb_a_interfaz(interfaz_buscada, pcb_en_ejecucion);
+
+    enviar_de_exec_a_block();
+}
+
+void evaluar_signal(char* nombre_recurso_pedido){
+    bool encontrado = false;
+    bool asignado = false;
+    int posicion_recurso;
+    for(int i=0; i < list_size(recursos); i++){ //obtiene la posicion del recurso si existe
+        t_recurso* recurso = list_get(recursos, i);
+        char* nombre_recurso = recurso->nombre;
+        if(strcmp(nombre_recurso, nombre_recurso_pedido) == 0){
+            encontrado = true;
+            posicion_recurso = i;
+        }
+    }
+
+    if (!encontrado) {
+        log_error(logger_kernel, "PID: %d - Solicitud de recurso inexistente, abortando proceso", pcb_en_ejecucion->cde->pid);
+        pcb_en_ejecucion->cde->motivo_finalizacion = INVALID_RESOURCE;
+        if (strcmp(algoritmo, "VRR") == 0){
+            if (!pcb_en_ejecucion->flag_fin_q){
+                pthread_mutex_lock(&mutex_frenar_reloj);
+                flag_frenar_reloj = 1;
+                pthread_mutex_unlock(&mutex_frenar_reloj);
+            }
+        }
+        enviar_de_exec_a_finalizado(); 
+        return;
+    }
+
+    for(int i=0; i < list_size(pcb_en_ejecucion->recursos_asignados); i++){ //se fija si lo tiene asignado
+        t_recurso* recurso = list_get(pcb_en_ejecucion->recursos_asignados, i);
+        char* nombre_recurso = recurso->nombre;
+        if(strcmp(nombre_recurso, nombre_recurso_pedido) == 0){
+            asignado = true;
+        }
+    }
+
+    if(asignado){ // el recurso existe y lo tiene asignado
+        t_recurso* recurso = list_get(recursos, posicion_recurso);
+        recurso->instancias++; // segun el foro PUEDEN haber signals sin antes haber waits, por lo que las instancias pueden superar el maximo
+        log_info(logger_kernel, "PID: %d - Signal: %s - Instancias: %d", pcb_en_ejecucion->cde->pid, nombre_recurso_pedido, recurso->instancias);
+        
+        list_remove_element(pcb_en_ejecucion->recursos_asignados, recurso); // saco el recurso porque lo libero
+
+        pthread_mutex_lock(&mutex_fin_q_VRR);
+        int flag_fin_q = pcb_en_ejecucion->flag_fin_q;
+        pthread_mutex_unlock(&mutex_fin_q_VRR);
+
+        if (strcmp(algoritmo, "FIFO") != 0) {
+            if (flag_fin_q) 
+                enviar_de_exec_a_ready();
+            else 
+                enviar_cde_a_cpu();
+        } else 
+            enviar_cde_a_cpu();
+
+        if(list_size(recurso->procesos_bloqueados) > 0){ // Desbloquea al primer proceso de la cola de bloqueados del recurso
+			sem_t semaforo_recurso = recurso->sem_recurso;
+
+			sem_wait(&semaforo_recurso);
+
+			t_pcb* pcb = list_remove(recurso->procesos_bloqueados, 0);
+			sem_post(&semaforo_recurso);
+
+            list_remove_element(pcb->recursos_solicitados, recurso); // saco el recurso que solicito el pcb y ya se le puede asignar
+            
+            list_add(pcb->recursos_asignados, recurso);
+                        
+            recurso->instancias--;
+
+            enviar_pcb_de_block_a_ready(pcb);
+		}
+    } else {
+        log_error(logger_kernel, "PID: %d - Solicitud de recurso NO asignado al proceso, abortando proceso", pcb_en_ejecucion->cde->pid);
+        pcb_en_ejecucion->cde->motivo_finalizacion = INVALID_RESOURCE;
+        if (strcmp(algoritmo, "VRR") == 0){
+            if (!pcb_en_ejecucion->flag_fin_q){
+                pthread_mutex_lock(&mutex_frenar_reloj);
+                flag_frenar_reloj = 1;
+                pthread_mutex_unlock(&mutex_frenar_reloj);
+            }
+        }
+        enviar_de_exec_a_finalizado(); 
+    }
+}
+
+void evaluar_wait(char* nombre_recurso_pedido){
+    bool encontrado = false;
+    int posicion_recurso;
+    for(int i=0; i < list_size(recursos); i++){
+        t_recurso* recurso = list_get(recursos, i);
+        char* nombre_recurso = recurso->nombre;
+        if(strcmp(nombre_recurso_pedido, nombre_recurso) == 0){
+            encontrado = true;
+            posicion_recurso = i;
+        }
+    }
+    if(encontrado){ 
+        t_recurso* recurso = list_get(recursos, posicion_recurso);
+        recurso->instancias--;
+        log_info(logger_kernel, "PID: %d - Wait: %s - Instancias: %d", pcb_en_ejecucion->cde->pid, nombre_recurso_pedido, recurso->instancias);
+        
+        if(recurso->instancias < 0){  // Chequea si debe bloquear al proceso por falta de instancias
+
+            pthread_mutex_lock(&mutex_fin_q_VRR);
+            int flag_fin_q = pcb_en_ejecucion->flag_fin_q;
+            pthread_mutex_unlock(&mutex_fin_q_VRR);
+
+            if (strcmp(algoritmo, "VRR") == 0 && !flag_fin_q) {
+                temporal_stop(pcb_en_ejecucion->clock);
+                pthread_mutex_lock(&mutex_frenar_reloj);
+                flag_frenar_reloj = 1;
+                pthread_mutex_unlock(&mutex_frenar_reloj);
+            }
+
+            sem_t semaforo_recurso = recurso->sem_recurso;
+        	sem_wait(&semaforo_recurso);
+
+        	list_add(recurso->procesos_bloqueados, pcb_en_ejecucion);
+        	recurso->instancias = 0;
+        	sem_post(&semaforo_recurso);
+
+            log_info(logger_kernel, "PID: %d - Bloqueado por: %s", pcb_en_ejecucion->cde->pid, nombre_recurso_pedido);
+
+            list_add(pcb_en_ejecucion->recursos_solicitados, recurso);
+            
+            enviar_de_exec_a_block();
+        }
+        else{
+            list_add(pcb_en_ejecucion->recursos_asignados, recurso);
+
+            pthread_mutex_lock(&mutex_fin_q_VRR);
+            int flag_fin_q = pcb_en_ejecucion->flag_fin_q;
+            pthread_mutex_unlock(&mutex_fin_q_VRR);
+
+            if (strcmp(algoritmo, "FIFO") != 0) {
+                if (flag_fin_q) 
+                    enviar_de_exec_a_ready();
+                else 
+                    enviar_cde_a_cpu();
+            } else 
+                enviar_cde_a_cpu();
+        }
+    }
+    else{ // el recurso no existe
+        log_error(logger_kernel, "PID: %d - Solicitud de recurso inexistente, abortando proceso", pcb_en_ejecucion->cde->pid);
+        pcb_en_ejecucion->cde->motivo_finalizacion = INVALID_RESOURCE;
+        if (strcmp(algoritmo, "VRR") == 0){
+            if (!pcb_en_ejecucion->flag_fin_q){
+                pthread_mutex_lock(&mutex_frenar_reloj);
+                flag_frenar_reloj = 1;
+                pthread_mutex_unlock(&mutex_frenar_reloj);
+            }
+        }
+
+        enviar_de_exec_a_finalizado();
+    }
 }
 
 void despachar_pcb_a_interfaz(t_interfaz* interfaz, t_pcb* pcb){
@@ -894,7 +1082,7 @@ void inicializarSemaforos(){ // TERMINAR DE VER
     pthread_mutex_init(&mutex_readyPlus, NULL);
     pthread_mutex_init(&mutex_frenar_reloj, NULL);
     pthread_mutex_init(&mutex_pcb_en_ejecucion, NULL);
-
+    pthread_mutex_init(&mutex_fin_q_VRR, NULL);
 
 
     sem_init(&procesos_en_exec, 0, 0);
@@ -1292,11 +1480,17 @@ void enviar_de_ready_a_exec(){
 		sem_post(&procesos_en_exec); // dsps se hace el wait cuando quiero sacar de exec (x block, etc)
         
         if(strcmp(algoritmo, "RR") == 0){
+            pthread_mutex_lock(&mutex_fin_q_VRR);
+            pcb_en_ejecucion->flag_fin_q = 0;
+            pthread_mutex_unlock(&mutex_fin_q_VRR);
             sem_wait(&sem_reloj_destruido); // si hay un ciclo de quantum ejecutandose se espera a que termine
             sem_post(&sem_iniciar_quantum); // da comienzo a un nuevo ciclo
         }
 
         if((strcmp(algoritmo, "VRR") == 0)) {
+            pthread_mutex_lock(&mutex_fin_q_VRR);
+            pcb_en_ejecucion->flag_fin_q = 0;
+            pthread_mutex_unlock(&mutex_fin_q_VRR);
             sem_wait(&clock_VRR);
             sem_post(&sem_iniciar_quantum);
         }
@@ -1360,4 +1554,54 @@ t_pcb* retirar_pcb_de_ready_segun_algoritmo(){
     if(strcmp(algoritmo, "FIFO") == 0) return elegir_segun_fifo();
     else if(strcmp(algoritmo, "RR") == 0) return elegir_segun_rr();
     else return elegir_segun_vrr(); // caso virtual rr
+}
+
+// ----------------------------------- APARTADO RECURSOS -------------------------------------------------------------------------
+
+void liberar_recursos_pcb(t_pcb* pcb){
+    t_recurso* recurso;
+    for(int i = 0; i < list_size(pcb->recursos_asignados); i++){
+        recurso = list_get(pcb->recursos_asignados, i);
+        signal_recursos_asignados_pcb(pcb, recurso->nombre);
+    }
+    
+    while(list_size(pcb->recursos_asignados) != 0){
+        list_remove(pcb->recursos_asignados, 0);
+    }
+
+    while(list_size(pcb->recursos_solicitados) != 0){ // Aca entraria solo en el caso de que se finalice el proceso por consola
+        recurso = list_remove(pcb->recursos_solicitados, 0);
+        list_remove_element(recurso->procesos_bloqueados, pcb);
+    }
+}
+
+void signal_recursos_asignados_pcb(t_pcb* pcb, char* nombre_recurso_pedido){
+    int posicion_recurso;
+    for(int i=0; i < list_size(recursos); i++){
+        t_recurso* recurso = list_get(recursos, i);
+        char* nombre_recurso = recurso->nombre;
+        if(strcmp(nombre_recurso_pedido, nombre_recurso) == 0){
+            posicion_recurso = i;
+            break;
+        }
+    }
+    t_recurso* recurso = list_get(recursos, posicion_recurso);
+    recurso->instancias++; //podria considerarse chequear que no se pase de las instancias totales del recurso, pero me parecio innecesario
+    log_info(logger_kernel, "PID: %d - LIBERANDO INSTANCIAS DEL RECURSO: %s - INSTANCIAS DISPONIBLES: %d", pcb->cde->pid, nombre_recurso_pedido, recurso->instancias);
+
+    if(list_size(recurso->procesos_bloqueados) > 0){ // Desbloquea al primer proceso de la cola de bloqueados del recurso
+	    sem_t semaforo_recurso = recurso->sem_recurso;
+
+	    sem_wait(&semaforo_recurso);
+
+		t_pcb* pcb_a_retirar = list_remove(recurso->procesos_bloqueados, 0);
+		
+		sem_post(&semaforo_recurso);
+        
+        // le asigno al pcb que se "libero" el recurso asi puede ejecutar
+        recurso->instancias--;
+        list_add(pcb_a_retirar->recursos_asignados, recurso);
+        
+        enviar_pcb_de_block_a_ready(pcb_a_retirar);
+	}
 }

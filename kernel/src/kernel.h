@@ -18,7 +18,6 @@ void atender_io();
 void inicializar_modulo();
 void consola();
 void conectar();
-void esperar_desconexiones();
 void iterator(char*);
 // CHECKPOINT 2
 void inicializarListas();
@@ -45,6 +44,12 @@ void despachar_pcb_a_interfaz(t_interfaz*, t_pcb*);
 bool io_puede_cumplir_solicitud(char* , codigoInstruccion );
 void trim_trailing_whitespace(char*);
 
+void evaluar_io_gen_sleep(t_instruccion*);
+void evaluar_signal(char*);
+void evaluar_wait(char*);
+
+void signal_recursos_asignados_pcb(t_pcb*, char*);
+
 void agregar_pcb_a(t_queue*, t_pcb*, pthread_mutex_t*);
 t_pcb* retirar_pcb_de(t_queue*, pthread_mutex_t*);
 char* obtener_elementos_cargados_en(t_queue*);
@@ -53,6 +58,8 @@ t_recurso* inicializar_recurso(char*, int);
 void terminar_proceso_consola(uint32_t);
 
 char* obtener_nombre_motivo_finalizacion(cod_finalizacion);
+
+bool instruccion_de_recursos(codigoInstruccion);
 
 
 // PLANIFICACION -------------------------------------------------------------------------------------------------------------------
