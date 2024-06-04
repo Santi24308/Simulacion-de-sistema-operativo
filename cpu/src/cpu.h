@@ -31,7 +31,7 @@ void ejecutar_jnz(void*, uint32_t , t_cde*);
 void ejecutar_sleep(uint32_t);
 void ejecutar_wait(char*);
 void ejecutar_signal(char*);
-void ejecutar_IO_GEN_SLEEP(uint32_t);
+void ejecutar_IO_GEN_SLEEP(char*, uint32_t);
 void copiar_ultima_instruccion(t_cde*, t_instruccion*);
 
 void devolver_cde_a_kernel(t_cde*, t_instruccion*);

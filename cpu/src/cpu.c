@@ -445,29 +445,29 @@ void ejecutar_instruccion(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
     switch(instruccion_a_ejecutar->codigo){
         case SET:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
-           /* parametro2 = leerEnteroParametroInstruccion(2, instruccion_a_ejecutar);
+            parametro2 = leerEnteroParametroInstruccion(2, instruccion_a_ejecutar);
             ejecutar_set(instruccion_a_ejecutar->parametro1, parametro2);
             if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
-                destruir_instruccion(instruccion_a_ejecutar); */
+                destruir_instruccion(instruccion_a_ejecutar);
             break;
         case SUM:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
-            /* ejecutar_sum(instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
+            ejecutar_sum(instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
-                destruir_instruccion(instruccion_a_ejecutar); */
+                destruir_instruccion(instruccion_a_ejecutar);
             break;
         case SUB:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
-            /* ejecutar_sub(instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
+            ejecutar_sub(instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
-                destruir_instruccion(instruccion_a_ejecutar); */
+                destruir_instruccion(instruccion_a_ejecutar);
             break;
         case JNZ:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
-            /* parametro2 = leerEnteroParametroInstruccion(2, instruccion_a_ejecutar);
+            parametro2 = leerEnteroParametroInstruccion(2, instruccion_a_ejecutar);
             ejecutar_jnz(instruccion_a_ejecutar->parametro1, parametro2, cde);
             if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
-                destruir_instruccion(instruccion_a_ejecutar); */
+                destruir_instruccion(instruccion_a_ejecutar);
             break;
 
         /*
@@ -480,10 +480,7 @@ void ejecutar_instruccion(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
         una cantidad de unidades de trabajo.
 
         */
-        case IO_GEN_SLEEP:
-            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
-            
-            /*
+         /*
             1. guardar instruccion_t instruccion_a_ejecutar en el cde como ultima instruccion
             2. poner el motivo de desalojo en el cde
             3. guardar los registros 
@@ -491,6 +488,12 @@ void ejecutar_instruccion(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
             5. interrupcion = 1 
             6. destruir_instruccion 
             */
+        case IO_GEN_SLEEP:
+            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
+            // no lo toma parametro1 = leerCharParametroInstruccion(1,instruccion_a_ejecutar);
+            parametro2 = leerEnteroParametroInstruccion(2, instruccion_a_ejecutar);
+            ejecutar_IO_GEN_SLEEP(instruccion_a_ejecutar->parametro1, parametro2);
+            // ¿ Deberia saber a que interfaz va a enviar a sleep?
             cde->motivo_desalojo = LLAMADA_IO;
             realizar_desalojo = 1;
             break;
@@ -636,6 +639,8 @@ void ejecutar_set(char* registro, uint32_t valor_recibido){
     else if(strcmp(registro, "DX") == 0)
         registros_cpu->DX = (uint8_t) valor_reg_origen8;
 
+    else if(strcmp(registro, "PC") == 0)
+        registros_cpu->PC= valor_reg_origen32;
 	else if(strcmp(registro, "EAX") == 0)
         registros_cpu->EAX= valor_reg_origen32;
 	else if(strcmp(registro, "EBX") == 0)
@@ -769,7 +774,7 @@ void ejecutar_signal(char* recurso){ //solicitar a kernel que se libere una inst
 }
 // los parametros a recibir son una interfaz y el tiempo a realizar un sleep en esa interfaz
 // NO TERMINADO
-void ejecutar_IO_GEN_SLEEP(uint32_t tiempo){ //devolver cde al kernel con la cant de segundos que el proceso se va a bloquear
+void ejecutar_IO_GEN_SLEEP(char* interfaz,uint32_t tiempo){ //devolver cde al kernel con la cant de segundos que el proceso se va a bloquear
     interrupcion = 1;
 }
 
