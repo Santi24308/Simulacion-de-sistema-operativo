@@ -40,7 +40,8 @@ bool chequeo_parametros(int argc, char** argv){
 
 void conectar(){
 	conectar_kernel();
-	//conectar_memoria();
+	if (strcmp(tipo, "GENERICA") != 0)
+		conectar_memoria();
 }
 
 void inicializar_modulo(){

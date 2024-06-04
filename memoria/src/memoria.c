@@ -239,7 +239,6 @@ t_list* levantar_instrucciones(char* path_op){
 			}
 
 			list_add(lista_instrucciones, instruccion);
-			imprimir_instruccion(instruccion);
 		}
 
         string_array_destroy(linea); 
@@ -249,7 +248,7 @@ t_list* levantar_instrucciones(char* path_op){
 
 	return lista_instrucciones;
 }
-
+/*
 void imprimir_instruccion(t_instruccion* instruccion){
 	printf("\tINSTRUCCION LEIDA: %s \n", obtener_nombre_instruccion(instruccion));
 	int i = 1;
@@ -259,7 +258,7 @@ void imprimir_instruccion(t_instruccion* instruccion){
 			printf("\tPARAMETRO %i: %s\n", i, leerCharParametroInstruccion(i, instruccion));
 		i++;
 	}
-}
+}*/
 
 // esta funcion fixea los casos en donde fgets al leer del archivo lee algo que deberia ser
 // "palabra" como "palabra           ".
@@ -298,7 +297,6 @@ void eliminar_lista_instrucciones(t_list* lista){
 
 void enviar_instruccion(){
 	
-	//instrucciones_path = config_get_string_value(config_memoria, "PATH_INSTRUCCIONES");
 	uint32_t pid;
 	uint32_t pc;			
 	
@@ -312,9 +310,6 @@ void enviar_instruccion(){
 	pthread_mutex_unlock(&mutex_lista_procesos);
 
 	t_instruccion* instruccion = list_get(proceso->lista_instrucciones, pc); //mutex?
-
-	printf("\nLE ENVIE LA SIGUIENTE INSTRUCCION a CPU CON EL pc: %i\n", pc);
-    imprimir_instruccion(instruccion);
 	
 	buffer_instruccion = crear_buffer();	
 	buffer_write_instruccion(buffer_instruccion, instruccion);

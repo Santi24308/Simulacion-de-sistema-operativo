@@ -11,7 +11,6 @@ int main(int argc, char* argv[]) {
 
 	inicializar_modulo();
 	conectar();
-	//esperar_desconexiones();
 
     sem_wait(&terminar_cpu);
 
@@ -19,12 +18,7 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
-/*
-void esperar_desconexiones(){
-	sem_wait(&sema_kernel_dispatch);
-	sem_wait(&sema_kernel_interrupt);
-}
-*/
+
 void conectar(){
 	conectar_memoria();
 	conectar_kernel();
@@ -195,13 +189,7 @@ void atender_kernel_interrupt(){
                     pthread_mutex_unlock(&mutex_desalojar);
                     break;
                 case DESALOJO:
-                    // caso FIFO: no existe desalojo, kernel NUNCA deberia mandar este mensaje si esta seteado fifo como algoritmo
-                    // caso RR: desaloja solo por quantum, si llega este mensaje es porque SI o SI hay que sacar por quantum
-                    // caso VRR: desaloja solo por quantum, si llega este mensaje es porque SI o SI hay que sacar por quantum
                     
-                    // este es el unico chequeo que quizas es necesario considerar (a confirmar) ya que si la instruccion es bloqueante
-                    // se desaloja solo el cde y - en la practica se considera que si se termina el quantum pero JUSTO llego a la rafaga I/O
-                    // se deja completar la misma y quien lo desaloja es I/O -
                     if(es_bloqueante(instruccion_actualizada)) 
                         break;
                     
@@ -237,8 +225,6 @@ void terminar_programa(){
 void iterator(char* value) {
 	log_info(logger_cpu,"%s", value);
 }
-
-
 
 // FUNCIONES AUXILIARES DE INSTRUCCIONES
 
@@ -349,7 +335,7 @@ void ejecutar_proceso(t_cde* cde){
 
     while(interrupcion != 1 && realizar_desalojo != 1 && fin_q != 1){
 
-        enviar_codigo(socket_memoria, PEDIDO_INSTRUCCION); // fetch
+        enviar_codigo(socket_memoria, PEDIDO_INSTRUCCION);
         t_buffer* buffer_envio = crear_buffer();
         buffer_write_uint32(buffer_envio, cde->pid);
         buffer_write_uint32(buffer_envio, cde->pc);
@@ -368,14 +354,9 @@ void ejecutar_proceso(t_cde* cde){
         instruccion_actualizada = instruccion_a_ejecutar->codigo;
         pthread_mutex_unlock(&mutex_instruccion_actualizada);
 
-        printf("\nRECIBI LA SIGUIENTE INSTRUCCION CON EL PC: %i", cde->pc);
-        imprimir_instruccion(instruccion_a_ejecutar);
-        // actualizamos la ultima instruccion aca ya que es mas eficiente hacerlo directamente para cualquier caso de salida
         copiar_ultima_instruccion(cde, instruccion_a_ejecutar);
         ejecutar_instruccion(cde, instruccion_a_ejecutar);
-        // mientras estemos en un mismo proceso las instrucciones se encuentran ubicadas en memoria SECUENCIALMENTE
-        // por lo que se puede ir moviendo el program counter en 1 para tener la direccion de la siguiente instruccion
-        // PERO cuando se termine el proceso YA NO se puede asegurar esto, por lo que si o si se pide la direccion nueva a memoria
+
         cde->pc++;
 	}
 
@@ -403,8 +384,6 @@ void ejecutar_proceso(t_cde* cde){
         realizar_desalojo = 0;
         pthread_mutex_unlock(&mutex_desalojar);
         log_warning(logger_cpu, "PID: %d - Desalojado por fin de Quantum", cde->pid); 
-        printf("\n\tULTIMA INSTRUCCION QUE EJECUTA ANTES DE FIN DE QUANTUM:\n");
-        imprimir_instruccion(cde->ultima_instruccion);
         cde->motivo_desalojo = FIN_DE_QUANTUM;
         desalojar_cde(cde, instruccion_a_ejecutar);
     }
@@ -428,7 +407,7 @@ char* obtener_nombre_motivo_desalojo(cod_desalojo cod){
             return NULL;  // nunca deberia entrar aca, esta pueso por los warning de retorno
     }
 }
-
+/*
 void imprimir_instruccion(t_instruccion* instruccion){
 	printf("\tINSTRUCCION LEIDA: %s \n", obtener_nombre_instruccion(instruccion));
 	int i = 1;
@@ -438,67 +417,42 @@ void imprimir_instruccion(t_instruccion* instruccion){
 			printf("\tPARAMETRO %i: %s\n", i, leerCharParametroInstruccion(i, instruccion));
 		i++;
 	}
-}
+}*/
 
 void ejecutar_instruccion(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
     uint32_t parametro2 = 0;
     switch(instruccion_a_ejecutar->codigo){
         case SET:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
-            parametro2 = leerEnteroParametroInstruccion(2, instruccion_a_ejecutar);
+           /* parametro2 = leerEnteroParametroInstruccion(2, instruccion_a_ejecutar);
             ejecutar_set(instruccion_a_ejecutar->parametro1, parametro2);
             if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
-                destruir_instruccion(instruccion_a_ejecutar);
+                destruir_instruccion(instruccion_a_ejecutar); */
             break;
         case SUM:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
-            ejecutar_sum(instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
+            /* ejecutar_sum(instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
-                destruir_instruccion(instruccion_a_ejecutar);
+                destruir_instruccion(instruccion_a_ejecutar); */
             break;
         case SUB:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
-            ejecutar_sub(instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
+            /* ejecutar_sub(instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
-                destruir_instruccion(instruccion_a_ejecutar);
+                destruir_instruccion(instruccion_a_ejecutar); */
             break;
         case JNZ:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
-            parametro2 = leerEnteroParametroInstruccion(2, instruccion_a_ejecutar);
+            /* parametro2 = leerEnteroParametroInstruccion(2, instruccion_a_ejecutar);
             ejecutar_jnz(instruccion_a_ejecutar->parametro1, parametro2, cde);
             if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
-                destruir_instruccion(instruccion_a_ejecutar);
+                destruir_instruccion(instruccion_a_ejecutar); */
             break;
-
-        /*
-        IO_GEN_SLEEP (Interfaz, Unidades de trabajo)
-
-        ejecutar_IO_GEN_SLEEP()
-
-        Esta instrucción solicita al Kernel que se envíe 
-        a una interfaz de I/O a que realice un sleep por 
-        una cantidad de unidades de trabajo.
-
-        */
-         /*
-            1. guardar instruccion_t instruccion_a_ejecutar en el cde como ultima instruccion
-            2. poner el motivo de desalojo en el cde
-            3. guardar los registros 
-            4. desalojar NO! porque se hace cuando se sale del while que ejecuta las instrucciones, si se interrumpe se desaloja
-            5. interrupcion = 1 
-            6. destruir_instruccion 
-            */
         case IO_GEN_SLEEP:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
-            // no lo toma parametro1 = leerCharParametroInstruccion(1,instruccion_a_ejecutar);
-            parametro2 = leerEnteroParametroInstruccion(2, instruccion_a_ejecutar);
-            ejecutar_IO_GEN_SLEEP(instruccion_a_ejecutar->parametro1, parametro2);
-            // ¿ Deberia saber a que interfaz va a enviar a sleep?
             cde->motivo_desalojo = LLAMADA_IO;
             realizar_desalojo = 1;
             break;
-
-        // 3er CheckPoint
         case MOV_IN:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             break;
@@ -639,8 +593,6 @@ void ejecutar_set(char* registro, uint32_t valor_recibido){
     else if(strcmp(registro, "DX") == 0)
         registros_cpu->DX = (uint8_t) valor_reg_origen8;
 
-    else if(strcmp(registro, "PC") == 0)
-        registros_cpu->PC= valor_reg_origen32;
 	else if(strcmp(registro, "EAX") == 0)
         registros_cpu->EAX= valor_reg_origen32;
 	else if(strcmp(registro, "EBX") == 0)
@@ -772,11 +724,7 @@ void ejecutar_wait(char* recurso){ //solicitar a kernel que se asigne una instan
 void ejecutar_signal(char* recurso){ //solicitar a kernel que se libere una instancia del recurso
     interrupcion = 1;
 }
-// los parametros a recibir son una interfaz y el tiempo a realizar un sleep en esa interfaz
-// NO TERMINADO
-void ejecutar_IO_GEN_SLEEP(char* interfaz,uint32_t tiempo){ //devolver cde al kernel con la cant de segundos que el proceso se va a bloquear
-    interrupcion = 1;
-}
+
 
 
 

@@ -12,10 +12,12 @@ int main(int argc, char* argv[]) {
 	inicializar_modulo();
 	conectar();
 
-	//consola();
-    iniciar_proceso("instruccionesP4.txt");
-    iniciar_proceso("instruccionesP5.txt");
-    iniciar_proceso("instruccionesP6.txt");
+    while (list_size(interfacesIO) == 0);
+    
+	
+    //consola();
+    iniciar_proceso("instruccionesP1.txt");
+    iniciar_proceso("instruccionesP2.txt");
 
     sem_wait(&terminar_kernel);
 
@@ -53,8 +55,8 @@ void conectar_io(pthread_t* hilo_io, int* socket_io){
 }
 
 void esperarIOs(){
+    log_info(logger_kernel, "Esperando que se conecte una IO....");
     while (1){
-        log_info(logger_kernel, "Esperando que se conecte una IO....");
         int socket_io = esperar_cliente(socket_servidor, logger_kernel);
 
         uint32_t tamanio_nombre;
@@ -72,7 +74,7 @@ void esperarIOs(){
 
         log_info(logger_kernel, "Se conecto la IO con ID (nombre): %s  TIPO: %s", nombre, tipo);
 
-        imprimir_ios();
+        //imprimir_ios();
     }
 } 
 
@@ -89,7 +91,7 @@ void imprimir_ios(){
 }
 
 t_interfaz* crear_interfaz(char* nombre, char* tipo, int socket){
-    t_interfaz* interfaz = malloc(sizeof(t_buffer));
+    t_interfaz* interfaz = malloc(sizeof(t_interfaz));
     interfaz->nombre = string_new();
     string_append(&interfaz->nombre, nombre);
     interfaz->tipo = string_new();
@@ -582,26 +584,31 @@ void controlar_tiempo_de_ejecucion_VRR(){
     while(1){
         sem_wait(&sem_iniciar_quantum);
 
+        pthread_mutex_lock(&mutex_exec);
         t_pcb* pcb_actual = pcb_en_ejecucion;
+        pthread_mutex_unlock(&mutex_exec);
 
-        if (pcb_en_ejecucion->clock) { // el clock a esta altura solo existe si es que le sobro en su previa ejecucion
-            log_warning(logger_kernel, "Entra el proceso %d con tiempo restante %ld ms", pcb_en_ejecucion->cde->pid, quantum - temporal_gettime(pcb_en_ejecucion->clock));
-            temporal_resume(pcb_en_ejecucion->clock);
+        // puede pasar que el pcb este recien creado, entonces el flag es cero pero el clock es null...
+        if (pcb_actual->flag_fin_q != 1 && pcb_actual->clock) { // el clock a esta altura solo existe si es que le sobro en su previa ejecucion
+            log_warning(logger_kernel, "Entra el proceso %d con tiempo restante %ld ms", pcb_actual->cde->pid, quantum - temporal_gettime(pcb_actual->clock));
+            temporal_resume(pcb_actual->clock);
         } else {
-            log_warning(logger_kernel, "Entra el proceso %d con tiempo restante %d", pcb_en_ejecucion->cde->pid, quantum); 
-            pcb_en_ejecucion->clock = temporal_create();
+            log_warning(logger_kernel, "Entra el proceso %d con tiempo restante %d", pcb_actual->cde->pid, quantum); 
+            if (pcb_actual->clock) 
+                temporal_destroy(pcb_actual->clock);
+
+            pcb_actual->clock = temporal_create();
         }
-        pthread_mutex_lock(&mutex_frenar_reloj);
-        flag_frenar_reloj = 0;
-        pthread_mutex_unlock(&mutex_frenar_reloj);
+        // no deberia necesitar mutex ya que secuencialmente nadie altera el flag mas que el reloj
+        pcb_en_ejecucion->flag_fin_q = 0;
 
         reloj_quantum_VRR(pcb_actual);
 
-        if (pcb_en_ejecucion->flag_fin_q) {
+        if (pcb_actual->flag_fin_q) {
             enviar_codigo(socket_cpu_interrupt, DESALOJO);
 
             t_buffer* buffer = crear_buffer();
-            buffer_write_uint32(buffer, pcb_en_ejecucion->cde->pid); 
+            buffer_write_uint32(buffer, pcb_actual->cde->pid); 
             enviar_buffer(buffer, socket_cpu_interrupt);
             destruir_buffer(buffer);
         } 
@@ -611,13 +618,14 @@ void controlar_tiempo_de_ejecucion_VRR(){
 }
 
 void reloj_quantum_VRR(t_pcb* pcb_actual){
-    while(!flag_frenar_reloj){
-        if (pcb_actual->cde->pid == pcb_en_ejecucion->cde->pid && temporal_gettime(pcb_actual->clock) >= quantum){
+    while(flag_frenar_reloj != 1){
+        if (!pcb_en_ejecucion)   // habria que revisar que casos puede darse
+            return;
+
+        if (pcb_actual && pcb_actual->cde->pid == pcb_en_ejecucion->cde->pid && temporal_gettime(pcb_actual->clock) >= quantum){
             temporal_stop(pcb_en_ejecucion->clock);
             // eliminamos el clock para que se cree nuevamente cuando pase de ready a exec
-            temporal_destroy(pcb_en_ejecucion->clock);
             pthread_mutex_lock(&mutex_fin_q_VRR);
-            pcb_en_ejecucion->clock = NULL;
             pcb_en_ejecucion->flag_fin_q = 1;
             pthread_mutex_unlock(&mutex_fin_q_VRR);
             return;
@@ -709,19 +717,14 @@ void recibir_cde_de_cpu(){
         // considero este el momento en donde hay que frenar el clock en caso de que no haya vuelto por fin de quantum
         // se hace el chequeo de que la instruccion no sea relacionada a SIGNAL o WAIT porque en ese caso no quiero frenar el reloj
         // ya que en caso de que el recurso no tenga demoras y el quantum no se haya consumido el cde vuelve DIRECTAMENTE a cpu
-        if (strcmp(algoritmo, "VRR") == 0 && pcb_en_ejecucion->clock && cde_recibido->motivo_desalojo != RECURSOS){
+        if (strcmp(algoritmo, "VRR") == 0 && pcb_en_ejecucion->flag_fin_q != 1 && cde_recibido->motivo_desalojo != RECURSOS){
             temporal_stop(pcb_en_ejecucion->clock);
+            log_warning(logger_kernel, "Vuelve el proceso %d con tiempo restante %ld ms con motivo %s", pcb_en_ejecucion->cde->pid, quantum - temporal_gettime(pcb_en_ejecucion->clock), obtener_nombre_motivo(cde_recibido->motivo_desalojo));
             pthread_mutex_lock(&mutex_frenar_reloj);
             flag_frenar_reloj = 1;
             pthread_mutex_unlock(&mutex_frenar_reloj);
-        }
-
-        if (strcmp(algoritmo, "VRR") == 0){
-            if (pcb_en_ejecucion->clock) {
-                log_warning(logger_kernel, "Vuelve el proceso %d con tiempo restante %ld ms con motivo %s", pcb_en_ejecucion->cde->pid, quantum - temporal_gettime(pcb_en_ejecucion->clock), obtener_nombre_motivo(cde_recibido->motivo_desalojo));
-            } else {
-                log_warning(logger_kernel, "Vuelve el proceso %d SIN tiempo restante con motivo %s", pcb_en_ejecucion->cde->pid, obtener_nombre_motivo(cde_recibido->motivo_desalojo));
-            }
+        } else if (strcmp(algoritmo, "VRR") == 0 && pcb_en_ejecucion->flag_fin_q == 1){
+            log_warning(logger_kernel, "Vuelve el proceso %d SIN tiempo restante con motivo %s", pcb_en_ejecucion->cde->pid, obtener_nombre_motivo(cde_recibido->motivo_desalojo));
         }
 
         pthread_mutex_lock(&mutex_exec);
@@ -1488,9 +1491,9 @@ void enviar_de_ready_a_exec(){
         }
 
         if((strcmp(algoritmo, "VRR") == 0)) {
-            pthread_mutex_lock(&mutex_fin_q_VRR);
-            pcb_en_ejecucion->flag_fin_q = 0;
-            pthread_mutex_unlock(&mutex_fin_q_VRR);
+            pthread_mutex_lock(&mutex_frenar_reloj);
+            flag_frenar_reloj = 0;
+            pthread_mutex_unlock(&mutex_frenar_reloj);
             sem_wait(&clock_VRR);
             sem_post(&sem_iniciar_quantum);
         }

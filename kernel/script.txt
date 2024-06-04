@@ -1,4 +1,2 @@
-INICIAR_PROCESO instruccionesP0.txt
 INICIAR_PROCESO instruccionesP1.txt
 INICIAR_PROCESO instruccionesP2.txt
-INICIAR_PROCESO instruccionesP3.txt
