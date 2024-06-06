@@ -29,4 +29,6 @@ void atender_kernel_stdin();
 void atender_kernel_stdout();
 void atender_kernel_dialfs();
 void leer_y_enviar_a_memoria();
+void leer_y_mostrar_resultado();
+
 #endif

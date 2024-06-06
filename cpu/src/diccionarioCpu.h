@@ -22,6 +22,8 @@ int socket_kernel_dispatch;
 int socket_kernel_interrupt;
 int socket_memoria;
 
+int fin_q;
+
 char* puerto_escucha_dispatch; 
 char* puerto_escucha_interrupt; 
 char* config_path;
@@ -40,8 +42,7 @@ pthread_t hilo_memoria;
 t_registro* registros_cpu;
 
 pthread_mutex_t mutex_cde_ejecutando;
-pthread_mutex_t mutex_interrupcion;
-pthread_mutex_t mutex_realizar_desalojo;
+pthread_mutex_t mutex_desalojar;
 pthread_mutex_t mutex_instruccion_actualizada;
 
 

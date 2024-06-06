@@ -31,7 +31,8 @@ void ejecutar_jnz(void*, uint32_t , t_cde*);
 void ejecutar_sleep(uint32_t);
 void ejecutar_wait(char*);
 void ejecutar_signal(char*);
-void ejecutar_IO_GEN_SLEEP(uint32_t);
+void ejecutar_IO_GEN_SLEEP(char*, uint32_t);
+void copiar_ultima_instruccion(t_cde*, t_instruccion*);
 
 void devolver_cde_a_kernel(t_cde*, t_instruccion*);
 void inicializar_registros();
@@ -40,9 +41,11 @@ void cargar_registros(t_cde*);
 void guardar_registros(t_cde*);
 uint32_t buscar_valor_registroUINT32(void*);
 uint8_t buscar_valor_registroUINT8(void*);
+void imprimir_instruccion(t_instruccion*);
 
 
 void desalojar_cde(t_cde*, t_instruccion*);
 char* obtener_nombre_instruccion(t_instruccion* );
+char* obtener_nombre_motivo_desalojo(cod_desalojo);
 
 #endif

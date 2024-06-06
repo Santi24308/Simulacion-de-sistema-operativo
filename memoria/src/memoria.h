@@ -22,11 +22,16 @@ void eliminar_instruccion(t_instruccion* instruccion);
 void eliminar_proceso(t_proceso*);
 t_proceso* crear_proceso(uint32_t , t_list*);
 t_list* levantar_instrucciones(char* );
-void escribir_parametro(int , t_instruccion* ,char*);
-t_proceso* buscar_proceso(uint32_t);
+void buscar_y_eliminar_proceso(uint32_t);
 void enviar_instruccion();
 void terminar_programa();
-int countStrings(char**);
+codigoInstruccion obtener_codigo_instruccion(char*);
+void trim_trailing_whitespace(char*);
+void imprimir_instruccion(t_instruccion*);
+void imprimir_pids();
+void eliminar_lista_instrucciones(t_list*);
+t_proceso* buscar_proceso(uint32_t pid);
+
 
 
 #endif

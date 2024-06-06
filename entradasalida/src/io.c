@@ -40,12 +40,17 @@ bool chequeo_parametros(int argc, char** argv){
 
 void conectar(){
 	conectar_kernel();
-	conectar_memoria();
+	if (strcmp(tipo, "GENERICA") != 0)
+		conectar_memoria();
 }
 
 void inicializar_modulo(){
 	levantar_logger();
 	levantar_config();
+
+	// seteamos el tipo de la interfaz 
+	tipo = string_new();
+	string_append(&tipo, config_get_string_value(config_io, "TIPO_INTERFAZ"));
 }
 
 void atender_kernel_generica(){
@@ -54,9 +59,13 @@ void atender_kernel_generica(){
 		switch (cod){
 			case IO_GEN_SLEEP:
 				t_buffer* buffer = recibir_buffer(socket_kernel);
+				uint32_t pid = buffer_read_uint32(buffer);
 				t_instruccion* instruccion_recibida = buffer_read_instruccion(buffer);
 				destruir_buffer(buffer);
-				sleep(leerEnteroParametroInstruccion(2, instruccion_recibida));
+				int tiempo_unidad_trabajo = config_get_int_value(config_io, "TIEMPO_UNIDAD_TRABAJO");
+				int cantidad_recibida = leerEnteroParametroInstruccion(2, instruccion_recibida);
+				usleep(tiempo_unidad_trabajo * cantidad_recibida * 1000);
+				log_info(logger_io, "PID: %d - Operacion: %s", pid, obtener_nombre_instruccion(instruccion_recibida));
 				enviar_codigo(socket_kernel, LIBRE);
 				buffer = crear_buffer();
 				buffer_write_string(buffer, nombreIO);
@@ -94,6 +103,7 @@ void atender_kernel_stdout(){
 		codigoInstruccion cod = recibir_codigo(socket_kernel);
 		switch (cod){
 			case IO_STDOUT_WRITE:
+				leer_y_mostrar_resultado();
 				break;	
 			case -1:
 				log_info(logger_io, "Se desconecto Kernel");
@@ -127,9 +137,6 @@ void atender_kernel_dialfs(){
 }
 
 void atender(){
-	// IMPORTANTE: el tipo se va a preguntar una sola vez en todo el programa ya que las I/O 
-	// no pueden cambiar
-	tipo = config_get_string_value(config_io, "TIPO_INTERFAZ");
 	if (strcmp(tipo, "GENERICA")==0)
 		atender_kernel_generica();
 	else if (strcmp(tipo, "STDIN")==0)
@@ -163,7 +170,35 @@ void leer_y_enviar_a_memoria(){
 	destruir_buffer(buffer_recibido);
 	destruir_buffer(buffer_a_enviar);
 }
+void leer_y_mostrar_resultado(){
 
+	//falta saber cual es la direccion que quiero leer
+
+	
+	//Le aviso a memoria que quiero leer tal direccion
+
+	enviar_codigo(socket_memoria , LEER_DIRECCION);
+
+	//Memoria me responde con un buffer que contiene la direccion
+	t_buffer* buffer_recibido = recibir_buffer(socket_memoria);
+	uint32_t tamanio_direccion;
+	char* direccion_memoria = buffer_read_string(buffer_recibido , &tamanio_direccion);   //deberia verificar que sea valida esa direccion (futuro refinamiento del tp)
+
+	//leo el valor de la direccion con funcion de las common y la guardo en una variable
+	char* contenido_a_imprimir  = mem_hexstring(direccion_memoria, string_length(direccion_memoria) + 1);
+	//duermo 1 unidad de tiempo
+	sleep(1);
+
+	//imprimo el valor guardado de la direccion
+	// podria hacerse con printf tambien pero me parecio que estaba bueno dejar el logg
+	log_info(logger_io ,contenido_a_imprimir);
+
+
+	//destruyo estructuras creadas
+	destruir_buffer(buffer_recibido);
+	free(contenido_a_imprimir);
+
+}
 //--------------------------------------------------------------------------------------------------------------
 
 
@@ -187,13 +222,13 @@ void conectar_kernel(){
 		terminar_programa();
         exit(EXIT_FAILURE);
     }
+
 	t_buffer* buffer = crear_buffer();
 	buffer_write_string(buffer, nombreIO);
 	buffer_write_string(buffer, tipo);
 	enviar_buffer(buffer, socket_kernel);
+	destruir_buffer(buffer);
 
-	// notar que aca llamo a atender de manera generica ya que es esa funcion
-	// la encargada de derivar
 	int err = pthread_create(&hilo_kernel, NULL, (void *)atender, NULL);
 	if (err != 0) {
 		perror("Fallo la creacion de hilo para Kernel\n");
@@ -201,11 +236,14 @@ void conectar_kernel(){
 	}
 	pthread_detach(hilo_kernel);
 
-	destruir_buffer(buffer);
 }
 
 void levantar_logger(){
-	logger_io = log_create("io_log.log", "IO",true, LOG_LEVEL_INFO);
+	char* nombreLog = string_new();
+	string_append(&nombreLog, nombreIO);
+	string_append(&nombreLog, "_log.log");
+
+	logger_io = log_create(nombreLog, "IO",true, LOG_LEVEL_INFO);
 	if (!logger_io) {
 		perror("Error al iniciar logger de IO\n");
 		exit(EXIT_FAILURE);
