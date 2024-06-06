@@ -16,8 +16,9 @@ int main(int argc, char* argv[]) {
     
 	
     //consola();
-    iniciar_proceso("instruccionesP1.txt");
-    iniciar_proceso("instruccionesP2.txt");
+    iniciar_proceso("instruccionesP4.txt");
+    iniciar_proceso("instruccionesP5.txt");
+    iniciar_proceso("instruccionesP6.txt");
 
     sem_wait(&terminar_kernel);
 
