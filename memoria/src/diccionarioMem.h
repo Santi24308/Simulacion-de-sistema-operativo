@@ -33,7 +33,7 @@ typedef struct{
     //int tiempo_uso;
     //int tamanioDisponible;
     //int fragInterna; // mepa q no
-	//int ultimaReferencia;
+    char*  ultimaReferencia; //se puede usar un temporal 
 }t_pagina;
 
 typedef struct{
