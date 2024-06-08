@@ -10,7 +10,9 @@ int main(int argc, char* argv[]) {
 	config_path = argv[1];
 
 	inicializar_modulo();
+	
 	conectar();
+	//inicializar_paginacion(); 
 	
 	sem_wait(&terminar_memoria);
 	
@@ -127,7 +129,7 @@ void atender_cpu(){
 		case PEDIDO_INSTRUCCION:
 			usleep(atoi(retardo_respuesta));
 		//Ante un pedido de lectura, devolver el valor que se encuentra a partir de la dirección física pedida
-		//Ante un pedido de escritura, escribir lo indicado a partir de la dirección física pedida. En caso satisfactorio se responderá un mensaje de ‘OK’
+		//Ante un pedido de escritura, escribir lo indicado a partir de la dirección física pedida. En caso satisfactorio se responderá un mensaje de OK
 			enviar_instruccion();
 			break;
 		case -1:
@@ -208,6 +210,8 @@ t_proceso* crear_proceso(uint32_t pid, t_list* lista_instrucciones){
 	t_proceso* proceso = malloc(sizeof(t_proceso));	
 	proceso->pid = pid;		
 	proceso->lista_instrucciones = lista_instrucciones;
+	//Apenas arranca va a ser 0, despues se hace el resize
+	//proceso->cantMaxMarcos = tamanio / config_memoria.tam_pagina;
 	return proceso;
 }
 
@@ -335,3 +339,161 @@ t_proceso* buscar_proceso(uint32_t pid){
 	}
 	return NULL;
 }
+
+////// CHECK 3
+
+void inicializar_paginacion(){ 
+	cant_marcos_ppal = calculoDeCantidadMarcos();
+	
+    t_memoria_fisica* memfisica = malloc(total_espacio_memoria); // Tamaño memoria (capaz difiere)
+    
+    	if(memfisica == NULL){
+    		log_error(logger_memoria , "MALLOC FAIL para la memoria fisica!\n");
+			free(memfisica);
+        	exit(EXIT_FAILURE);}
+	
+	log_info(logger_memoria,"Tengo %d marcos de %d bytes en memoria principal",cant_marcos_ppal, tamanio_paginas);
+
+	/*
+    memoriaReservada = asignarMemoriaBits(cant_marcos_ppal); // bitmap por cada frame
+	
+	if(memoriaReservada == NULL){        
+        log_error(logger_memoria ,"MALLOC FAIL para la memoria reservada!\n");        
+    }
+    memset(data,0,cant_marcos_ppal/8);
+    marcos_ocupados_ppal = bitarray_create_with_mode(data, cant_marcos_ppal/8, MSB_FIRST);
+	*/
+
+    crear_tabla_global_de_marcos();
+    
+}
+
+int calculoDeCantidadMarcos(){
+
+	tamanio_paginas = config_get_int_value(config_memoria, "TAM_PAGINA" );
+	total_espacio_memoria = config_get_int_value(config_memoria , " TAM_MEMORIA" );
+	cantidadDeMarcos = total_espacio_memoria / tamanio_paginas;
+
+	return cantidadDeMarcos;
+}
+
+void crear_tabla_global_de_marcos(){ 
+   // int cantidadDeMarcos = calculoDeCantidadMarcos(); 
+    t_marco* marco;
+    tabla_de_marcos = list_create();
+
+    for(int i =0; i< cant_marcos_ppal ; i++){
+	marco = malloc(sizeof(marco));
+	if(marco == NULL) log_error(logger_memoria,"error en la creacion del marco");
+	inicializarMarco(marco); 
+	list_add(tabla_de_marcos , marco);
+	}
+}
+
+void inicializarMarco(t_marco* marco){
+    marco->bit_uso = 0;
+    marco->paginaAsociada = NULL;
+}
+
+
+t_pagina* crear_pagina(int nroMarco,int pid, bool bitPresencia, bool bitModificado){
+	t_pagina* pagina = malloc(sizeof(t_pagina));
+
+	pagina->pid = pid;
+	pagina->marco_ppal = nroMarco;
+	pagina->bitPresencia = true;
+	pagina->bitModificado = false;
+	//pagina->ultimaReferencia = temporal_get_string_time("%H:%M:%S:%MS");
+
+    t_proceso* proceso = buscar_proceso(pid);
+    list_add(proceso->tabla_de_paginas , pagina);
+
+    /*t_marco marco = 
+	list_add(tabla_de_marcos, marco_pagina);*/
+
+	// EN CASO DE COMUNICACION CON CPU 
+	/*enviar_codigo(socket A VER , CREAR_PAGINA_SOLICITUD);		
+	t_buffer* buffer = crear_buffer();
+	buffer_write_uint32(buffer, nroPag);
+	buffer_write_uint32(buffer, pagina->pidCreador);
+	enviar_buffer(buffer, socket A VER);
+	destruir_buffer_nuestro(buffer);
+	*/
+	return pagina;
+}
+
+//EVALUAR SI ES NECESARIO USAR ESTAS FUNCIONES EN OTRO MODULO PARA PORNERLA EN LIBRERIA COMUN//
+char* asignarMemoriaBits(int bits){
+	char* aux;
+	int bytes;
+	bytes = bitsToBytes(bits);
+	//printf("BYTES: %d\n", bytes);
+	aux = malloc(bytes);
+	memset(aux,0,bytes);
+	return aux; 
+	}
+
+int bitsToBytes(int bits){
+	int bytes;
+	if(bits < 8)
+		bytes = 1; 
+	else
+	{
+		double c = (double) bits;
+		bytes = ceil(c/8.0);
+	}
+	return bytes;
+	}
+//EVALUAR SI ES NECESARIO USAR ESTAS FUNCIONES EN OTRO MODULO PARA PORNERLA EN LIBRERIA COMUN//
+
+
+void liberarMemoriaPaginacion(){  // esto hay que agregarlo en nuestro terminar_programa
+	
+	//bitarray_destroy(frames_ocupados_ppal);
+	//free(memoriaReservada);
+	pthread_mutex_lock(&mutexListaTablas);
+	list_destroy(tabla_de_marcos);
+	pthread_mutex_unlock(&mutexListaTablas);
+}
+
+
+//// FUNCIONES QUE MUY PROBABLEMENTE USEMOS.
+/* 
+void escribir_pagina(uint32_t posEnMemoria, void* pagina){
+	memcpy(memoriaPrincipal + posEnMemoria, pagina, config_memoria.tam_pagina);
+}
+
+void* leer_pagina(uint32_t posEnMemoria){
+	return (memoriaPrincipal + posEnMemoria);
+}
+
+void setModificado(t_pagina* pagina){	
+	pagina->modificado = 1;	
+}
+int pagina_presente(t_pagina* pagina){
+	return (pagina->presencia == 1);
+}
+bool lugar_disponible(int paginasNecesarias){ // ver si es necesario 
+    int cantFramesLibresPpal = memoriaDisponiblePag(); 
+    if(cantFramesLibresPpal>= paginasNecesarias){
+        return 1;
+    }else{
+        return 0;
+    }
+}
+int memoriaDisponiblePag(int mem){	
+	int espaciosLibres = 0;
+	int desplazamiento = 0;
+	if(mem){
+		while(desplazamiento < cant_marcos_ppal){	
+			pthread_mutex_lock(&mutexBitmapMP);
+			if(bitarray_test_bit(frames_ocupados_ppal,desplazamiento) == 0){	
+				espaciosLibres++; 
+			}
+			pthread_mutex_unlock(&mutexBitmapMP);
+			desplazamiento++;
+		}
+	}
+	return espaciosLibres;	
+}
+*/ 

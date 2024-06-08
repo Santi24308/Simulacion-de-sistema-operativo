@@ -31,7 +31,14 @@ void imprimir_instruccion(t_instruccion*);
 void imprimir_pids();
 void eliminar_lista_instrucciones(t_list*);
 t_proceso* buscar_proceso(uint32_t pid);
-
+void inicializar_paginacion();
+int calculoDeCantidadMarcos();
+void crear_tabla_global_de_marcos();
+void inicializarMarco(t_marco*);
+t_pagina* crear_pagina(int ,int , bool , bool );
+char* asignarMemoriaBits(int);
+int bitsToBytes(int);
+void liberarMemoriaPaginacion();
 
 
 #endif
