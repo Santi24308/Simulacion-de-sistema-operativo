@@ -463,7 +463,7 @@ t_pagina* crear_pagina(int nroMarco,int pid, bool bitPresencia, bool bitModifica
 	pagina->marco_ppal = nroMarco;
 	pagina->bitPresencia = true;
 	pagina->bitModificado = false;
-	//pagina->ultimaReferencia = temporal_get_string_time("%H:%M:%S:%MS");
+	pagina->ultimaReferencia = temporal_get_string_time("%H:%M:%S:%MS");
 
     t_proceso* proceso = buscar_proceso(pid);
     list_add(proceso->tabla_de_paginas , pagina);
