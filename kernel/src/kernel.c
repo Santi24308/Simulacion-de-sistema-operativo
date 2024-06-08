@@ -15,10 +15,10 @@ int main(int argc, char* argv[]) {
     while (list_size(interfacesIO) == 0);
     
 	
-    //consola();
-    iniciar_proceso("instruccionesP4.txt");
-    iniciar_proceso("instruccionesP5.txt");
-    iniciar_proceso("instruccionesP6.txt");
+    consola();
+    //iniciar_proceso("instruccionesP4.txt");
+    //iniciar_proceso("instruccionesP5.txt");
+    //iniciar_proceso("instruccionesP6.txt");
 
     sem_wait(&terminar_kernel);
 

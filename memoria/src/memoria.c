@@ -10,9 +10,9 @@ int main(int argc, char* argv[]) {
 	config_path = argv[1];
 
 	inicializar_modulo();
-	
+	inicializar_paginacion(); 
 	conectar();
-	//inicializar_paginacion(); 
+	
 	
 	sem_wait(&terminar_memoria);
 	
@@ -371,14 +371,14 @@ void inicializar_paginacion(){
 int calculoDeCantidadMarcos(){
 
 	tamanio_paginas = config_get_int_value(config_memoria, "TAM_PAGINA" );
-	total_espacio_memoria = config_get_int_value(config_memoria , " TAM_MEMORIA" );
+	total_espacio_memoria = config_get_int_value(config_memoria , "TAM_MEMORIA" );
 	cantidadDeMarcos = total_espacio_memoria / tamanio_paginas;
 
 	return cantidadDeMarcos;
 }
-
+/*
 void crear_tabla_global_de_marcos(){ 
-   // int cantidadDeMarcos = calculoDeCantidadMarcos(); 
+   	int cantidadDeMarcos = calculoDeCantidadMarcos(); 
     t_marco* marco;
     tabla_de_marcos = list_create();
 
@@ -388,7 +388,34 @@ void crear_tabla_global_de_marcos(){
 	inicializarMarco(marco); 
 	list_add(tabla_de_marcos , marco);
 	}
+
+} */
+
+void crear_tabla_global_de_marcos() { 
+    int cantidadDeMarcos = calculoDeCantidadMarcos(); 
+    if (cantidadDeMarcos <= 0) {
+        log_error(logger_memoria, "cantidad de marcos calculada es inválida");
+        return;
+    }
+
+    t_marco* marco;
+    tabla_de_marcos = list_create();
+    log_info(logger_memoria, "Inicializando tabla de marcos con %d marcos", cantidadDeMarcos);
+
+    for(int i = 0; i < cantidadDeMarcos; i++) {
+        marco = (t_marco*)malloc(sizeof(t_marco)); 
+        if(marco == NULL) {
+            log_error(logger_memoria, "error en la creacion del marco %d", i);
+            break; // Si malloc falla, salimos del ciclo para evitar un bucle infinito
+        }
+        inicializarMarco(marco); 
+        list_add(tabla_de_marcos, marco);
+        log_info(logger_memoria, "Marco %d inicializado y añadido a la tabla", i);
+    }
+
+    log_info(logger_memoria, "Tabla de marcos creada con éxito");
 }
+
 
 void inicializarMarco(t_marco* marco){
     marco->bit_uso = 0;
