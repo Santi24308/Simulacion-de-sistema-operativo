@@ -92,7 +92,14 @@ void conectar_cpu(){
     log_info(logger_memoria, "Esperando Cpu....");
     socket_cpu = esperar_cliente(socket_servidor, logger_memoria);
     log_info(logger_memoria, "Se conecto Cpu");
-    	
+
+// tiene que enviar al CPU el tamanio de pagina para que tenga con que laburar la MMU
+        t_buffer* buffer = crear_buffer();
+        buffer_write_uint32(buffer, tamanio_paginas);  //tamanio_paginas = config_get_int_value(config_memoria, "TAM_PAGINA" );(esta declarado mas abajo pero para que sepamos de donde sale)
+        enviar_buffer(buffer, socket_cpu);
+        destruir_buffer(buffer);
+
+	
 	int err = pthread_create(&hilo_cpu, NULL, (void *)atender_cpu, NULL);
 	if (err != 0) {
 		perror("Fallo la creacion de hilo para CPU\n");
