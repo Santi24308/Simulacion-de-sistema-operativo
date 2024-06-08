@@ -27,8 +27,11 @@ typedef enum{
 
 typedef enum{
 	PEDIDO_INSTRUCCION,
+	FIN_INSTRUCCIONES,
 	PEDIDO_OK,
-	FIN_INSTRUCCIONES
+	NUMERO_MARCO_SOLICITUD,
+	PAGE_FAULT,
+	NUMERO_MARCO_OK
 }mensajeCpuMem;
 
 typedef enum{
