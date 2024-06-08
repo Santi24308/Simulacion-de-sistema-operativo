@@ -139,6 +139,9 @@ void atender_cpu(){
 		//Ante un pedido de escritura, escribir lo indicado a partir de la dirección física pedida. En caso satisfactorio se responderá un mensaje de OK
 			enviar_instruccion();
 			break;
+		case NUMERO_MARCO_SOLICITUD:
+			devolver_nro_marco();
+			break;
 		case -1:
 			log_error(logger_memoria, "Se desconecto CPU");
 			sem_post(&terminar_memoria);
@@ -347,7 +350,30 @@ t_proceso* buscar_proceso(uint32_t pid){
 	return NULL;
 }
 
-////// CHECK 3
+////// CHECK 3 /////
+
+void devolver_nro_marco(){
+	t_buffer* buffer = recibir_buffer(socket_cpu);
+	uint32_t nro_pagina = buffer_read_uint32(buffer);
+	uint32_t pid = buffer_read_uint32(buffer);
+	destruir_buffer(buffer);
+	
+	t_pagina* pagina = existePageFault(nro_pagina, pid); //Hacer existePageFault : devuelve un puntero
+	if(pagina == NULL)
+		enviar_codigo(socket_cpu, PAGE_FAULT);
+	else{
+		log_info(logger_memoria, "Acceso a TGP - PID: %d - Página: %d - Marco: %d", pid, pagina->nroPagina, pagina->nroMarco);
+		
+		enviar_codigo(socket_cpu, NUMERO_MARCO_OK);
+		buffer = crear_buffer_nuestro();
+		buffer_write_uint32(buffer, pagina->marco_ppal);
+		enviar_buffer(buffer, socket_cpu);
+		destruir_buffer(buffer);
+	}
+}
+
+
+//Exclusivo de paginacion // 
 
 void inicializar_paginacion(){ 
 	cant_marcos_ppal = calculoDeCantidadMarcos();
@@ -489,6 +515,8 @@ void liberarMemoriaPaginacion(){  // esto hay que agregarlo en nuestro terminar_
 	list_destroy(tabla_de_marcos);
 	pthread_mutex_unlock(&mutexListaTablas);
 }
+
+
 
 
 //// FUNCIONES QUE MUY PROBABLEMENTE USEMOS.
