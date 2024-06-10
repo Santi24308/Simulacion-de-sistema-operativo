@@ -214,6 +214,10 @@ void conectar_memoria(){
 		terminar_programa();
         exit(EXIT_FAILURE);
     }
+
+    t_buffer* buffer = recibir_buffer(socket_memoria);
+    tamanio_pagina = buffer_read_uint32(buffer);
+    destruir_buffer(buffer);
 }
 
 void terminar_programa(){
@@ -338,13 +342,13 @@ void ejecutar_proceso(t_cde* cde){
         enviar_codigo(socket_memoria, PEDIDO_INSTRUCCION);
         t_buffer* buffer_envio = crear_buffer();
         buffer_write_uint32(buffer_envio, cde->pid);
-        buffer_write_uint32(buffer_envio, cde->pc);
+        buffer_write_uint32(buffer_envio, cde->registros->PC);
 
         enviar_buffer(buffer_envio, socket_memoria);
 
         destruir_buffer(buffer_envio);
         
-        log_info(logger_cpu, "PID: %d - FETCH - Program Counter: %d", cde->pid, cde->pc);
+        log_info(logger_cpu, "PID: %d - FETCH - Program Counter: %d", cde->pid, cde->registros->PC);
         
         t_buffer* buffer_recibido = recibir_buffer(socket_memoria);
         instruccion_a_ejecutar = buffer_read_instruccion(buffer_recibido);
@@ -357,7 +361,7 @@ void ejecutar_proceso(t_cde* cde){
         copiar_ultima_instruccion(cde, instruccion_a_ejecutar);
         ejecutar_instruccion(cde, instruccion_a_ejecutar);
 
-        cde->pc++;
+        cde->registros->PC++;
 	}
 
 	if(interrupcion){
@@ -424,29 +428,29 @@ void ejecutar_instruccion(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
     switch(instruccion_a_ejecutar->codigo){
         case SET:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
-           /* parametro2 = leerEnteroParametroInstruccion(2, instruccion_a_ejecutar);
+            parametro2 = leerEnteroParametroInstruccion(2, instruccion_a_ejecutar);
             ejecutar_set(instruccion_a_ejecutar->parametro1, parametro2);
             if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
-                destruir_instruccion(instruccion_a_ejecutar); */
+                destruir_instruccion(instruccion_a_ejecutar);
             break;
         case SUM:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
-            /* ejecutar_sum(instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
+            ejecutar_sum(instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
-                destruir_instruccion(instruccion_a_ejecutar); */
+                destruir_instruccion(instruccion_a_ejecutar);
             break;
         case SUB:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
-            /* ejecutar_sub(instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
+            ejecutar_sub(instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
-                destruir_instruccion(instruccion_a_ejecutar); */
+                destruir_instruccion(instruccion_a_ejecutar); 
             break;
         case JNZ:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
-            /* parametro2 = leerEnteroParametroInstruccion(2, instruccion_a_ejecutar);
+            parametro2 = leerEnteroParametroInstruccion(2, instruccion_a_ejecutar);
             ejecutar_jnz(instruccion_a_ejecutar->parametro1, parametro2, cde);
             if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
-                destruir_instruccion(instruccion_a_ejecutar); */
+                destruir_instruccion(instruccion_a_ejecutar); 
             break;
         case IO_GEN_SLEEP:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
@@ -455,9 +459,11 @@ void ejecutar_instruccion(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
             break;
         case MOV_IN:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
+            ejecutar_mov_in(instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             break;
         case MOV_OUT:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
+            ejecutar_mov_out(instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             break;
         case RESIZE:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1);
@@ -671,63 +677,141 @@ void ejecutar_jnz(void* registro, uint32_t nro_instruccion, t_cde* cde){
 
     if(strcmp(registro, "AX") == 0){
         if(registros_cpu->AX != 0)
-            cde->pc = (uint8_t) nro_instruccion;
+            cde->registros->PC = (uint8_t) nro_instruccion;
     }
     else if(strcmp(registro, "BX") == 0){
         if(registros_cpu->BX != 0)
-            cde->pc = (uint8_t) nro_instruccion;
+            cde->registros->PC = (uint8_t) nro_instruccion;
     }
     else if(strcmp(registro, "CX") == 0){
         if(registros_cpu->CX != 0)
-            cde->pc = (uint8_t) nro_instruccion;
+            cde->registros->PC = (uint8_t) nro_instruccion;
     }
     else if(strcmp(registro, "DX") == 0){
         if(registros_cpu->DX != 0)
-            cde->pc = (uint8_t) nro_instruccion;
+            cde->registros->PC = (uint8_t) nro_instruccion;
     }
 	else if(strcmp(registro, "EAX") == 0){
         if(registros_cpu->EAX != 0)
-            cde->pc = nro_instruccion;
+            cde->registros->PC = nro_instruccion;
     }
 	else if(strcmp(registro, "EBX") == 0){
         if(registros_cpu->EBX != 0)
-            cde->pc = nro_instruccion;
+            cde->registros->PC = nro_instruccion;
     }
 	else if(strcmp(registro, "ECX") == 0){
         if(registros_cpu->ECX != 0)
-            cde->pc = nro_instruccion;
+            cde->registros->PC = nro_instruccion;
     }
 	else if(strcmp(registro, "EDX") == 0){
         if(registros_cpu->EDX != 0)
-            cde->pc = nro_instruccion;
+            cde->registros->PC = nro_instruccion;
     }
     else if(strcmp(registro, "DI") == 0){
         if(registros_cpu->DI != 0)
-            cde->pc = nro_instruccion;
+            cde->registros->PC = nro_instruccion;
     }
     else if(strcmp(registro, "SI") == 0){
         if(registros_cpu->SI != 0)
-            cde->pc = nro_instruccion;
+            cde->registros->PC = nro_instruccion;
     }
     else
         log_warning(logger_cpu, "Registro no reconocido");
 }
 
-void ejecutar_sleep(uint32_t tiempo){ //devolver cde al kernel con la cant de segundos que el proceso se va a bloquear
-    interrupcion = 1;
+void ejecutar_resize(int tamanio, t_cde* cde){
+    enviar_codigo(socket_memoria, RESIZE);
+    t_buffer* buffer = crear_buffer();
+    buffer_write_uint32(buffer, tamanio);
+    enviar_buffer(buffer, socket_memoria);
+    destruir_buffer(buffer);
+
+    mensajeCpuMem cod = recibir_codigo(socket_memoria);
+    if (cod == OUT_OF_MEMORY) {
+        realizar_desalojo = 1;
+        cde->motivo_desalojo = OUT_OF_MEMORY_ERROR;
+        return;
+    }
 }
 
-void ejecutar_wait(char* recurso){ //solicitar a kernel que se asigne una instancia del recurso
-    interrupcion = 1;
+void ejecutar_mov_in(char* reg_datos, char* reg_direccion){
+    if(es_reg_de_cuatro_bytes(reg_datos)){
+        ejecutar_mov_in_cuatro_bytes();
+    } else {
+        ejecutar_mov_in_un_byte();
+    }
 }
 
-void ejecutar_signal(char* recurso){ //solicitar a kernel que se libere una instancia del recurso
-    interrupcion = 1;
+
+void ejecutar_mov_in_cuatro_bytes(char* reg_datos, char* reg_direccion){
+    
+    uint32_t dir_logica = buscar_valor_registroUINT32(reg_direccion);
+
+    int cant_paginas_a_traer = (obtener_desplazamiento_pagina(dir_logica) + 4 > tamanio_pagina)? 2 : 1;
+
+    if (cant_paginas_a_traer == 1) {
+        uint32_t dir_fisica = calcular_direccion_fisica(dir_logica);
+
+        enviar_codigo(socket_memoria, MOV_IN);
+        t_buffer* buffer = crear_buffer();
+        buffer_write_uint32(buffer, dir_fisica);
+        buffer_write_uint32(buffer, 4); // cantidad bytes a leer
+        enviar_buffer(buffer, socket_memoria);
+
+        buffer = recibir_buffer(socket_memoria);
+        uint32_t valor_leido = buffer_read_uint32(buffer);
+        destruir_buffer(buffer);
+
+        ejecutar_set(reg_datos, valor_leido);
+    } else {
+        // caso 2 paginas leidas
+        leer_y_guardar_de_dos_paginas()
+    }
+}
+
+void ejecutar_mov_out(char* reg_datos, char* reg_direccion){
+
 }
 
 
 
+bool es_reg_de_cuatro_bytes(char* reg_datos){
+    if (strcmp(reg_datos, "AX") == 0)
+        return false;
+    else if (strcmp(reg_datos, "BX") == 0)
+        return false;
+    else if (strcmp(reg_datos, "CX") == 0)
+        return false;
+    else if (strcmp(reg_datos, "DX") == 0)
+        return false;
+    else   
+        return true;
+}
 
+int obtener_numero_pagina(int direccion_logica){
+	return floor(direccion_logica / tamanio_pagina);
+}
 
+int obtener_desplazamiento_pagina(int direccion_logica){
+	int numero_pagina = obtener_numero_pagina(direccion_logica);
+	return direccion_logica - numero_pagina * tamanio_pagina;
+}
 
+uint32_t calcular_direccion_fisica(int direccion_logica, t_cde* cde){
+	int nro_pagina = obtener_numero_pagina(direccion_logica);
+	int desplazamiento = obtener_desplazamiento_pagina(direccion_logica);
+
+	enviar_codigo(socket_memoria, NUMERO_MARCO_SOLICITUD);
+	t_buffer* buffer = crear_buffer();
+	buffer_write_uint32(buffer, nro_pagina);
+	buffer_write_uint32(buffer, cde->pid);
+	enviar_buffer(buffer, socket_memoria);
+	destruir_buffer(buffer);
+
+	buffer = recibir_buffer(socket_memoria);
+    uint32_t nro_marco_recibido = buffer_read_uint32(buffer);
+    destruir_buffer(buffer);
+    log_info(logger_cpu, "PID: %d - OBTENER MARCO - Página: %d - Marco: %d", cde->pid, nro_pagina, nro_marco_recibido);
+    return nro_marco_recibido * tamanio_pagina + desplazamiento; // retorna la direccion_fisica
+}
 

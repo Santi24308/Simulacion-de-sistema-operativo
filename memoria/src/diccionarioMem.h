@@ -44,7 +44,6 @@ typedef struct{
   t_pagina* paginaAsociada; // Puntero a la página asignada al marco (si está ocupado) y NULL si no esta asociado 
 } t_marco;
 
-
 char* config_path;
 char* instrucciones_path;
 char* puerto_escucha; 

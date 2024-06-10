@@ -397,26 +397,24 @@ t_proceso *buscar_proceso(uint32_t pid)
 
 ////// CHECK 3 /////
 
-void devolver_nro_marco()
-{
+void devolver_nro_marco(){
 	t_buffer *buffer = recibir_buffer(socket_cpu);
 	uint32_t nro_pagina = buffer_read_uint32(buffer);
 	uint32_t pid = buffer_read_uint32(buffer);
 	destruir_buffer(buffer);
-	/*
-	t_pagina* pagina = existePageFault(nro_pagina, pid); //Hacer existePageFault : devuelve un puntero
-	if(pagina == NULL)
-		enviar_codigo(socket_cpu, PAGE_FAULT);
-	else{
-		log_info(logger_memoria, "Acceso a TGP - PID: %d - Página: %d - Marco: %d", pid, pagina->nroPagina, pagina->nroMarco);
-		// revisar el tema de que la pagina no tiene su nroPagina
-		// revisar el tema de que la pagina no tiene su nroMarco, es marcoPpal
-		enviar_codigo(socket_cpu, NUMERO_MARCO_OK);
-		buffer = crear_buffer();
-		buffer_write_uint32(buffer, pagina->marco_ppal);
-		enviar_buffer(buffer, socket_cpu);
-		destruir_buffer(buffer);
-	} */
+
+	// buscamos por pid al proceso involucrado
+	t_proceso* proceso_involucrado = buscar_proceso(pid);
+
+	// nos metemos en la tabla de paginas del proceso
+	t_pagina* pagina_solicitada = list_get(proceso_involucrado->tabla_de_paginas, nro_pagina);
+
+	buffer = crear_buffer();
+	buffer_write_uint32(buffer, pagina_solicitada->marco);
+	enviar_buffer(buffer, socket_cpu);
+	destruir_buffer(buffer);
+
+	log_info(logger_memoria, "Acceso a TGP - PID: %d - Página: %d - Marco: %d", pid, pagina_solicitada->nro_pagina, pagina_solicitada->marco);
 }
 
 // Exclusivo de paginacion //

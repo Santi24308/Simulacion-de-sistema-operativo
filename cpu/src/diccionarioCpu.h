@@ -13,6 +13,8 @@
 #include <commons/string.h>
 #include <pthread.h>
 #include <semaphore.h>
+#include <math.h>
+#include <stdbool.h>
 
 
 int socket_servidor_dispatch;
@@ -30,6 +32,8 @@ char* config_path;
 char* puerto_escucha; 
 char* ip;
 char* puerto_mem;
+
+int tamanio_pagina;
 
 
 t_log* logger_cpu;

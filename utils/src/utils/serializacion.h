@@ -41,6 +41,7 @@ typedef enum{
 	INTERRUPCION,
 	FIN_DE_QUANTUM,
 	RECURSOS,
+	OUT_OF_MEMORY_ERROR,
 	NO_DESALOJADO
 }cod_desalojo;
 
@@ -63,7 +64,6 @@ typedef enum{
 // siempre la idea va a ser que cuando se desaloje se setee el motivo y se guarde la ultima instruccion
 typedef struct{
 	uint32_t pid;
-	uint32_t pc;
 	t_registro* registros;
 	cod_desalojo motivo_desalojo;
 	cod_finalizacion motivo_finalizacion;
