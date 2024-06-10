@@ -27,18 +27,20 @@ typedef struct{
 } t_memoria_fisica;
 
 typedef struct{
+    int nro_pagina;
     int pid;
-    int marco_ppal;
+    int marco;
     bool bitPresencia; // bit de presencia    
     bool bitModificado; // bit de modificado
     //int tiempo_uso;
     //int tamanioDisponible;
     //int fragInterna; // mepa q no
+    //void* direccionInicio;
     char*  ultimaReferencia; //se puede usar un temporal 
 }t_pagina;
 
 typedef struct{
-   int bit_uso; // bit de uso // Estado del marco (libre, ocupado)
+  int bit_uso; // bit de uso // Estado del marco (libre, ocupado)
   t_pagina* paginaAsociada; // Puntero a la página asignada al marco (si está ocupado) y NULL si no esta asociado 
 } t_marco;
 

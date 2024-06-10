@@ -496,12 +496,13 @@ void inicializarMarco(t_marco *marco)
 	marco->paginaAsociada = NULL;
 }
 
-t_pagina *crear_pagina(int nroMarco, int pid, bool bitPresencia, bool bitModificado)
+t_pagina *crear_pagina(int numero_pagina , int pid)
 {
 	t_pagina *pagina = malloc(sizeof(t_pagina));
-
+	int numeroMarco = obtener_marco_libre();	
+	pagina->nro_pagina = numero_pagina;
 	pagina->pid = pid;
-	pagina->marco_ppal = nroMarco;
+	pagina->marco = numeroMarco;
 	pagina->bitPresencia = true;
 	pagina->bitModificado = false;
 	pagina->ultimaReferencia = temporal_get_string_time("%H:%M:%S:%MS");
@@ -509,8 +510,8 @@ t_pagina *crear_pagina(int nroMarco, int pid, bool bitPresencia, bool bitModific
 	t_proceso *proceso = buscar_proceso(pid);
 	list_add(proceso->tabla_de_paginas, pagina);
 
-	/*t_marco marco =
-	list_add(tabla_de_marcos, marco_pagina);*/
+	//mutex tabla_de_marcos??
+	list_replace(tabla_de_marcos, numeroMarco,pagina);	
 
 	// EN CASO DE COMUNICACION CON CPU
 	/*enviar_codigo(socket A VER , CREAR_PAGINA_SOLICITUD);
@@ -521,6 +522,89 @@ t_pagina *crear_pagina(int nroMarco, int pid, bool bitPresencia, bool bitModific
 	destruir_buffer_nuestro(buffer);
 	*/
 	return pagina;
+}
+
+
+int32_t obtener_marco_libre(){
+	for(int i = 0; i < cantidadDeMarcos; i++){
+		t_pagina* pagina = list_get(tabla_de_marcos, i);
+		if(pagina == NULL)
+			return i;
+	}
+}
+void atender_page_fault(){//caso TLB Miss	
+	t_buffer* buffer = recibir_buffer(socket_cpu);
+	uint32_t nro_pagina = buffer_read_uint32(buffer);
+	uint32_t pid = buffer_read_uint32(buffer);
+	destruir_buffer_nuestro(buffer);
+
+	if(!hay_marcos_libres())
+	{
+		liberar_marco();
+	}		
+
+	t_pagina* pagAPedir = buscarPaginaPorNroYPid(nro_pagina, pid);
+
+	// no existe entonces es una nueva
+	if(pagAPedir == NULL){
+		//void* dirInicio = memoriaPrincipal + (nroMarco * config_memoria.tam_pagina);
+		
+		pagAPedir = crear_pagina(nro_pagina, pid);
+		log_info(logger_memoria, "SWAP IN - PID: %d - Marco: %d - Page In: %d-%d", pid, nroMarco, pid, nro_pagina);
+				
+		sem_post(&sem_pagina_cargada);
+	}
+	else{
+		//ojo
+	}
+	sem_wait(&sem_pagina_cargada);
+	enviar_codigo(socket_kernel, PAGE_FAULT_OK);
+}
+
+void liberar_marco()
+{	
+	t_pagina*  pagina = elegir_pagina_a_matar();//laburo de cpu
+	if(pagina->bitModificado){
+		/*///de sofi///
+		enviar_codigo(socket_file_system, ACTUALIZAR_PAGINA_SOLICITUD);		
+		buffer = crear_buffer_nuestro();
+		buffer_write_uint32(buffer, pag_a_matar->posSwap);
+		buffer_write_pagina(buffer, pag_a_matar->direccionInicio, config_memoria.tam_pagina);
+		enviar_buffer(buffer, socket_file_system);
+		destruir_buffer_nuestro(buffer);*/
+	}	
+	pagina->bitPresencia = false;	
+	uint32_t nroMarco = pagina->marco;
+	vaciar_marco(nroMarco);
+	/*Creación / destrucción de Tabla de Páginas: “PID: <PID> - Tamaño: <CANTIDAD_PAGINAS>”*/
+} 
+
+t_pagina* elegir_pagina_a_matar() ////CPU////
+{	
+	enviar_codigo(socket_cpu, LIBERAR_MARCO); //revisar
+	t_buffer *buffer_recibido = recibir_buffer(socket_cpu);
+	uint32_t pid = buffer_read_uint32(buffer_recibido);
+	uint32_t nro_pagina = buffer_read_uint32(buffer_recibido);
+	t_pagina* pagina = buscarPaginaPorNroYPid(nro_pagina, pid);	
+	destruir_buffer(buffer_recibido);
+	return pagina;
+}
+void vaciar_marco(nro_marco){		
+	t_marco* marco = list_get(tabla_de_marcos,nro_marco);
+	marco->bit_uso = 0;
+	marco->paginaAsociada = NULL;
+}
+
+t_pagina* buscarPaginaPorNroYPid(uint32_t nroPag, uint32_t pid){
+
+	for(int i = 0; i < list_size(tabla_de_marcos); i++){
+		t_pagina* pag = list_get(tabla_de_marcos, i);
+
+		if(pag->nro_pagina == nroPag && pag->pid == pid)
+			return pag;
+	}
+
+	return NULL;
 }
 
 // EVALUAR SI ES NECESARIO USAR ESTAS FUNCIONES EN OTRO MODULO PARA PORNERLA EN LIBRERIA COMUN//
