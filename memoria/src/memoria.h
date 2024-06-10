@@ -40,6 +40,10 @@ char* asignarMemoriaBits(int);
 int bitsToBytes(int);
 void liberarMemoriaPaginacion();
 void devolver_nro_marco();
+uint32_t obtener_marco_libre();
+void atender_page_fault();
+bool hay_marcos_libres();
+t_pagina* elegir_pagina_a_matar();
 
 
 

@@ -525,7 +525,7 @@ t_pagina *crear_pagina(int numero_pagina , int pid)
 }
 
 
-int32_t obtener_marco_libre(){
+uint32_t obtener_marco_libre(){
 	for(int i = 0; i < cantidadDeMarcos; i++){
 		t_pagina* pagina = list_get(tabla_de_marcos, i);
 		if(pagina == NULL)
@@ -536,7 +536,8 @@ void atender_page_fault(){//caso TLB Miss
 	t_buffer* buffer = recibir_buffer(socket_cpu);
 	uint32_t nro_pagina = buffer_read_uint32(buffer);
 	uint32_t pid = buffer_read_uint32(buffer);
-	destruir_buffer_nuestro(buffer);
+	uint32_t nroMarco = buffer_read_uint32(buffer);
+	destruir_buffer(buffer);
 
 	if(!hay_marcos_libres())
 	{
@@ -558,7 +559,7 @@ void atender_page_fault(){//caso TLB Miss
 		//ojo
 	}
 	sem_wait(&sem_pagina_cargada);
-	enviar_codigo(socket_kernel, PAGE_FAULT_OK);
+	enviar_codigo(socket_kernel, PAGE_FAULT_OK); // usar PAGE_FAULT de mensajecpumem?
 }
 
 void liberar_marco()
@@ -581,7 +582,7 @@ void liberar_marco()
 
 t_pagina* elegir_pagina_a_matar() ////CPU////
 {	
-	enviar_codigo(socket_cpu, LIBERAR_MARCO); //revisar
+	enviar_codigo(socket_cpu, LIBERAR_MARCO); //revisar 
 	t_buffer *buffer_recibido = recibir_buffer(socket_cpu);
 	uint32_t pid = buffer_read_uint32(buffer_recibido);
 	uint32_t nro_pagina = buffer_read_uint32(buffer_recibido);
@@ -589,7 +590,8 @@ t_pagina* elegir_pagina_a_matar() ////CPU////
 	destruir_buffer(buffer_recibido);
 	return pagina;
 }
-void vaciar_marco(nro_marco){		
+
+void vaciar_marco(uint32_t nro_marco){		
 	t_marco* marco = list_get(tabla_de_marcos,nro_marco);
 	marco->bit_uso = 0;
 	marco->paginaAsociada = NULL;
@@ -605,6 +607,15 @@ t_pagina* buscarPaginaPorNroYPid(uint32_t nroPag, uint32_t pid){
 	}
 
 	return NULL;
+}
+
+bool hay_marcos_libres(){
+	for(int i = 0; i < cantidadDeMarcos; i++){
+		t_pagina* pagina = list_get(tabla_de_marcos, i);
+		if(pagina == NULL)
+			return true;
+	}
+	return false;
 }
 
 // EVALUAR SI ES NECESARIO USAR ESTAS FUNCIONES EN OTRO MODULO PARA PORNERLA EN LIBRERIA COMUN//

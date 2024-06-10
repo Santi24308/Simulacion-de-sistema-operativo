@@ -69,6 +69,8 @@ pthread_t hilo_cpu;
 pthread_t hilo_io;
 pthread_t hilo_kernel;
 
+pthread_mutex_t sem_pagina_cargada; 
+
 sem_t terminar_memoria;
 
 t_buffer* buffer_instruccion;
