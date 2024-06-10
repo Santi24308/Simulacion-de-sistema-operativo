@@ -14,6 +14,7 @@
 #include <pthread.h>
 #include <semaphore.h>
 #include <math.h>
+#include <alloca.h>
 
 typedef struct{
 	uint32_t pid;	

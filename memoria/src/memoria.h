@@ -39,6 +39,8 @@ t_pagina* crear_pagina(int ,int , bool , bool );
 char* asignarMemoriaBits(int);
 int bitsToBytes(int);
 void liberarMemoriaPaginacion();
+void devolver_nro_marco();
+
 
 
 #endif
