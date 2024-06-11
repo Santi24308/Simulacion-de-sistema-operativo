@@ -57,6 +57,10 @@ void inicializar_modulo(){
     interrupcion =0;
     interrupcion_consola = 0;
     fin_q = 0;
+    cde_ejecutando = NULL;
+    tlb = queue_create();
+    cantidad_entradas_tlb = config_get_int_value(config_cpu, "CANTIDAD_ENTRADAS_TLB");
+    char* algoritmo_tlb = config_get_string_value(config_cpu, "ALGORITMO_TLB");
 }
 
 void levantar_logger(){
@@ -155,11 +159,16 @@ void atender_kernel_dispatch(){
 				t_cde* cde_recibido = buffer_read_cde(buffer);
 				destruir_buffer(buffer);
 
+                cde_ejecutando = cde_recibido;
+
 				pthread_mutex_lock(&mutex_cde_ejecutando);
 				pid_de_cde_ejecutando = cde_recibido->pid;
 				pthread_mutex_unlock(&mutex_cde_ejecutando);
 
 				ejecutar_proceso(cde_recibido);
+
+                cde_ejecutando = NULL;
+
 				break;
 			default:
 				break;
@@ -749,6 +758,8 @@ void ejecutar_mov_in_cuatro_bytes(char* reg_datos, char* reg_direccion){
 
     int cant_paginas_a_traer = (obtener_desplazamiento_pagina(dir_logica) + 4 > tamanio_pagina)? 2 : 1;
 
+    // FALTA AGREGAR PRIMERO LA CONSULTA A LA TLB EN TODOS LOS CASOS
+
     if (cant_paginas_a_traer == 1) {
         uint32_t dir_fisica = calcular_direccion_fisica(dir_logica);
 
@@ -765,9 +776,77 @@ void ejecutar_mov_in_cuatro_bytes(char* reg_datos, char* reg_direccion){
         ejecutar_set(reg_datos, valor_leido);
     } else {
         // caso 2 paginas leidas
-        leer_y_guardar_de_dos_paginas()
+        leer_y_guardar_de_dos_paginas();
     }
 }
+
+void leer_y_guardar_de_dos_paginas(char* reg_datos, uint32_t dir_logica){
+    uint32_t primera_lectura;
+    uint32_t dir_fisica_primera = UINT32_MAX;
+
+    bool pagina_en_tlb = se_encuentra_en_tlb(dir_logica, &dir_fisica_primera); 
+
+    if (!pagina_en_tlb)
+        dir_fisica_primera = calcular_direccion_fisica(dir_logica);
+
+    int cant_bytes_a_leer_primera_pag = 4 - (obtener_desplazamiento_pagina(dir_logica) + 4 - tamanio_pagina);
+//                                           |---------------- saco por cuanto se paso ---------------------|
+//                                     |----- la diferencia con el tamaño del registro me da cuanto tengo que leer
+
+    // PRIMER PAGINA
+
+    enviar_codigo(socket_memoria, MOV_IN);
+    t_buffer* buffer = crear_buffer();
+    buffer_write_uint32(buffer, dir_fisica_primera);
+    buffer_write_uint32(buffer, cant_bytes_a_leer_primera_pag); // cantidad bytes a leer
+    enviar_buffer(buffer, socket_memoria);
+
+    buffer = recibir_buffer(socket_memoria);
+    uint32_t primera_lectura = buffer_read_uint32(buffer); // guardo la primera lectura
+    destruir_buffer(buffer);
+
+    // SEGUNDA PAGINA
+
+    uint32_t dir_logica_segunda = dir_logica + cant_bytes_a_leer_primera_pag; // asi completo los bytes de la primera y me situo en la segunda desde el comienzo
+    uint32_t dir_fisica_segunda = UINT32_MAX;
+
+    pagina_en_tlb = se_encuentra_en_tlb(dir_logica_segunda, &dir_fisica_segunda);
+
+    if (!pagina_en_tlb)
+        dir_fisica_segunda = calcular_direccion_fisica(dir_logica_segunda);
+
+    int cant_bytes_a_leer_segunda_pag = 4 - cant_bytes_a_leer_primera_pag;
+
+    enviar_codigo(socket_memoria, MOV_IN);
+    buffer = crear_buffer();
+    buffer_write_uint32(buffer, dir_fisica_segunda);
+    buffer_write_uint32(buffer, cant_bytes_a_leer_segunda_pag); // cantidad bytes a leer
+    enviar_buffer(buffer, socket_memoria);
+
+    buffer = recibir_buffer(socket_memoria);
+    uint32_t segunda_lectura = buffer_read_uint32(buffer); // guardo la segunda lectura
+    destruir_buffer(buffer);
+
+    uint32_t dato_reconstruido = dato_reconstruido(primera_lectura, segunda_lectura, cant_bytes_a_leer_primera_pag, cant_bytes_a_leer_segunda_pag);
+
+    ejecutar_set(reg_datos, dato_reconstruido);
+}
+
+uint32_t dato_reconstruido(uint32_t primera, uint32_t segunda, int bytes_primera, int bytes_segunda){
+    uint32_t dato_reconstruido = 0;
+
+    void* primera_ptr = &primera;
+    void* segunda_ptr = &segunda;
+    void* dato_reconstruido_ptr = &dato_reconstruido;
+
+    memcpy(dato_reconstruido_ptr, primera, (size_t)bytes_primera);
+    memcpy(dato_reconstruido_ptr + (size_t)bytes_primera, segunda, (size_t)bytes_segunda);
+
+    return dato_reconstruido;
+}
+
+
+
 
 void ejecutar_mov_out(char* reg_datos, char* reg_direccion){
 
@@ -812,6 +891,97 @@ uint32_t calcular_direccion_fisica(int direccion_logica, t_cde* cde){
     uint32_t nro_marco_recibido = buffer_read_uint32(buffer);
     destruir_buffer(buffer);
     log_info(logger_cpu, "PID: %d - OBTENER MARCO - Página: %d - Marco: %d", cde->pid, nro_pagina, nro_marco_recibido);
+
+    colocar_pagina_en_tlb(cde->pid, nro_pagina, nro_marco_recibido);
+
     return nro_marco_recibido * tamanio_pagina + desplazamiento; // retorna la direccion_fisica
 }
+
+// -------------------------------------------------
+//                     TLB
+// -------------------------------------------------
+
+void colocar_pagina_en_tlb(uint32_t pid, uint32_t nro_pagina, uint32_t marco){
+    t_pagina_tlb* nueva_pagina = malloc(sizeof(t_pagina_tlb));
+    if (!nueva_pagina){
+        log_error(logger_cpu, "Fallo la creacion de la pagina %d del proceso %d", nro_pagina, pid);
+        return;
+    }
+    nueva_pagina->marco = marco;
+    nueva_pagina->nroPagina = nro_pagina;
+    nueva_pagina->pid = pid;
+    nueva_pagina->tiempo_ultimo_acceso = temporal_get_string_time("%H:%M:%S:%MS");
+
+    if (queue_size(tlb) < cantidad_entradas_tlb) {
+        queue_push(tlb, nueva_pagina);
+    } else 
+        desalojar_y_agregar(nueva_pagina);
+}
+
+void desalojar_y_agregar(t_pagina_tlb* nueva_pagina){
+    t_pagina_tlb* pag_a_remover = NULL;
+
+    if (strcmp(algoritmo_tlb, "FIFO")){
+        pag_a_remover = queue_peek(tlb);
+        free(pag_a_remover);
+        queue_pop(tlb);
+        queue_push(nueva_pagina);
+    } else {  // LRU
+        t_list* lista_tlb = tlb->elements;
+
+        pag_a_remover = list_get_maximum(lista_tlb, mayor_tiempo_de_ultimo_acceso);
+        list_remove_element(lista_tlb, pag_a_remover);
+        free(pag_a_remover);
+        
+        list_add(lista_tlb, nueva_pagina);
+    }
+}
+
+void* mayor_tiempo_de_ultimo_acceso(void* A, void* B){
+    t_pagina_tlb* paginaA = A;
+    t_pagina_tlb* paginaB = B;
+
+    if (obtenerTiempoEnMiliSegundos(paginaA->tiempo_ultimo_acceso) >= obtenerTiempoEnMiliSegundos(paginaB->tiempo_ultimo_acceso))
+        return paginaA;
+    else 
+        return paginaB;
+}
+
+int obtenerTiempoEnMiliSegundos(char* tiempo){
+    char** horaNuevaDesarmada = string_split(tiempo,":");
+
+    int horas = atoi(horaNuevaDesarmada[0]);
+    int minutos = atoi(horaNuevaDesarmada[1]) + horas * 60;
+    int segundos = atoi(horaNuevaDesarmada[2]) + minutos * 60;
+    int miliSegundos = atoi(horaNuevaDesarmada[3]) + segundos * 1000;
+
+    string_array_destroy(horaNuevaDesarmada);
+
+    return miliSegundos;
+}
+
+bool se_encuentra_en_tlb(uint32_t dir_logica, uint32_t* dir_fisica){
+
+    int nro_pag_buscada = obtener_numero_pagina(dir_logica);
+    int desplazamiento = obtener_desplazamiento_pagina(direccion_logica);
+    int i = 0;
+    bool encontrado = false;
+
+    while (i < list_size(tlb) && !encontrado) {
+        t_pagina_tlb* pagina = list_get(tlb, i);
+        if (pagina->nroPagina == nro_pag_buscada && pagina->pid == cde_ejecutando->pid){
+            log_info(logger_cpu, "PID: %d - TLB HIT - Pagina: %d", cde_ejecutando->pid, nro_pag_buscada);
+            log_info(logger_cpu, "PID: %d - OBTENER MARCO - Página: %d - Marco: %d", cde_ejecutando->pid, nro_pag_buscada, pagina->marco);
+            *dir_fisica = pagina->marco * tamanio_pagina + desplazamiento;
+            encontrado = true;
+        }
+        i++;
+    }
+
+    if (!encontrado)
+        log_info(logger_cpu, "PID: %ld - TLB MISS - Pagina: %ld", cde_ejecutando->pid, nro_pag_buscada);
+
+    return encontrado;
+}
+
 

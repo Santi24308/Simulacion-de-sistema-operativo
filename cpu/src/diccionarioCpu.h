@@ -16,6 +16,18 @@
 #include <math.h>
 #include <stdbool.h>
 
+typedef struct {
+    uint32_t pid;
+    uint32_t nroPagina;
+    uint32_t marco;
+    char* tiempo_ultimo_acceso;
+}t_pagina_tlb;
+
+t_queue* tlb;
+int cantidad_entradas_tlb;
+char* algoritmo_tlb;
+
+t_cde* cde_ejecutando;
 
 int socket_servidor_dispatch;
 int socket_servidor_interrupt;
