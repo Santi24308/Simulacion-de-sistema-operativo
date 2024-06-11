@@ -16,10 +16,10 @@ typedef struct{
 
 typedef struct{
 	uint32_t PC;
-	uint32_t AX;
-	uint32_t BX;
-	uint32_t CX;
-	uint32_t DX;
+	uint8_t AX;
+	uint8_t BX;
+	uint8_t CX;
+	uint8_t DX;
 	uint32_t EAX;
 	uint32_t EBX;
 	uint32_t ECX;

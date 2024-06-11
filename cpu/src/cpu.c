@@ -241,37 +241,29 @@ void iterator(char* value) {
 
 // FUNCIONES AUXILIARES DE INSTRUCCIONES
 
-uint8_t buscar_valor_registroUINT8(void* registro){
-	uint8_t valorLeido;
+uint32_t buscar_valor_registro(char* registro) {
+	if (strcmp(registro, "AX") == 0)
+		return registros_cpu->AX;
+	else if (strcmp(registro, "BX") == 0)
+		return registros_cpu->BX;
+	else if (strcmp(registro, "CX") == 0)
+		return registros_cpu->CX;
+	else if (strcmp(registro, "DX") == 0)
+		return registros_cpu->DX;
+	else if (strcmp(registro, "EAX") == 0)
+		return registros_cpu->EAX;
+	else if (strcmp(registro, "EBX") == 0)
+		return registros_cpu->EBX;
+	else if (strcmp(registro, "ECX") == 0)
+		return registros_cpu->ECX;
+	else if (strcmp(registro, "EDX") == 0)
+		return registros_cpu->EDX;
+	else if (strcmp(registro, "SI") == 0)
+		return registros_cpu->SI;
+	else if (strcmp(registro, "DI") == 0)
+		return registros_cpu->DI;
 
-	if(strcmp(registro, "AX") == 0)
-		valorLeido = registros_cpu->AX;
-	else if(strcmp(registro, "BX") == 0)
-		valorLeido = registros_cpu->BX;
-	else if(strcmp(registro, "CX") == 0)
-		valorLeido = registros_cpu->CX;
-	else if(strcmp(registro, "DX") == 0)
-		valorLeido = registros_cpu->DX;
-
-	return valorLeido;
-}
-
-uint32_t buscar_valor_registroUINT32(void* registro){
-	uint32_t valorLeido;
-	if(strcmp(registro, "EAX") == 0)
-		valorLeido = registros_cpu->EAX;
-	else if(strcmp(registro, "EBX") == 0)
-		valorLeido = registros_cpu->EBX;
-	else if(strcmp(registro, "ECX") == 0)
-		valorLeido = registros_cpu->ECX;
-	else if(strcmp(registro, "EDX") == 0)
-		valorLeido = registros_cpu->EDX;
-	else if(strcmp(registro, "SI") == 0)
-		valorLeido = registros_cpu->SI;
-	else if(strcmp(registro, "DI") == 0)
-		valorLeido = registros_cpu->DI;
-
-	return valorLeido;
+	return 0;
 }
 
 void cargar_registros(t_cde* cde){
@@ -591,93 +583,89 @@ void copiar_ultima_instruccion(t_cde* cde, t_instruccion* instruccion){
     }
 }
 
-// FUNCIONES INSTRUCCIONES
 
-// AX,BX,CX,DX es uint8, pero el resto es uint32. Cuando se la llama, hay que pasarle
-// el registro y cargar el parametro que corresponda
+// -------------------------------------------------
+//          INSTRUCCIONES SIN MEMORIA
+// -------------------------------------------------
+
 
 void ejecutar_set(char* registro, uint32_t valor_recibido){
-    uint8_t valor_reg_origen8 = buscar_valor_registroUINT8(registro);
-    uint32_t valor_reg_origen32 = buscar_valor_registroUINT32(registro);
+    uint32_t valor_registro = buscar_valor_registro(registro);
 
-    if(strcmp(registro, "AX") == 0) registros_cpu->AX = (uint8_t)valor_reg_origen8;   
+    if (strcmp(registro, "AX") == 0) 
+        registros_cpu->AX = valor_registro;   
     else if(strcmp(registro, "BX") == 0)
-        registros_cpu->BX = (uint8_t) valor_reg_origen8;
+        registros_cpu->BX = valor_registro;
     else if(strcmp(registro, "CX") == 0)
-        registros_cpu->CX = (uint8_t) valor_reg_origen8;
+        registros_cpu->CX = valor_registro;
     else if(strcmp(registro, "DX") == 0)
-        registros_cpu->DX = (uint8_t) valor_reg_origen8;
-
+        registros_cpu->DX = valor_registro;
 	else if(strcmp(registro, "EAX") == 0)
-        registros_cpu->EAX= valor_reg_origen32;
+        registros_cpu->EAX= valor_registro;
 	else if(strcmp(registro, "EBX") == 0)
-        registros_cpu->EBX = valor_reg_origen32;
+        registros_cpu->EBX = valor_registro;
 	else if(strcmp(registro, "ECX") == 0)
-        registros_cpu->ECX = valor_reg_origen32;	
+        registros_cpu->ECX = valor_registro;	
 	else if(strcmp(registro, "EDX") == 0)
-        registros_cpu->EDX = valor_reg_origen32;	
+        registros_cpu->EDX = valor_registro;	
 	else if(strcmp(registro, "SI") == 0)
-        registros_cpu->SI = valor_reg_origen32;		
+        registros_cpu->SI = valor_registro;		
 	else if(strcmp(registro, "DI") == 0)
-        registros_cpu->DI = valor_reg_origen32;	
+        registros_cpu->DI = valor_registro;	
     else
         log_error(logger_cpu, "No se reconoce el registro %s", registro);
 }
 
 void ejecutar_sum(char* reg_dest, char* reg_origen){
-    uint8_t valor_reg_origen8 = buscar_valor_registroUINT8(reg_origen);
-    uint32_t valor_reg_origen32 = buscar_valor_registroUINT32(reg_origen);
-    
-    if(strcmp(reg_dest, "AX") == 0)
-        registros_cpu->AX += (uint8_t) valor_reg_origen8;
-    else if(strcmp(reg_dest, "BX") == 0)
-        registros_cpu->BX += (uint8_t) valor_reg_origen8;
-    else if(strcmp(reg_dest, "CX") == 0)
-        registros_cpu->CX += (uint8_t) valor_reg_origen8;
-    else if(strcmp(reg_dest, "DX") == 0)
-        registros_cpu->DX += (uint8_t) valor_reg_origen8;
+    uint32_t valor_registro = buscar_valor_registro(reg_origen);
 
+    if (strcmp(reg_dest, "AX") == 0)
+        registros_cpu->AX += valor_registro;
+    else if(strcmp(reg_dest, "BX") == 0)
+        registros_cpu->BX += valor_registro;
+    else if(strcmp(reg_dest, "CX") == 0)
+        registros_cpu->CX += valor_registro;
+    else if(strcmp(reg_dest, "DX") == 0)
+        registros_cpu->DX += valor_registro;
     else if(strcmp(reg_dest, "EAX") == 0)
-        registros_cpu->EAX+= valor_reg_origen32;
+        registros_cpu->EAX+= valor_registro;
 	else if(strcmp(reg_dest, "EBX") == 0)
-        registros_cpu->EBX += valor_reg_origen32;
+        registros_cpu->EBX += valor_registro;
 	else if(strcmp(reg_dest, "ECX") == 0)
-        registros_cpu->ECX += valor_reg_origen32;
+        registros_cpu->ECX += valor_registro;
 	else if(strcmp(reg_dest, "EDX") == 0)
-        registros_cpu->EDX += valor_reg_origen32;
+        registros_cpu->EDX += valor_registro;
     else if(strcmp(reg_dest, "SI") == 0)
-        registros_cpu->SI = valor_reg_origen32;		
+        registros_cpu->SI = valor_registro;		
 	else if(strcmp(reg_dest, "DI") == 0)
-        registros_cpu->DI = valor_reg_origen32;	
+        registros_cpu->DI = valor_registro;	
     else
         log_warning(logger_cpu, "Registro no reconocido");
 }
 
 void ejecutar_sub(char* reg_dest, char* reg_origen){
-    uint8_t valor_reg_origen8 = buscar_valor_registroUINT8(reg_origen);
-    uint32_t valor_reg_origen32 = buscar_valor_registroUINT32(reg_origen);
+    uint32_t valor_registro = buscar_valor_registro(reg_origen);
 
-    if(strcmp(reg_dest, "AX") == 0)
-        registros_cpu->AX -= (uint8_t) valor_reg_origen8;
+    if (strcmp(reg_dest, "AX") == 0)
+        registros_cpu->AX -= valor_registro;
     else if(strcmp(reg_dest, "BX") == 0)
-        registros_cpu->BX -= (uint8_t) valor_reg_origen8;
+        registros_cpu->BX -= valor_registro;
     else if(strcmp(reg_dest, "CX") == 0)
-        registros_cpu->CX -= (uint8_t) valor_reg_origen8;
+        registros_cpu->CX -= valor_registro;
     else if(strcmp(reg_dest, "DX") == 0)
-        registros_cpu->DX -= (uint8_t) valor_reg_origen8;
-
+        registros_cpu->DX -= valor_registro;
 	else if(strcmp(reg_dest, "EAX") == 0)
-        registros_cpu->EAX -= valor_reg_origen32;
+        registros_cpu->EAX -= valor_registro;
 	else if(strcmp(reg_dest, "EBX") == 0)
-        registros_cpu->EBX -= valor_reg_origen32;
+        registros_cpu->EBX -= valor_registro;
 	else if(strcmp(reg_dest, "ECX") == 0)
-        registros_cpu->ECX -= valor_reg_origen32;
+        registros_cpu->ECX -= valor_registro;
 	else if(strcmp(reg_dest, "EDX") == 0)
-        registros_cpu->EDX -= valor_reg_origen32;
+        registros_cpu->EDX -= valor_registro;
     else if(strcmp(reg_dest, "SI") == 0)
-        registros_cpu->SI = valor_reg_origen32;		
+        registros_cpu->SI = valor_registro;		
 	else if(strcmp(reg_dest, "DI") == 0)
-        registros_cpu->DI = valor_reg_origen32;	
+        registros_cpu->DI = valor_registro;	
     else
         log_warning(logger_cpu, "Registro no reconocido");
 }
@@ -686,19 +674,19 @@ void ejecutar_jnz(void* registro, uint32_t nro_instruccion, t_cde* cde){
 
     if(strcmp(registro, "AX") == 0){
         if(registros_cpu->AX != 0)
-            cde->registros->PC = (uint8_t) nro_instruccion;
+            cde->registros->PC = nro_instruccion;
     }
     else if(strcmp(registro, "BX") == 0){
         if(registros_cpu->BX != 0)
-            cde->registros->PC = (uint8_t) nro_instruccion;
+            cde->registros->PC = nro_instruccion;
     }
     else if(strcmp(registro, "CX") == 0){
         if(registros_cpu->CX != 0)
-            cde->registros->PC = (uint8_t) nro_instruccion;
+            cde->registros->PC = nro_instruccion;
     }
     else if(strcmp(registro, "DX") == 0){
         if(registros_cpu->DX != 0)
-            cde->registros->PC = (uint8_t) nro_instruccion;
+            cde->registros->PC = nro_instruccion;
     }
 	else if(strcmp(registro, "EAX") == 0){
         if(registros_cpu->EAX != 0)
@@ -728,6 +716,12 @@ void ejecutar_jnz(void* registro, uint32_t nro_instruccion, t_cde* cde){
         log_warning(logger_cpu, "Registro no reconocido");
 }
 
+
+// -------------------------------------------------
+//          INSTRUCCIONES CON MEMORIA
+// -------------------------------------------------
+
+// -------- RESIZE ---------------------------------
 void ejecutar_resize(int tamanio, t_cde* cde){
     enviar_codigo(socket_memoria, RESIZE);
     t_buffer* buffer = crear_buffer();
@@ -743,44 +737,70 @@ void ejecutar_resize(int tamanio, t_cde* cde){
     }
 }
 
+
+// -------- MOV_IN ---------------------------------
 void ejecutar_mov_in(char* reg_datos, char* reg_direccion){
     if(es_reg_de_cuatro_bytes(reg_datos)){
-        ejecutar_mov_in_cuatro_bytes();
+        ejecutar_mov_in_cuatro_bytes(reg_datos, reg_direccion);
     } else {
-        ejecutar_mov_in_un_byte();
+        ejecutar_mov_in_un_byte(reg_datos, reg_direccion);
     }
 }
 
+void leer_de_dir_fisica_los_bytes(uint32_t dir_fisica, uint32_t bytes, uint32_t* valor_leido){
+    *valor_leido = 0; // limpio ante la duda la variable
+    enviar_codigo(socket_memoria, MOV_IN);
+    t_buffer* buffer = crear_buffer();
+    buffer_write_uint32(buffer, dir_fisica);
+    buffer_write_uint32(buffer, bytes); 
+    enviar_buffer(buffer, socket_memoria);
+
+    buffer = recibir_buffer(socket_memoria);
+    &valor_leido = buffer_read_uint32(buffer);
+    destruir_buffer(buffer);
+
+    log_info(logger_cpu, "Lectura/Escritura Memoria: “PID: %d - Acción: LEER - Dirección Física: %d - Valor: %d.", cde_ejecutando->pid, dir_fisica, valor_leido);
+}
+
+void ejecutar_mov_in_un_byte(char* reg_datos, char* reg_direccion){
+    uint32_t dir_logica = buscar_valor_registro(reg_direccion);
+
+    // en este caso es imposible que se traiga mas de una pagina
+
+    uint32_t dir_fisica = UINT32_MAX;
+    bool pagina_en_tlb = se_encuentra_en_tlb(dir_logica, &dir_fisica); 
+    if (!pagina_en_tlb)
+        dir_fisica = calcular_direccion_fisica(dir_logica);
+
+    uint32_t valor_leido = 0;
+    leer_de_dir_fisica_los_bytes(dir_fisica, 1, &valor_leido);
+
+    ejecutar_set(reg_datos, valor_leido);
+}
 
 void ejecutar_mov_in_cuatro_bytes(char* reg_datos, char* reg_direccion){
-    
-    uint32_t dir_logica = buscar_valor_registroUINT32(reg_direccion);
+    uint32_t dir_logica = buscar_valor_registro(reg_direccion);
 
     int cant_paginas_a_traer = (obtener_desplazamiento_pagina(dir_logica) + 4 > tamanio_pagina)? 2 : 1;
 
-    // FALTA AGREGAR PRIMERO LA CONSULTA A LA TLB EN TODOS LOS CASOS
-
     if (cant_paginas_a_traer == 1) {
-        uint32_t dir_fisica = calcular_direccion_fisica(dir_logica);
+        uint32_t dir_fisica = UINT32_MAX;
+        bool pagina_en_tlb = se_encuentra_en_tlb(dir_logica, &dir_fisica); 
+        if (!pagina_en_tlb)
+            dir_fisica = calcular_direccion_fisica(dir_logica);
 
-        enviar_codigo(socket_memoria, MOV_IN);
-        t_buffer* buffer = crear_buffer();
-        buffer_write_uint32(buffer, dir_fisica);
-        buffer_write_uint32(buffer, 4); // cantidad bytes a leer
-        enviar_buffer(buffer, socket_memoria);
-
-        buffer = recibir_buffer(socket_memoria);
-        uint32_t valor_leido = buffer_read_uint32(buffer);
-        destruir_buffer(buffer);
+        uint32_t valor_leido = 0;
+        leer_de_dir_fisica_los_bytes(dir_fisica, 4, &valor_leido);
 
         ejecutar_set(reg_datos, valor_leido);
     } else {
         // caso 2 paginas leidas
-        leer_y_guardar_de_dos_paginas();
+        uint32_t valor_leido = leer_y_guardar_de_dos_paginas();
+        ejecutar_set(reg_datos, valor_leido);
     }
 }
 
-void leer_y_guardar_de_dos_paginas(char* reg_datos, uint32_t dir_logica){
+uint32_t leer_y_guardar_de_dos_paginas(uint32_t dir_logica){
     uint32_t primera_lectura;
     uint32_t dir_fisica_primera = UINT32_MAX;
 
@@ -795,15 +815,8 @@ void leer_y_guardar_de_dos_paginas(char* reg_datos, uint32_t dir_logica){
 
     // PRIMER PAGINA
 
-    enviar_codigo(socket_memoria, MOV_IN);
-    t_buffer* buffer = crear_buffer();
-    buffer_write_uint32(buffer, dir_fisica_primera);
-    buffer_write_uint32(buffer, cant_bytes_a_leer_primera_pag); // cantidad bytes a leer
-    enviar_buffer(buffer, socket_memoria);
-
-    buffer = recibir_buffer(socket_memoria);
-    uint32_t primera_lectura = buffer_read_uint32(buffer); // guardo la primera lectura
-    destruir_buffer(buffer);
+    uint32_t primera_lectura = 0;
+    leer_de_dir_fisica_los_bytes(dir_fisica_primera, cant_bytes_a_leer_primera_pag, &primera_lectura);
 
     // SEGUNDA PAGINA
 
@@ -817,19 +830,12 @@ void leer_y_guardar_de_dos_paginas(char* reg_datos, uint32_t dir_logica){
 
     int cant_bytes_a_leer_segunda_pag = 4 - cant_bytes_a_leer_primera_pag;
 
-    enviar_codigo(socket_memoria, MOV_IN);
-    buffer = crear_buffer();
-    buffer_write_uint32(buffer, dir_fisica_segunda);
-    buffer_write_uint32(buffer, cant_bytes_a_leer_segunda_pag); // cantidad bytes a leer
-    enviar_buffer(buffer, socket_memoria);
-
-    buffer = recibir_buffer(socket_memoria);
-    uint32_t segunda_lectura = buffer_read_uint32(buffer); // guardo la segunda lectura
-    destruir_buffer(buffer);
+    uint32_t segunda_lectura = 0;
+    leer_de_dir_fisica_los_bytes(dir_fisica_segunda, cant_bytes_a_leer_segunda_pag, &segunda_lectura);
 
     uint32_t dato_reconstruido = dato_reconstruido(primera_lectura, segunda_lectura, cant_bytes_a_leer_primera_pag, cant_bytes_a_leer_segunda_pag);
 
-    ejecutar_set(reg_datos, dato_reconstruido);
+    return dato_reconstruido;
 }
 
 uint32_t dato_reconstruido(uint32_t primera, uint32_t segunda, int bytes_primera, int bytes_segunda){
@@ -845,15 +851,6 @@ uint32_t dato_reconstruido(uint32_t primera, uint32_t segunda, int bytes_primera
     return dato_reconstruido;
 }
 
-
-
-
-void ejecutar_mov_out(char* reg_datos, char* reg_direccion){
-
-}
-
-
-
 bool es_reg_de_cuatro_bytes(char* reg_datos){
     if (strcmp(reg_datos, "AX") == 0)
         return false;
@@ -866,6 +863,167 @@ bool es_reg_de_cuatro_bytes(char* reg_datos){
     else   
         return true;
 }
+
+
+// -------- MOV_OUT ---------------------------------
+void ejecutar_mov_out(char* reg_datos, char* reg_direccion){
+    uint32_t dir_logica = buscar_valor_registro(reg_direccion);
+    uint32_t valor_a_escribir = buscar_valor_registro(reg_datos);
+    bool pagina_dividida = (obtener_desplazamiento_pagina(dir_logica) + 4 > tamanio_pagina);
+
+    if (es_reg_de_cuatro_bytes(reg_datos)){
+        // puede pasar que se quiera escribir un valor de 4 bytes y a la pagina en donde se esta parado le queden solo 2 bytes disponibles por ejemplo
+        // en ese caso se escriben los 2 bytes restantes en la siguiente al comienzo de la misma
+        if (pagina_dividida) {
+            escribir_y_guardar_en_dos_paginas(dir_logica, &valor_a_escribir);
+        } else {
+            uint32_t dir_fisica = UINT32_MAX;
+            bool pagina_en_tlb = se_encuentra_en_tlb(dir_logica, &dir_fisica); 
+            if (!pagina_en_tlb)
+                dir_fisica = calcular_direccion_fisica(dir_logica);
+
+            escribir_en_dir_fisica_los_bytes(dir_fisica, 4, valor_a_escribir);
+        }
+    } else {
+        uint32_t dir_fisica = UINT32_MAX;
+        bool pagina_en_tlb = se_encuentra_en_tlb(dir_logica, &dir_fisica); 
+        if (!pagina_en_tlb)
+            dir_fisica = calcular_direccion_fisica(dir_logica);
+
+        escribir_en_dir_fisica_los_bytes(dir_fisica, 1, valor_a_escribir);
+    }
+}
+
+void escribir_en_dir_fisica_los_bytes(uint32_t dir_fisica, uint32_t bytes, uint32_t valor_a_escribir){
+    enviar_codigo(socket_memoria, MOV_OUT);
+    t_buffer* buffer = crear_buffer();
+    buffer_write_uint32(buffer, dir_fisica);
+    buffer_write_uint32(buffer, valor_a_escribir);
+    buffer_write_uint32(buffer, bytes); 
+    enviar_buffer(buffer, socket_memoria);
+
+    log_info(logger_cpu, "Lectura/Escritura Memoria: “PID: %d - Acción: ESCRIBIR - Dirección Física: %d - Valor: %d.", cde_ejecutando->pid, dir_fisica, valor_a_escribir);
+}
+
+void escribir_y_guardar_en_dos_paginas(uint32_t dir_logica_destino, uint32_t* valor){
+    void* valor_ptr = valor;
+    void* valor_parte_1_ptr = malloc(2);
+    void* valor_parte_2_ptr = malloc(2);
+
+    int bytes_a_escribir_primera_pag = 4 - (obtener_desplazamiento_pagina(dir_logica_destino) + 4 - tamanio_pagina);
+    int bytes_a_escribir_segunda_pag = 4 - bytes_a_escribir_primera_pag;
+    
+    memcpy(valor_parte_1_ptr, valor_ptr, bytes_a_escribir_primera_pag);
+    memcpy(valor_parte_2_ptr, valor_ptr + bytes_a_escribir_primera_pag, bytes_a_escribir_segunda_pag);
+
+    uint32_t valor_parte_1 = *(uint32_t*)valor_parte_1_ptr;
+    uint32_t valor_parte_2 = *(uint32_t*)valor_parte_2_ptr;
+
+    uint32_t dir_fisica_destino = UINT32_MAX;    
+    bool pagina_en_tlb = se_encuentra_en_tlb(dir_logica_destino, &dir_fisica_destino); 
+    if (!pagina_en_tlb)
+        dir_fisica_destino = calcular_direccion_fisica(dir_logica_destino);
+
+    escribir_en_dir_fisica_los_bytes(dir_fisica_destino, bytes_a_escribir_primera_pag, valor_parte_1);
+
+    // actualizo la dir, me muevo a la siguiente
+    uint32_t dir_logica_segunda_pag = dir_logica_destino + bytes_a_escribir_primera_pag;
+
+    uint32_t dir_fisica_destino_segunda_pag = UINT32_MAX;    
+    bool pagina_en_tlb = se_encuentra_en_tlb(dir_logica_segunda_pag, &dir_fisica_destino_segunda_pag); 
+    if (!pagina_en_tlb)
+        dir_fisica_destino_segunda_pag = calcular_direccion_fisica(dir_logica_segunda_pag);
+
+    escribir_en_dir_fisica_los_bytes(dir_fisica_destino_segunda_pag, bytes_a_escribir_segunda_pag, valor_parte_2);
+
+    free(valor_parte_1_ptr);
+    free(valor_parte_2_ptr);
+}
+
+
+// -------- COPY_STRING ------------------------------
+void ejecutar_copy_string(int tamanio){
+
+    uint32_t dir_logica_string = buscar_valor_registro(registros_cpu->SI);
+    uint32_t dir_logica_destino = buscar_valor_registro(registros_cpu->DI);
+
+
+    // voy a ir cargando de a 4 bytes siempre y cuando se pueda, por eso se chequea que, ademas de quedar bytes
+    // por usar, queden como minimo 4
+    // cuando ya no queden como minimo 4 bytes voy a empezar a leer y escribir de a 1 byte hasta que termine
+    int bytes_usados = 0;
+    uint32_t valor_leido = 0;
+    bool valor_dividido = false;
+    bool pagina_dividida = false;
+    bool pagina_en_tlb = false;
+
+    while (bytes_usados < tamanio && bytes_usados + 4 < tamanio){
+
+        // parte de LECTURA
+
+        valor_dividido = (obtener_desplazamiento_pagina(dir_logica_string) + 4 > tamanio_pagina);
+        if (valor_dividido) {
+            valor_leido = leer_y_guardar_de_dos_paginas(dir_logica_string);
+        } else {
+            uint32_t dir_fisica_string = UINT32_MAX;    
+            pagina_en_tlb = se_encuentra_en_tlb(dir_logica_string, &dir_fisica_string); 
+            if (!pagina_en_tlb)
+                dir_fisica_string = calcular_direccion_fisica(dir_logica_string);            
+            leer_de_dir_fisica_los_bytes(dir_fisica_string, 4, &valor_leido);
+        }
+
+        // parte de ESCRITURA
+
+        pagina_dividida = (obtener_desplazamiento_pagina(dir_logica_destino) + 4 > tamanio_pagina);
+        if (pagina_dividida) {
+            escribir_y_guardar_en_dos_paginas(dir_logica_destino, &valor_leido);
+        } else {
+            uint32_t dir_fisica_destino = UINT32_MAX;    
+            pagina_en_tlb = se_encuentra_en_tlb(dir_logica_destino, &dir_fisica_destino); 
+            if (!pagina_en_tlb)
+                dir_fisica_destino = calcular_direccion_fisica(dir_logica_destino);
+            escribir_en_dir_fisica_los_bytes(dir_fisica_destino, 4, &valor_leido);
+        }
+        
+        // consumimos 4 bytes de cada direccion
+        // desplazamos las direcciones (chequear que el concepto este bien)
+        dir_logica_destino += 4;
+        dir_logica_string += 4;
+        
+        bytes_usados += 4;
+    }
+
+    // aca entra cuando ya no puedo tomar de a 4 bytes o porque nunca fue igual o mayor a 4 el tamanio a escribir
+    while (bytes_usados < tamanio){
+
+        // LECTURA
+        uint32_t dir_fisica_string = UINT32_MAX;    
+        pagina_en_tlb = se_encuentra_en_tlb(dir_logica_string, &dir_fisica_string); 
+        if (!pagina_en_tlb)
+            dir_fisica_string = calcular_direccion_fisica(dir_logica_string);  
+        
+        leer_de_dir_fisica_los_bytes(dir_fisica_string, 1, &valor_leido);
+
+        // ESCRITURA
+        uint32_t dir_fisica_destino = UINT32_MAX;    
+        pagina_en_tlb = se_encuentra_en_tlb(dir_logica_destino, &dir_fisica_destino); 
+        if (!pagina_en_tlb)
+            dir_fisica_destino = calcular_direccion_fisica(dir_logica_destino);
+        escribir_en_dir_fisica_los_bytes(dir_fisica_destino, 1, &valor_leido);
+
+        dir_logica_destino ++;
+        dir_logica_string ++;
+        
+        bytes_usados ++;
+    }
+}
+
+
+
+// -------------------------------------------------
+//                     MMU
+// -------------------------------------------------
+
 
 int obtener_numero_pagina(int direccion_logica){
 	return floor(direccion_logica / tamanio_pagina);
