@@ -42,8 +42,7 @@ bool es_reg_de_cuatro_bytes(char* reg_datos);
 void ejecutar_mov_out(char* reg_datos, char* reg_direccion);
 void escribir_en_dir_fisica_los_bytes(uint32_t dir_fisica, uint32_t bytes, uint32_t valor_a_escribir);
 void ejecutar_copy_string(int tamanio);
-void leer_y_copiar_4_bytes(uint32_t dir_logica_string, uint32_t dir_logica_destino);
-void leer_y_copiar_segun_tamanio(uint32_t dir_logica_string, uint32_t dir_logica_destino, int tamanio);
+void escribir_y_guardar_en_dos_paginas(uint32_t dir_logica, uint32_t* valor);
 
 // mmu
 int obtener_numero_pagina(int direccion_logica);

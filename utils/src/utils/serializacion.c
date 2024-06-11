@@ -129,7 +129,6 @@ char* buffer_read_string(t_buffer* buffer, uint32_t* tam){
 // CONTEXTO DE EJECUCION
 void buffer_write_cde(t_buffer* buffer, t_cde* cde){
 	buffer_write_uint32(buffer, cde->pid);
-	buffer_write_uint32(buffer, cde->pc);
 	buffer_write_registros(buffer, cde->registros);
 	buffer_write_instruccion(buffer, cde->ultima_instruccion);
 	buffer_write_uint32(buffer, cde->motivo_desalojo);
@@ -139,7 +138,6 @@ void buffer_write_cde(t_buffer* buffer, t_cde* cde){
 t_cde* buffer_read_cde(t_buffer* buffer){
 	t_cde* cde = malloc(sizeof(t_cde));
 	cde->pid = buffer_read_uint32(buffer);
-	cde->pc = buffer_read_uint32(buffer);
 	cde->registros = buffer_read_registros(buffer);
 	cde->ultima_instruccion = buffer_read_instruccion(buffer);
 	cde->motivo_desalojo = buffer_read_uint32(buffer);

@@ -30,8 +30,7 @@ typedef enum{
 	FIN_INSTRUCCIONES,
 	PEDIDO_OK,
 	NUMERO_MARCO_SOLICITUD,
-	PAGE_FAULT,
-	NUMERO_MARCO_OK
+	ERROR_OUT_OF_MEMORY
 }mensajeCpuMem;
 
 typedef enum{

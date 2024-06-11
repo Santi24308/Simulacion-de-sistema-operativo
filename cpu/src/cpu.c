@@ -60,7 +60,7 @@ void inicializar_modulo(){
     cde_ejecutando = NULL;
     tlb = queue_create();
     cantidad_entradas_tlb = config_get_int_value(config_cpu, "CANTIDAD_ENTRADAS_TLB");
-    char* algoritmo_tlb = config_get_string_value(config_cpu, "ALGORITMO_TLB");
+    algoritmo_tlb = config_get_string_value(config_cpu, "ALGORITMO_TLB");
 }
 
 void levantar_logger(){
@@ -730,7 +730,7 @@ void ejecutar_resize(int tamanio, t_cde* cde){
     destruir_buffer(buffer);
 
     mensajeCpuMem cod = recibir_codigo(socket_memoria);
-    if (cod == OUT_OF_MEMORY) {
+    if (cod == ERROR_OUT_OF_MEMORY) {
         realizar_desalojo = 1;
         cde->motivo_desalojo = OUT_OF_MEMORY_ERROR;
         return;
@@ -756,10 +756,10 @@ void leer_de_dir_fisica_los_bytes(uint32_t dir_fisica, uint32_t bytes, uint32_t*
     enviar_buffer(buffer, socket_memoria);
 
     buffer = recibir_buffer(socket_memoria);
-    &valor_leido = buffer_read_uint32(buffer);
+    *valor_leido = buffer_read_uint32(buffer);
     destruir_buffer(buffer);
 
-    log_info(logger_cpu, "Lectura/Escritura Memoria: “PID: %d - Acción: LEER - Dirección Física: %d - Valor: %d.", cde_ejecutando->pid, dir_fisica, valor_leido);
+    log_info(logger_cpu, "Lectura/Escritura Memoria: “PID: %d - Acción: LEER - Dirección Física: %d - Valor: %d.", cde_ejecutando->pid, dir_fisica, *valor_leido);
 }
 
 void ejecutar_mov_in_un_byte(char* reg_datos, char* reg_direccion){
@@ -770,7 +770,7 @@ void ejecutar_mov_in_un_byte(char* reg_datos, char* reg_direccion){
     uint32_t dir_fisica = UINT32_MAX;
     bool pagina_en_tlb = se_encuentra_en_tlb(dir_logica, &dir_fisica); 
     if (!pagina_en_tlb)
-        dir_fisica = calcular_direccion_fisica(dir_logica);
+        dir_fisica = calcular_direccion_fisica(dir_logica, cde_ejecutando);
 
     uint32_t valor_leido = 0;
     leer_de_dir_fisica_los_bytes(dir_fisica, 1, &valor_leido);
@@ -787,7 +787,7 @@ void ejecutar_mov_in_cuatro_bytes(char* reg_datos, char* reg_direccion){
         uint32_t dir_fisica = UINT32_MAX;
         bool pagina_en_tlb = se_encuentra_en_tlb(dir_logica, &dir_fisica); 
         if (!pagina_en_tlb)
-            dir_fisica = calcular_direccion_fisica(dir_logica);
+            dir_fisica = calcular_direccion_fisica(dir_logica, cde_ejecutando);
 
         uint32_t valor_leido = 0;
         leer_de_dir_fisica_los_bytes(dir_fisica, 4, &valor_leido);
@@ -795,19 +795,18 @@ void ejecutar_mov_in_cuatro_bytes(char* reg_datos, char* reg_direccion){
         ejecutar_set(reg_datos, valor_leido);
     } else {
         // caso 2 paginas leidas
-        uint32_t valor_leido = leer_y_guardar_de_dos_paginas();
+        uint32_t valor_leido = leer_y_guardar_de_dos_paginas(dir_logica);
         ejecutar_set(reg_datos, valor_leido);
     }
 }
 
 uint32_t leer_y_guardar_de_dos_paginas(uint32_t dir_logica){
-    uint32_t primera_lectura;
     uint32_t dir_fisica_primera = UINT32_MAX;
 
     bool pagina_en_tlb = se_encuentra_en_tlb(dir_logica, &dir_fisica_primera); 
 
     if (!pagina_en_tlb)
-        dir_fisica_primera = calcular_direccion_fisica(dir_logica);
+        dir_fisica_primera = calcular_direccion_fisica(dir_logica, cde_ejecutando);
 
     int cant_bytes_a_leer_primera_pag = 4 - (obtener_desplazamiento_pagina(dir_logica) + 4 - tamanio_pagina);
 //                                           |---------------- saco por cuanto se paso ---------------------|
@@ -826,16 +825,16 @@ uint32_t leer_y_guardar_de_dos_paginas(uint32_t dir_logica){
     pagina_en_tlb = se_encuentra_en_tlb(dir_logica_segunda, &dir_fisica_segunda);
 
     if (!pagina_en_tlb)
-        dir_fisica_segunda = calcular_direccion_fisica(dir_logica_segunda);
+        dir_fisica_segunda = calcular_direccion_fisica(dir_logica_segunda, cde_ejecutando);
 
     int cant_bytes_a_leer_segunda_pag = 4 - cant_bytes_a_leer_primera_pag;
 
     uint32_t segunda_lectura = 0;
     leer_de_dir_fisica_los_bytes(dir_fisica_segunda, cant_bytes_a_leer_segunda_pag, &segunda_lectura);
 
-    uint32_t dato_reconstruido = dato_reconstruido(primera_lectura, segunda_lectura, cant_bytes_a_leer_primera_pag, cant_bytes_a_leer_segunda_pag);
+    uint32_t valor_reconstruido = dato_reconstruido(primera_lectura, segunda_lectura, cant_bytes_a_leer_primera_pag, cant_bytes_a_leer_segunda_pag);
 
-    return dato_reconstruido;
+    return valor_reconstruido;
 }
 
 uint32_t dato_reconstruido(uint32_t primera, uint32_t segunda, int bytes_primera, int bytes_segunda){
@@ -845,8 +844,8 @@ uint32_t dato_reconstruido(uint32_t primera, uint32_t segunda, int bytes_primera
     void* segunda_ptr = &segunda;
     void* dato_reconstruido_ptr = &dato_reconstruido;
 
-    memcpy(dato_reconstruido_ptr, primera, (size_t)bytes_primera);
-    memcpy(dato_reconstruido_ptr + (size_t)bytes_primera, segunda, (size_t)bytes_segunda);
+    memcpy(dato_reconstruido_ptr, primera_ptr, (size_t)bytes_primera);
+    memcpy(dato_reconstruido_ptr + (size_t)bytes_primera, segunda_ptr, (size_t)bytes_segunda);
 
     return dato_reconstruido;
 }
@@ -880,7 +879,7 @@ void ejecutar_mov_out(char* reg_datos, char* reg_direccion){
             uint32_t dir_fisica = UINT32_MAX;
             bool pagina_en_tlb = se_encuentra_en_tlb(dir_logica, &dir_fisica); 
             if (!pagina_en_tlb)
-                dir_fisica = calcular_direccion_fisica(dir_logica);
+                dir_fisica = calcular_direccion_fisica(dir_logica, cde_ejecutando);
 
             escribir_en_dir_fisica_los_bytes(dir_fisica, 4, valor_a_escribir);
         }
@@ -888,7 +887,7 @@ void ejecutar_mov_out(char* reg_datos, char* reg_direccion){
         uint32_t dir_fisica = UINT32_MAX;
         bool pagina_en_tlb = se_encuentra_en_tlb(dir_logica, &dir_fisica); 
         if (!pagina_en_tlb)
-            dir_fisica = calcular_direccion_fisica(dir_logica);
+            dir_fisica = calcular_direccion_fisica(dir_logica, cde_ejecutando);
 
         escribir_en_dir_fisica_los_bytes(dir_fisica, 1, valor_a_escribir);
     }
@@ -922,7 +921,7 @@ void escribir_y_guardar_en_dos_paginas(uint32_t dir_logica_destino, uint32_t* va
     uint32_t dir_fisica_destino = UINT32_MAX;    
     bool pagina_en_tlb = se_encuentra_en_tlb(dir_logica_destino, &dir_fisica_destino); 
     if (!pagina_en_tlb)
-        dir_fisica_destino = calcular_direccion_fisica(dir_logica_destino);
+        dir_fisica_destino = calcular_direccion_fisica(dir_logica_destino, cde_ejecutando);
 
     escribir_en_dir_fisica_los_bytes(dir_fisica_destino, bytes_a_escribir_primera_pag, valor_parte_1);
 
@@ -930,9 +929,9 @@ void escribir_y_guardar_en_dos_paginas(uint32_t dir_logica_destino, uint32_t* va
     uint32_t dir_logica_segunda_pag = dir_logica_destino + bytes_a_escribir_primera_pag;
 
     uint32_t dir_fisica_destino_segunda_pag = UINT32_MAX;    
-    bool pagina_en_tlb = se_encuentra_en_tlb(dir_logica_segunda_pag, &dir_fisica_destino_segunda_pag); 
+    pagina_en_tlb = se_encuentra_en_tlb(dir_logica_segunda_pag, &dir_fisica_destino_segunda_pag); 
     if (!pagina_en_tlb)
-        dir_fisica_destino_segunda_pag = calcular_direccion_fisica(dir_logica_segunda_pag);
+        dir_fisica_destino_segunda_pag = calcular_direccion_fisica(dir_logica_segunda_pag, cde_ejecutando);
 
     escribir_en_dir_fisica_los_bytes(dir_fisica_destino_segunda_pag, bytes_a_escribir_segunda_pag, valor_parte_2);
 
@@ -944,8 +943,8 @@ void escribir_y_guardar_en_dos_paginas(uint32_t dir_logica_destino, uint32_t* va
 // -------- COPY_STRING ------------------------------
 void ejecutar_copy_string(int tamanio){
 
-    uint32_t dir_logica_string = buscar_valor_registro(registros_cpu->SI);
-    uint32_t dir_logica_destino = buscar_valor_registro(registros_cpu->DI);
+    uint32_t dir_logica_string = buscar_valor_registro("SI");
+    uint32_t dir_logica_destino = buscar_valor_registro("DI");
 
 
     // voy a ir cargando de a 4 bytes siempre y cuando se pueda, por eso se chequea que, ademas de quedar bytes
@@ -968,7 +967,7 @@ void ejecutar_copy_string(int tamanio){
             uint32_t dir_fisica_string = UINT32_MAX;    
             pagina_en_tlb = se_encuentra_en_tlb(dir_logica_string, &dir_fisica_string); 
             if (!pagina_en_tlb)
-                dir_fisica_string = calcular_direccion_fisica(dir_logica_string);            
+                dir_fisica_string = calcular_direccion_fisica(dir_logica_string, cde_ejecutando);            
             leer_de_dir_fisica_los_bytes(dir_fisica_string, 4, &valor_leido);
         }
 
@@ -981,8 +980,8 @@ void ejecutar_copy_string(int tamanio){
             uint32_t dir_fisica_destino = UINT32_MAX;    
             pagina_en_tlb = se_encuentra_en_tlb(dir_logica_destino, &dir_fisica_destino); 
             if (!pagina_en_tlb)
-                dir_fisica_destino = calcular_direccion_fisica(dir_logica_destino);
-            escribir_en_dir_fisica_los_bytes(dir_fisica_destino, 4, &valor_leido);
+                dir_fisica_destino = calcular_direccion_fisica(dir_logica_destino, cde_ejecutando);
+            escribir_en_dir_fisica_los_bytes(dir_fisica_destino, 4, valor_leido);
         }
         
         // consumimos 4 bytes de cada direccion
@@ -1000,7 +999,7 @@ void ejecutar_copy_string(int tamanio){
         uint32_t dir_fisica_string = UINT32_MAX;    
         pagina_en_tlb = se_encuentra_en_tlb(dir_logica_string, &dir_fisica_string); 
         if (!pagina_en_tlb)
-            dir_fisica_string = calcular_direccion_fisica(dir_logica_string);  
+            dir_fisica_string = calcular_direccion_fisica(dir_logica_string, cde_ejecutando);  
         
         leer_de_dir_fisica_los_bytes(dir_fisica_string, 1, &valor_leido);
 
@@ -1008,8 +1007,8 @@ void ejecutar_copy_string(int tamanio){
         uint32_t dir_fisica_destino = UINT32_MAX;    
         pagina_en_tlb = se_encuentra_en_tlb(dir_logica_destino, &dir_fisica_destino); 
         if (!pagina_en_tlb)
-            dir_fisica_destino = calcular_direccion_fisica(dir_logica_destino);
-        escribir_en_dir_fisica_los_bytes(dir_fisica_destino, 1, &valor_leido);
+            dir_fisica_destino = calcular_direccion_fisica(dir_logica_destino, cde_ejecutando);
+        escribir_en_dir_fisica_los_bytes(dir_fisica_destino, 1, valor_leido);
 
         dir_logica_destino ++;
         dir_logica_string ++;
@@ -1083,7 +1082,7 @@ void desalojar_y_agregar(t_pagina_tlb* nueva_pagina){
         pag_a_remover = queue_peek(tlb);
         free(pag_a_remover);
         queue_pop(tlb);
-        queue_push(nueva_pagina);
+        queue_push(tlb, nueva_pagina);
     } else {  // LRU
         t_list* lista_tlb = tlb->elements;
 
@@ -1121,12 +1120,12 @@ int obtenerTiempoEnMiliSegundos(char* tiempo){
 bool se_encuentra_en_tlb(uint32_t dir_logica, uint32_t* dir_fisica){
 
     int nro_pag_buscada = obtener_numero_pagina(dir_logica);
-    int desplazamiento = obtener_desplazamiento_pagina(direccion_logica);
+    int desplazamiento = obtener_desplazamiento_pagina(dir_logica);
     int i = 0;
     bool encontrado = false;
 
-    while (i < list_size(tlb) && !encontrado) {
-        t_pagina_tlb* pagina = list_get(tlb, i);
+    while (i < list_size(tlb->elements) && !encontrado) {
+        t_pagina_tlb* pagina = list_get(tlb->elements, i);
         if (pagina->nroPagina == nro_pag_buscada && pagina->pid == cde_ejecutando->pid){
             log_info(logger_cpu, "PID: %d - TLB HIT - Pagina: %d", cde_ejecutando->pid, nro_pag_buscada);
             log_info(logger_cpu, "PID: %d - OBTENER MARCO - Página: %d - Marco: %d", cde_ejecutando->pid, nro_pag_buscada, pagina->marco);
@@ -1137,7 +1136,7 @@ bool se_encuentra_en_tlb(uint32_t dir_logica, uint32_t* dir_fisica){
     }
 
     if (!encontrado)
-        log_info(logger_cpu, "PID: %ld - TLB MISS - Pagina: %ld", cde_ejecutando->pid, nro_pag_buscada);
+        log_info(logger_cpu, "PID: %d - TLB MISS - Pagina: %d", cde_ejecutando->pid, nro_pag_buscada);
 
     return encontrado;
 }
