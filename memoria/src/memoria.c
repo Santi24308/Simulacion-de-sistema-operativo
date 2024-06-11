@@ -149,7 +149,7 @@ void atender_cpu()
 	retardo_respuesta = config_get_string_value(config_memoria, "RETARDO_RESPUESTA");
 	while (1)
 	{
-		int pedido_cpu = recibir_codigo(socket_cpu);
+		mensajeCpuMem pedido_cpu = recibir_codigo(socket_cpu);
 		switch (pedido_cpu)
 		{
 		case PEDIDO_INSTRUCCION:
@@ -160,6 +160,41 @@ void atender_cpu()
 			break;
 		case NUMERO_MARCO_SOLICITUD:
 			devolver_nro_marco();
+			break;
+		case MOV_IN_SOLICITUD:
+			/*
+				Aca memoria lo que va a recibir es un buffer con lo siguiente
+				[pid | direccion fisica | cant bytes a leer]
+
+				memoria se tiene que setear sobre la direccion con memcpy, copiar la cantidad de bytes pedida
+				y devolver en un buffer un uint32 con lo leido, desde cpu esta todo hecho para que, en el caso
+				de tener que leer de dos paginas distintas un valor, cpu le mande a memoria las direcciones fisicas 
+				necesarias y la cantidad de bytes necesario => memoria NO tiene que chequear si se lee de dos paginas, solo lee
+				lo pedido. Los bytes pueden ser de 1 a 4.
+
+			*/
+			break;
+		case MOV_OUT_SOLICITUD:
+			/*
+				Aca memoria recibe 
+				[pid | direccion fisica | valor a escribir | bytes a escribir]
+
+				memoria tiene que copiar en la direccion, no importa si sobreescribe, la cantidad de bytes del valor a escribir 
+				que se pide, de nuevo, memoria NO tiene que chequear si se escribe en dos paginas distintas, solamente respetar
+				exactamente la cantidad de bytes pedidos, pueden ser de 1 a 4. La logica se hace igual que con mov_in, con memcpy
+
+			*/
+			break;
+		case RESIZE:
+			/*
+				Este es todo de memoria, recibe
+				[pid | tamaño]
+
+				memoria tiene que crear una cantidad de paginas que cubra ese tamaño, redondear para arriba en la division para
+				que cubra toda la capacidad, aca recien se le crean paginas a un proceso en su tabla y tambien los marcos tienen la referencia
+				de esas paginas, si no hay suficientes marcos devolver ERROR_OUT_OF_MEMORY
+
+			*/
 			break;
 		case -1:
 			log_error(logger_memoria, "Se desconecto CPU");

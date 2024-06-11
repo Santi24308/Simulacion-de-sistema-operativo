@@ -725,6 +725,7 @@ void ejecutar_jnz(void* registro, uint32_t nro_instruccion, t_cde* cde){
 void ejecutar_resize(int tamanio, t_cde* cde){
     enviar_codigo(socket_memoria, RESIZE);
     t_buffer* buffer = crear_buffer();
+    buffer_write_uint32(buffer, cde->pid);
     buffer_write_uint32(buffer, tamanio);
     enviar_buffer(buffer, socket_memoria);
     destruir_buffer(buffer);
@@ -751,6 +752,7 @@ void leer_de_dir_fisica_los_bytes(uint32_t dir_fisica, uint32_t bytes, uint32_t*
     *valor_leido = 0; // limpio ante la duda la variable
     enviar_codigo(socket_memoria, MOV_IN);
     t_buffer* buffer = crear_buffer();
+    buffer_write_uint32(buffer, cde_ejecutando->pid);
     buffer_write_uint32(buffer, dir_fisica);
     buffer_write_uint32(buffer, bytes); 
     enviar_buffer(buffer, socket_memoria);
@@ -896,6 +898,7 @@ void ejecutar_mov_out(char* reg_datos, char* reg_direccion){
 void escribir_en_dir_fisica_los_bytes(uint32_t dir_fisica, uint32_t bytes, uint32_t valor_a_escribir){
     enviar_codigo(socket_memoria, MOV_OUT);
     t_buffer* buffer = crear_buffer();
+    buffer_write_uint32(buffer, cde_ejecutando->pid);
     buffer_write_uint32(buffer, dir_fisica);
     buffer_write_uint32(buffer, valor_a_escribir);
     buffer_write_uint32(buffer, bytes); 
