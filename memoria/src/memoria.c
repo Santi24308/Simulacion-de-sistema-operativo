@@ -165,6 +165,43 @@ void atender_cpu()
 			devolver_nro_marco();
 			break;
 		case MOV_IN_SOLICITUD:
+			t_buffer *buffer = recibir_buffer(socket_cpu);
+			uint32_t pid = buffer_read_uint32(buffer);
+			uint32_t dir_fisica = buffer_read_uint32(buffer);
+			uint32_t bytes = buffer_read_uint32(buffer);
+			destruir_buffer(buffer);
+
+			t_memoria_fisica* memfisica; // recibe bien el espacio de memoria?
+
+			if (dir_fisica + bytes > memfisica->espacioMemoria) {
+        	log_error(logger_memoria, "Error: Intento de lectura fuera de los límites de la memoria.\n");
+        	// ¿ Enviar un mensaje de error al CPU ?
+        	break;
+			}
+
+			// IDEA INICIAL PERO SE REQUIERE UN UINT32_T PARA ENVIAR DE RESPUESTA
+			/* void* datos_leidos = malloc(bytes);
+    		if (datos_leidos == NULL) {
+        	log_error(logger_memoria, "Error al asignar memoria para datos leídos.\n");
+        	// ¿ Enviar un mensaje de error al CPU ?
+        	break;
+    		} */
+
+			if (bytes > sizeof(uint32_t)) { // Necesario controlar si pasa los 4 bytes?
+        	log_error(logger_memoria, "Error: Intento de lectura de más de 4 bytes.\n");
+			// ¿ Enviar un mensaje de error al CPU ?
+       		break;
+    		}
+			uint32_t datos_leidos = 0;
+			memcpy(&datos_leidos, memfisica->espacioMemoria + dir_fisica, bytes);
+
+			t_buffer* buffer_respuesta = crear_buffer();
+			buffer_write_uint32(buffer_respuesta,datos_leidos);
+			buffer_write_uint32(buffer_respuesta,bytes);
+    		enviar_buffer(socket_cpu, buffer_respuesta);
+    		destruir_buffer(buffer_respuesta);
+    		free(datos_leidos);
+			
 			/*
 				Aca memoria lo que va a recibir es un buffer con lo siguiente
 				[pid | direccion fisica | cant bytes a leer]
@@ -178,6 +215,35 @@ void atender_cpu()
 			*/
 			break;
 		case MOV_OUT_SOLICITUD:
+			t_buffer *buffer = recibir_buffer(socket_cpu);
+			uint32_t pid = buffer_read_uint32(buffer);
+			uint32_t dir_fisica = buffer_read_uint32(buffer);
+			uint32_t valor_a_escribir = buffer_read_uint32(buffer);
+			uint32_t bytes = buffer_read_uint32(buffer);
+			destruir_buffer(buffer);
+
+			t_memoria_fisica* memfisica; // recibe bien el espacio de memoria?
+
+			if (dir_fisica + bytes > memfisica->espacioMemoria) {
+        	log_error(logger_memoria, "Error: Intento de lectura fuera de los límites de la memoria.\n");
+        	// ¿ Enviar un mensaje de error al CPU ?
+        	break;}
+
+			if (bytes > sizeof(uint32_t)) { // Necesario controlar si pasa los 4 bytes?
+        	log_error(logger_memoria, "Error: Intento de lectura de más de 4 bytes.\n");
+			// ¿ Enviar un mensaje de error al CPU ?
+       		break;
+    		}
+		
+			memcpy(&valor_a_escribir, memfisica->espacioMemoria + dir_fisica, bytes);
+
+			// Necesario enviar de nuevo el buffer?
+			t_buffer* buffer_respuesta = crear_buffer();
+			buffer_write_uint32(buffer_respuesta,valor_a_escribir);
+			buffer_write_uint32(buffer_respuesta,bytes);
+    		enviar_buffer(socket_cpu, buffer_respuesta);
+    		destruir_buffer(buffer_respuesta);
+
 			/*
 				Aca memoria recibe 
 				[pid | direccion fisica | valor a escribir | bytes a escribir]
@@ -187,8 +253,13 @@ void atender_cpu()
 				exactamente la cantidad de bytes pedidos, pueden ser de 1 a 4. La logica se hace igual que con mov_in, con memcpy
 
 			*/
+
 			break;
 		case RESIZE:
+			t_buffer *buffer = recibir_buffer(socket_cpu);
+			uint32_t pid = buffer_read_uint32(buffer);
+			uint32_t tamanio = buffer_read_uint32(buffer);
+			destruir_buffer(buffer);
 			/*
 				Este es todo de memoria, recibe
 				[pid | tamaño]
@@ -568,7 +639,7 @@ uint32_t obtener_marco_libre(){
 			return i;
 	}
 }
-void atender_page_fault(){//caso TLB Miss	
+/* void atender_page_fault(){//caso TLB Miss	
 	t_buffer* buffer = recibir_buffer(socket_cpu);
 	uint32_t nro_pagina = buffer_read_uint32(buffer);
 	uint32_t pid = buffer_read_uint32(buffer);
@@ -596,7 +667,8 @@ void atender_page_fault(){//caso TLB Miss
 	}
 	sem_wait(&sem_pagina_cargada);
 	enviar_codigo(socket_kernel, PAGE_FAULT_OK); // usar PAGE_FAULT de mensajecpumem?
-}
+} 
+*/
 
 void liberar_marco()
 {	
