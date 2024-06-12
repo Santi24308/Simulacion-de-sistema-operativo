@@ -29,20 +29,20 @@ typedef struct{
 typedef struct{
     int nro_pagina;
     int pid;
-    int marco;
-    bool bitPresencia; // bit de presencia    
-    bool bitModificado; // bit de modificado
-    //int tiempo_uso;
-    //int tamanioDisponible;
-    //int fragInterna; // mepa q no
-    //void* direccionInicio;
-    char*  ultimaReferencia; //se puede usar un temporal 
+    int marco; 
 }t_pagina;
 
 typedef struct{
-  int bit_uso; // bit de uso // Estado del marco (libre, ocupado)
+  int bit_uso; // bit de uso 
   t_pagina* paginaAsociada; // Puntero a la página asignada al marco (si está ocupado) y NULL si no esta asociado 
 } t_marco;
+
+typedef struct{
+	char* id;
+	char* tipo;
+	int socket;
+	pthread_t hilo_io;
+}t_interfaz;
 
 char* config_path;
 char* instrucciones_path;
@@ -60,10 +60,10 @@ t_log* logger_memoria;
 t_config* config_memoria;
 t_list* lista_procesos;
 t_list* tabla_de_marcos;
+t_memoria_fisica* memfisica;
 
 pthread_mutex_t mutex_lista_procesos;
-pthread_mutex_t mutexListaTablas;
-pthread_mutex_t mutexBitmapMP;
+pthread_mutex_t mutex_lista_tablas;
 pthread_t hilo_cpu;
 pthread_t hilo_io;
 pthread_t hilo_kernel;

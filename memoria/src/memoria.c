@@ -27,9 +27,19 @@ void inicializar_modulo()
 	levantar_logger();
 	levantar_config();
 
+	memfisica = malloc(total_espacio_memoria); // Tamaño memoria (capaz difiere)
+	if (memfisica == NULL)
+	{
+		log_error(logger_memoria, "MALLOC FAIL para la memoria fisica!\n");
+		free(memfisica);
+		exit(EXIT_FAILURE);
+	}
+
 	lista_procesos = list_create();
 
 	pthread_mutex_init(&mutex_lista_procesos, NULL);
+	pthread_mutex_init(&mutex_lista_tablas, NULL);
+
 	sem_init(&terminar_memoria, 0, 0);
 }
 
@@ -46,10 +56,7 @@ void conectar()
 
 	conectar_cpu();
 	conectar_kernel();
-
-	// hay que hacer que memoria pueda atender multiples IOs como kernel
-
-	// conectar_io();
+	conectar_io();
 	sem_wait(&terminar_memoria);
 }
 
@@ -170,49 +177,23 @@ void atender_cpu()
 			uint32_t dir_fisica = buffer_read_uint32(buffer);
 			uint32_t bytes = buffer_read_uint32(buffer);
 			destruir_buffer(buffer);
-
-			t_memoria_fisica* memfisica; // recibe bien el espacio de memoria?
-
-			if (dir_fisica + bytes > memfisica->espacioMemoria) {
-        	log_error(logger_memoria, "Error: Intento de lectura fuera de los límites de la memoria.\n");
-        	// ¿ Enviar un mensaje de error al CPU ?
-        	break;
-			}
-
-			// IDEA INICIAL PERO SE REQUIERE UN UINT32_T PARA ENVIAR DE RESPUESTA
-			/* void* datos_leidos = malloc(bytes);
+	
+			void* datos_leidos = malloc(bytes);
     		if (datos_leidos == NULL) {
         	log_error(logger_memoria, "Error al asignar memoria para datos leídos.\n");
-        	// ¿ Enviar un mensaje de error al CPU ?
         	break;
-    		} */
-
-			if (bytes > sizeof(uint32_t)) { // Necesario controlar si pasa los 4 bytes?
-        	log_error(logger_memoria, "Error: Intento de lectura de más de 4 bytes.\n");
-			// ¿ Enviar un mensaje de error al CPU ?
-       		break;
     		}
-			uint32_t datos_leidos = 0;
-			memcpy(&datos_leidos, memfisica->espacioMemoria + dir_fisica, bytes);
+			
+			memcpy(datos_leidos, memfisica->espacioMemoria + dir_fisica, bytes);
 
-			t_buffer* buffer_respuesta = crear_buffer();
-			buffer_write_uint32(buffer_respuesta,datos_leidos);
-			buffer_write_uint32(buffer_respuesta,bytes);
+			uint32_t dato = *(uint32_t*) datos_leidos;
+
+ 			t_buffer* buffer_respuesta = crear_buffer();
+			buffer_write_uint32(buffer_respuesta,dato);
     		enviar_buffer(socket_cpu, buffer_respuesta);
     		destruir_buffer(buffer_respuesta);
     		free(datos_leidos);
 			
-			/*
-				Aca memoria lo que va a recibir es un buffer con lo siguiente
-				[pid | direccion fisica | cant bytes a leer]
-
-				memoria se tiene que setear sobre la direccion con memcpy, copiar la cantidad de bytes pedida
-				y devolver en un buffer un uint32 con lo leido, desde cpu esta todo hecho para que, en el caso
-				de tener que leer de dos paginas distintas un valor, cpu le mande a memoria las direcciones fisicas 
-				necesarias y la cantidad de bytes necesario => memoria NO tiene que chequear si se lee de dos paginas, solo lee
-				lo pedido. Los bytes pueden ser de 1 a 4.
-
-			*/
 			break;
 		case MOV_OUT_SOLICITUD:
 			t_buffer *buffer = recibir_buffer(socket_cpu);
@@ -222,37 +203,8 @@ void atender_cpu()
 			uint32_t bytes = buffer_read_uint32(buffer);
 			destruir_buffer(buffer);
 
-			t_memoria_fisica* memfisica; // recibe bien el espacio de memoria?
-
-			if (dir_fisica + bytes > memfisica->espacioMemoria) {
-        	log_error(logger_memoria, "Error: Intento de lectura fuera de los límites de la memoria.\n");
-        	// ¿ Enviar un mensaje de error al CPU ?
-        	break;}
-
-			if (bytes > sizeof(uint32_t)) { // Necesario controlar si pasa los 4 bytes?
-        	log_error(logger_memoria, "Error: Intento de lectura de más de 4 bytes.\n");
-			// ¿ Enviar un mensaje de error al CPU ?
-       		break;
-    		}
 		
-			memcpy(&valor_a_escribir, memfisica->espacioMemoria + dir_fisica, bytes);
-
-			// Necesario enviar de nuevo el buffer?
-			t_buffer* buffer_respuesta = crear_buffer();
-			buffer_write_uint32(buffer_respuesta,valor_a_escribir);
-			buffer_write_uint32(buffer_respuesta,bytes);
-    		enviar_buffer(socket_cpu, buffer_respuesta);
-    		destruir_buffer(buffer_respuesta);
-
-			/*
-				Aca memoria recibe 
-				[pid | direccion fisica | valor a escribir | bytes a escribir]
-
-				memoria tiene que copiar en la direccion, no importa si sobreescribe, la cantidad de bytes del valor a escribir 
-				que se pide, de nuevo, memoria NO tiene que chequear si se escribe en dos paginas distintas, solamente respetar
-				exactamente la cantidad de bytes pedidos, pueden ser de 1 a 4. La logica se hace igual que con mov_in, con memcpy
-
-			*/
+			memcpy(memfisica->espacioMemoria , (void*)&valor_a_escribir , bytes);
 
 			break;
 		case RESIZE:
@@ -260,16 +212,50 @@ void atender_cpu()
 			uint32_t pid = buffer_read_uint32(buffer);
 			uint32_t tamanio = buffer_read_uint32(buffer);
 			destruir_buffer(buffer);
-			/*
-				Este es todo de memoria, recibe
-				[pid | tamaño]
 
-				memoria tiene que crear una cantidad de paginas que cubra ese tamaño, redondear para arriba en la division para
-				que cubra toda la capacidad, aca recien se le crean paginas a un proceso en su tabla y tambien los marcos tienen la referencia
-				de esas paginas, si no hay suficientes marcos devolver ERROR_OUT_OF_MEMORY
+			uint32_t marcos_libres = cantidad_marcos_libres();
+			uint32_t cantidad_paginas_solicitadas = ceil(tamanio / tamanio_paginas);
+			t_proceso* proceso = buscar_proceso(pid);
+			uint32_t tamanio_reservado = size(proceso->tabla_de_paginas) * tamanio_paginas;
+			
+			//CASO REDUCCION
+			if(tamanio < tamanio_reservado){
+				uint32_t diferencia = tamanio_reservado - cantidad_paginas_solicitadas;
+				log_info(logger_memoria , "PID: %d -Tamaño actual: %d -Tamaño a Reducir: %d",pid, tamanio_reservado , tamanio);
+				while(diferencia > 0){
+					uint32_t indice_pagina_a_eliminar = size(list_size(proceso->tabla_de_paginas)) - 1;
+					t_pagina* pagina_a_eliminar = list_get(proceso->tabla_de_paginas, indice_pagina_a_eliminar);
+					destruir_pagina_y_liberar_marco(pagina_a_eliminar);
+					list_remove_element(proceso->tabla_de_paginas, pagina_a_eliminar);
+					diferencia --;
+				}				
+				log_info(logger_memoria, "Se destruyeron paginas del proceso PID: %d - Tamaño %d", pid, diferencia); 
+			} 
 
-			*/
+
+
+			//CASO AMPLIACION
+			else if(tamanio > tamanio_reservado){
+				// se chequea si el proceso ya tenia asignadas paginas previamente, en ese caso solo se crea la diferencia
+				uint32_t pagina_totales_a_crear = cantidad_paginas_solicitadas - tamanio_reservado;
+
+				if(marcos_libres >= pagina_totales_a_crear) { 
+					log_info(logger_memoria, "PID: %d - Tamaño Actual: %d - Tamaño a Ampliar: %d", pid, tamanio_reservado, tamanio);
+					while(cantidad_paginas_solicitadas =! 0 ){
+						uint32_t nro_pagina = list_size(proceso->tabla_de_paginas);
+						crear_pagina_y_asignar_a_pid(nro_pagina, pid);
+						cantidad_paginas_solicitadas --;
+					}
+					//log creacion
+				log_info(logger_memoria, "Se crearon paginas del proceso PID: %d - Tamaño %d", pid, pagina_totales_a_crear); 
+					
+				}
+				else{
+					enviar_codigo(socket_cpu, ERROR_OUT_OF_MEMORY);
+				}
+			}
 			break;
+			
 		case -1:
 			log_error(logger_memoria, "Se desconecto CPU");
 			sem_post(&terminar_memoria);
@@ -280,9 +266,35 @@ void atender_cpu()
 	}
 }
 
-void atender_io()
-{
+void atender_io(){
+	pthread_create(&hilo_esperar_IOs, NULL, (void*) esperarIOs, NULL);
+    pthread_detach(hilo_esperar_IOs);
 }
+
+void esperarIOs(){
+    log_info(logger_memoria, "Esperando que se conecte una IO....");
+    while (1){
+        int socket_io = esperar_cliente(socket_servidor, logger_memoria);
+
+        uint32_t tamanio_id;
+        uint32_t tamanio_tipo;
+        t_buffer* buffer = recibir_buffer(socket_io);
+        char* id = buffer_read_string(buffer, &tamanio_id);
+        char* tipo = buffer_read_string(buffer, &tamanio_tipo);        
+        destruir_buffer(buffer);
+		
+		t_interfaz* interfaz = crear_interfaz(id, tipo, socket_io);
+
+        list_add(interfacesIO, (void*)interfaz);
+
+        conectar_io(&interfaz->hilo_io, &interfaz->socket);
+
+        log_info(logger_memoria, "Se conecto la IO con ID : %s  TIPO: %s", id, tipo);
+
+        //imprimir_ios();
+    }
+} 
+
 
 void iniciar_proceso()
 { // ver atender io de kernel
@@ -480,10 +492,12 @@ void enviar_instruccion()
 
 void terminar_programa()
 {
+	liberarMemoriaPaginacion();
 	if (logger_memoria)
 		log_destroy(logger_memoria);
 	if (config_memoria)
 		config_destroy(config_memoria);
+	
 }
 
 void iterator(char *value)
@@ -533,14 +547,6 @@ void inicializar_paginacion()
 	cant_marcos_ppal = calculoDeCantidadMarcos();
 	log_info(logger_memoria, " el espacio de memoria total es %d", total_espacio_memoria);
 
-	t_memoria_fisica* memfisica = malloc(total_espacio_memoria); // Tamaño memoria (capaz difiere)
-	if (memfisica == NULL)
-	{
-		log_error(logger_memoria, "MALLOC FAIL para la memoria fisica!\n");
-		free(memfisica);
-		exit(EXIT_FAILURE);
-	}
-
 	log_info(logger_memoria, "Tengo %d marcos de %d bytes en memoria principal", cant_marcos_ppal, tamanio_paginas);
 
 	// Inicializamos la memoria a cero
@@ -560,7 +566,6 @@ void inicializar_paginacion()
 
 int calculoDeCantidadMarcos()
 {
-
 	tamanio_paginas = config_get_int_value(config_memoria, "TAM_PAGINA");
 	total_espacio_memoria = config_get_int_value(config_memoria, "TAM_MEMORIA");
 	cantidadDeMarcos = total_espacio_memoria / tamanio_paginas;
@@ -590,7 +595,10 @@ void crear_tabla_global_de_marcos()
 			break; // Si malloc falla, salimos del ciclo para evitar un bucle infinito
 		}
 		inicializarMarco(marco);
+		pthread_mutex_lock(&mutex_lista_tablas);
 		list_add(tabla_de_marcos, marco);
+		pthread_mutex_unlock(&mutex_lista_tablas);
+		
 		log_info(logger_memoria, "Marco %d inicializado y añadido a la tabla", i);
 	}
 
@@ -603,34 +611,23 @@ void inicializarMarco(t_marco *marco)
 	marco->paginaAsociada = NULL;
 }
 
-t_pagina *crear_pagina(int numero_pagina , int pid)
+void crear_pagina_y_asignar_a_pid(int numero_pagina , int pid)
 {
 	t_pagina *pagina = malloc(sizeof(t_pagina));
 	int numeroMarco = obtener_marco_libre();	
 	pagina->nro_pagina = numero_pagina;
 	pagina->pid = pid;
 	pagina->marco = numeroMarco;
-	pagina->bitPresencia = true;
-	pagina->bitModificado = false;
-	pagina->ultimaReferencia = temporal_get_string_time("%H:%M:%S:%MS");
 
 	t_proceso *proceso = buscar_proceso(pid);
 	list_add(proceso->tabla_de_paginas, pagina);
 
-	//mutex tabla_de_marcos??
+	
+	pthread_mutex_lock(&mutex_lista_tablas);
 	list_replace(tabla_de_marcos, numeroMarco,pagina);	
+	pthread_mutex_unlock(&mutex_lista_tablas);
 
-	// EN CASO DE COMUNICACION CON CPU
-	/*enviar_codigo(socket A VER , CREAR_PAGINA_SOLICITUD);
-	t_buffer* buffer = crear_buffer();
-	buffer_write_uint32(buffer, nroPag);
-	buffer_write_uint32(buffer, pagina->pidCreador);
-	enviar_buffer(buffer, socket A VER);
-	destruir_buffer_nuestro(buffer);
-	*/
-	return pagina;
 }
-
 
 uint32_t obtener_marco_libre(){
 	for(int i = 0; i < cantidadDeMarcos; i++){
@@ -639,71 +636,15 @@ uint32_t obtener_marco_libre(){
 			return i;
 	}
 }
-/* void atender_page_fault(){//caso TLB Miss	
-	t_buffer* buffer = recibir_buffer(socket_cpu);
-	uint32_t nro_pagina = buffer_read_uint32(buffer);
-	uint32_t pid = buffer_read_uint32(buffer);
-	uint32_t nroMarco = buffer_read_uint32(buffer);
-	destruir_buffer(buffer);
 
-	if(!hay_marcos_libres())
-	{
-		liberar_marco();
-	}		
-
-	t_pagina* pagAPedir = buscarPaginaPorNroYPid(nro_pagina, pid);
-
-	// no existe entonces es una nueva
-	if(pagAPedir == NULL){
-		//void* dirInicio = memoriaPrincipal + (nroMarco * config_memoria.tam_pagina);
-		
-		pagAPedir = crear_pagina(nro_pagina, pid);
-		log_info(logger_memoria, "SWAP IN - PID: %d - Marco: %d - Page In: %d-%d", pid, nroMarco, pid, nro_pagina);
-				
-		sem_post(&sem_pagina_cargada);
-	}
-	else{
-		//ojo
-	}
-	sem_wait(&sem_pagina_cargada);
-	enviar_codigo(socket_kernel, PAGE_FAULT_OK); // usar PAGE_FAULT de mensajecpumem?
-} 
-*/
-
-void liberar_marco()
-{	
-	t_pagina*  pagina = elegir_pagina_a_matar();//laburo de cpu
-	if(pagina->bitModificado){
-		/*///de sofi///
-		enviar_codigo(socket_file_system, ACTUALIZAR_PAGINA_SOLICITUD);		
-		buffer = crear_buffer_nuestro();
-		buffer_write_uint32(buffer, pag_a_matar->posSwap);
-		buffer_write_pagina(buffer, pag_a_matar->direccionInicio, config_memoria.tam_pagina);
-		enviar_buffer(buffer, socket_file_system);
-		destruir_buffer_nuestro(buffer);*/
-	}	
-	pagina->bitPresencia = false;	
+void destruir_pagina_y_liberar_marco(t_pagina* pagina)
+{		
 	uint32_t nroMarco = pagina->marco;
-	vaciar_marco(nroMarco);
-	/*Creación / destrucción de Tabla de Páginas: “PID: <PID> - Tamaño: <CANTIDAD_PAGINAS>”*/
-} 
-
-t_pagina* elegir_pagina_a_matar() ////CPU////
-{	
-	enviar_codigo(socket_cpu, LIBERAR_MARCO); //revisar 
-	t_buffer *buffer_recibido = recibir_buffer(socket_cpu);
-	uint32_t pid = buffer_read_uint32(buffer_recibido);
-	uint32_t nro_pagina = buffer_read_uint32(buffer_recibido);
-	t_pagina* pagina = buscarPaginaPorNroYPid(nro_pagina, pid);	
-	destruir_buffer(buffer_recibido);
-	return pagina;
-}
-
-void vaciar_marco(uint32_t nro_marco){		
 	t_marco* marco = list_get(tabla_de_marcos,nro_marco);
 	marco->bit_uso = 0;
-	marco->paginaAsociada = NULL;
-}
+	marco->paginaAsociada = NULL;		
+	free(pagina);
+} 
 
 t_pagina* buscarPaginaPorNroYPid(uint32_t nroPag, uint32_t pid){
 
@@ -717,26 +658,18 @@ t_pagina* buscarPaginaPorNroYPid(uint32_t nroPag, uint32_t pid){
 	return NULL;
 }
 
-bool hay_marcos_libres(){
+int cantidad_marcos_libres(){
+	int j = 0;
 	for(int i = 0; i < cantidadDeMarcos; i++){
 		t_pagina* pagina = list_get(tabla_de_marcos, i);
-		if(pagina == NULL)
-			return true;
+		if(pagina == NULL) {
+			j++;
+		}
 	}
-	return false;
+	return j;
 }
 
 // EVALUAR SI ES NECESARIO USAR ESTAS FUNCIONES EN OTRO MODULO PARA PORNERLA EN LIBRERIA COMUN//
-char *asignarMemoriaBits(int bits)
-{
-	char *aux;
-	int bytes;
-	bytes = bitsToBytes(bits);
-	// printf("BYTES: %d\n", bytes);
-	aux = malloc(bytes);
-	memset(aux, 0, bytes);
-	return aux;
-}
 
 int bitsToBytes(int bits)
 {
@@ -750,55 +683,13 @@ int bitsToBytes(int bits)
 	}
 	return bytes;
 }
-// EVALUAR SI ES NECESARIO USAR ESTAS FUNCIONES EN OTRO MODULO PARA PORNERLA EN LIBRERIA COMUN//
 
 void liberarMemoriaPaginacion()
-{ // esto hay que agregarlo en nuestro terminar_programa
-
-	// bitarray_destroy(frames_ocupados_ppal);
+{ 
+	
 	// free(memoriaReservada);
-	pthread_mutex_lock(&mutexListaTablas);
+	pthread_mutex_lock(&mutex_lista_tablas);
 	list_destroy(tabla_de_marcos);
-	pthread_mutex_unlock(&mutexListaTablas);
+	pthread_mutex_unlock(&mutex_lista_tablas);
 }
 
-//// FUNCIONES QUE MUY PROBABLEMENTE USEMOS.
-/*
-void escribir_pagina(uint32_t posEnMemoria, void* pagina){
-	memcpy(memoriaPrincipal + posEnMemoria, pagina, config_memoria.tam_pagina);
-}
-
-void* leer_pagina(uint32_t posEnMemoria){
-	return (memoriaPrincipal + posEnMemoria);
-}
-
-void setModificado(t_pagina* pagina){
-	pagina->modificado = 1;
-}
-int pagina_presente(t_pagina* pagina){
-	return (pagina->presencia == 1);
-}
-bool lugar_disponible(int paginasNecesarias){ // ver si es necesario
-	int cantFramesLibresPpal = memoriaDisponiblePag();
-	if(cantFramesLibresPpal>= paginasNecesarias){
-		return 1;
-	}else{
-		return 0;
-	}
-}
-int memoriaDisponiblePag(int mem){
-	int espaciosLibres = 0;
-	int desplazamiento = 0;
-	if(mem){
-		while(desplazamiento < cant_marcos_ppal){
-			pthread_mutex_lock(&mutexBitmapMP);
-			if(bitarray_test_bit(frames_ocupados_ppal,desplazamiento) == 0){
-				espaciosLibres++;
-			}
-			pthread_mutex_unlock(&mutexBitmapMP);
-			desplazamiento++;
-		}
-	}
-	return espaciosLibres;
-}
-*/

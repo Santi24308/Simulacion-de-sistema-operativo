@@ -35,15 +35,17 @@ void inicializar_paginacion();
 int calculoDeCantidadMarcos();
 void crear_tabla_global_de_marcos();
 void inicializarMarco(t_marco*);
-t_pagina* crear_pagina(int ,int , bool , bool );
+void crear_pagina_y_asignar_a_pid(int, int);
 char* asignarMemoriaBits(int);
 int bitsToBytes(int);
 void liberarMemoriaPaginacion();
 void devolver_nro_marco();
 uint32_t obtener_marco_libre();
-void atender_page_fault();
-bool hay_marcos_libres();
-t_pagina* elegir_pagina_a_matar();
+int cantidad_marcos_libres();
+void crear_pagina_y_asignar_a_pid(int , int);
+void destruir_pagina_y_liberar_marco(t_pagina* );
+t_list* interfacesIO;
+
 
 
 
