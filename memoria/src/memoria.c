@@ -46,6 +46,9 @@ void conectar()
 
 	conectar_cpu();
 	conectar_kernel();
+
+	// hay que hacer que memoria pueda atender multiples IOs como kernel
+
 	// conectar_io();
 	sem_wait(&terminar_memoria);
 }

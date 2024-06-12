@@ -88,7 +88,8 @@ void atender_kernel_stdin(){
 		codigoInstruccion cod = recibir_codigo(socket_kernel);
 		switch (cod){
 			case IO_STDIN_READ:
-					leer_y_enviar_a_memoria();
+					ejecutar_std_in();
+					//leer_y_enviar_a_memoria();
 				break;	
 			case -1:
 				log_info(logger_io, "Se desconecto Kernel");
@@ -103,7 +104,8 @@ void atender_kernel_stdout(){
 		codigoInstruccion cod = recibir_codigo(socket_kernel);
 		switch (cod){
 			case IO_STDOUT_WRITE:
-				leer_y_mostrar_resultado();
+				ejecutar_std_out();
+				//leer_y_mostrar_resultado();
 				break;	
 			case -1:
 				log_info(logger_io, "Se desconecto Kernel");
@@ -149,6 +151,52 @@ void atender(){
 		log_error(logger_io, "El tipo de I/O indicado en config es incorrecto, terminando programa...");
 }
 
+void ejecutar_std_in(){
+	t_buffer* buffer = recibir_buffer(socket_kernel);
+	uint32_t pid = buffer_read_uint32(buffer);
+	t_instruccion* instruccion = buffer_read_instruccion(buffer);
+	destruir_buffer(buffer);
+
+	int limite_bytes = atoi(instruccion->parametro3);
+
+	char* leido = readline("> ");
+
+	void* valor_a_escribir = malloc(limite_bytes);
+
+	memcpy(valor_a_escribir, leido, limite_bytes);
+
+	enviar_codigo(socket_memoria, IO_STDIN_ESCRIBIR);
+	buffer = crear_buffer();
+	buffer_write_uint32(buffer, pid);
+	buffer_write_uint32(buffer, (uint32_t)atoi(instruccion->parametro2)); // direccion
+	buffer_write_string(buffer, (char*)valor_a_escribir);
+	buffer_write_uint32(buffer, (uint32_t)limite_bytes);
+	enviar_buffer(buffer, socket_memoria);
+	destruir_buffer(buffer);
+}
+
+void ejecutar_std_out(){
+	t_buffer* buffer = recibir_buffer(socket_kernel);
+	uint32_t pid = buffer_read_uint32(buffer);
+	t_instruccion* instruccion = buffer_read_instruccion(buffer);
+	destruir_buffer(buffer);
+
+	enviar_codigo(socket_memoria, IO_STDOUT_LEER);
+	buffer = crear_buffer();
+	buffer_write_uint32(buffer, pid);
+	buffer_write_uint32(buffer, (uint32_t)atoi(instruccion->parametro2));
+	buffer_write_uint32(buffer, (uint32_t)atoi(instruccion->parametro3));
+	enviar_buffer(buffer, socket_memoria);
+	destruir_buffer(buffer);
+
+	uint32_t tam = 0;
+	buffer = recibir_buffer(socket_memoria);
+	char* valor_a_mostrar = buffer_read_string(buffer, &tam);
+	destruir_buffer(buffer);
+
+	printf("%s", valor_a_mostrar);
+}
+
 // esto ya no es del checkpoint 2
 void leer_y_enviar_a_memoria(){
 	enviar_codigo(socket_memoria, GUARDAR_EN_DIRECCION);
@@ -170,6 +218,7 @@ void leer_y_enviar_a_memoria(){
 	destruir_buffer(buffer_recibido);
 	destruir_buffer(buffer_a_enviar);
 }
+/*
 void leer_y_mostrar_resultado(){
 
 	//falta saber cual es la direccion que quiero leer
@@ -199,6 +248,7 @@ void leer_y_mostrar_resultado(){
 	free(contenido_a_imprimir);
 
 }
+*/
 //--------------------------------------------------------------------------------------------------------------
 
 
