@@ -66,6 +66,7 @@ pthread_mutex_t mutex_lista_procesos;
 pthread_mutex_t mutex_lista_tablas;
 pthread_t hilo_cpu;
 pthread_t hilo_io;
+pthread_t hilo_esperar_IOs;
 pthread_t hilo_kernel;
 
 pthread_mutex_t sem_pagina_cargada; 

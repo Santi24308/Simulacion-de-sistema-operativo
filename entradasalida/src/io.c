@@ -165,12 +165,12 @@ void ejecutar_std_in(){
 
 	memcpy(valor_a_escribir, leido, limite_bytes);
 
-	enviar_codigo(socket_memoria, IO_STDIN_ESCRIBIR);
+	enviar_codigo(socket_memoria, IO_STDIN_READ);
 	buffer = crear_buffer();
 	buffer_write_uint32(buffer, pid);
 	buffer_write_uint32(buffer, (uint32_t)atoi(instruccion->parametro2)); // direccion
-	buffer_write_string(buffer, (char*)valor_a_escribir);
 	buffer_write_uint32(buffer, (uint32_t)limite_bytes);
+	buffer_write_string(buffer, (char*)valor_a_escribir);
 	enviar_buffer(buffer, socket_memoria);
 	destruir_buffer(buffer);
 }
@@ -181,7 +181,7 @@ void ejecutar_std_out(){
 	t_instruccion* instruccion = buffer_read_instruccion(buffer);
 	destruir_buffer(buffer);
 
-	enviar_codigo(socket_memoria, IO_STDOUT_LEER);
+	enviar_codigo(socket_memoria, IO_STDOUT_WRITE);
 	buffer = crear_buffer();
 	buffer_write_uint32(buffer, pid);
 	buffer_write_uint32(buffer, (uint32_t)atoi(instruccion->parametro2));
@@ -198,7 +198,7 @@ void ejecutar_std_out(){
 }
 
 // esto ya no es del checkpoint 2
-void leer_y_enviar_a_memoria(){
+/*void leer_y_enviar_a_memoria(){
 	enviar_codigo(socket_memoria, GUARDAR_EN_DIRECCION);
 
 	// primero leo la direccion que me llego de kernel
@@ -218,7 +218,7 @@ void leer_y_enviar_a_memoria(){
 	destruir_buffer(buffer_recibido);
 	destruir_buffer(buffer_a_enviar);
 }
-/*
+
 void leer_y_mostrar_resultado(){
 
 	//falta saber cual es la direccion que quiero leer
@@ -261,6 +261,8 @@ void conectar_memoria(){
 		terminar_programa();
         exit(EXIT_FAILURE);
     }
+
+	//io manda buffer a memoria?
 }
 
 void conectar_kernel(){

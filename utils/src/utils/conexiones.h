@@ -20,9 +20,7 @@
 // AGREGAR LOS PROTOCOLOS
 
 // prototipo de protocolo entre memoria e IO
-typedef enum{
-	GUARDAR_EN_DIRECCION,
-	LEER_DIRECCION,
+typedef enum{	
 	IO_STDIN_ESCRIBIR,
 	IO_STDOUT_LEER
 }mensajeIOMemoria;
