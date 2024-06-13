@@ -217,10 +217,11 @@ void atender_cpu()
 			uint32_t cantidad_paginas_solicitadas = ceil(tamanio / tamanio_paginas);
 			t_proceso* proceso = buscar_proceso(pid);
 			uint32_t tamanio_reservado = size(proceso->tabla_de_paginas) * tamanio_paginas;
+			uint32_t tamanio_reservado_en_paginas = size(proceso->tabla_de_paginas);
 			
 			//CASO REDUCCION
 			if(tamanio < tamanio_reservado){
-				uint32_t diferencia = tamanio_reservado - cantidad_paginas_solicitadas;
+				uint32_t diferencia = tamanio_reservado_en_paginas - cantidad_paginas_solicitadas;
 				log_info(logger_memoria , "PID: %d -Tamaño actual: %d -Tamaño a Reducir: %d",pid, tamanio_reservado , tamanio);
 				while(diferencia > 0){
 					uint32_t indice_pagina_a_eliminar = size(list_size(proceso->tabla_de_paginas)) - 1;
@@ -237,7 +238,7 @@ void atender_cpu()
 			//CASO AMPLIACION
 			else if(tamanio > tamanio_reservado){
 				// se chequea si el proceso ya tenia asignadas paginas previamente, en ese caso solo se crea la diferencia
-				uint32_t pagina_totales_a_crear = cantidad_paginas_solicitadas - tamanio_reservado;
+				uint32_t pagina_totales_a_crear = cantidad_paginas_solicitadas - tamanio_reservado_en_paginas;
 
 				if(marcos_libres >= pagina_totales_a_crear) { 
 					log_info(logger_memoria, "PID: %d - Tamaño Actual: %d - Tamaño a Ampliar: %d", pid, tamanio_reservado, tamanio);
