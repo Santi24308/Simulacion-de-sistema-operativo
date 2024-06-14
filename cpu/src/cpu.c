@@ -468,6 +468,7 @@ void ejecutar_instruccion(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
             break;
         case RESIZE:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1);
+            ejecutar_resize(atoi(instruccion_a_ejecutar->parametro1), cde);
             break;
         case WAIT:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1);
@@ -752,7 +753,6 @@ void leer_de_dir_fisica_los_bytes(uint32_t dir_fisica, uint32_t bytes, uint32_t*
     *valor_leido = 0; // limpio ante la duda la variable
     enviar_codigo(socket_memoria, MOV_IN);
     t_buffer* buffer = crear_buffer();
-    buffer_write_uint32(buffer, cde_ejecutando->pid);
     buffer_write_uint32(buffer, dir_fisica);
     buffer_write_uint32(buffer, bytes); 
     enviar_buffer(buffer, socket_memoria);
@@ -898,7 +898,6 @@ void ejecutar_mov_out(char* reg_datos, char* reg_direccion){
 void escribir_en_dir_fisica_los_bytes(uint32_t dir_fisica, uint32_t bytes, uint32_t valor_a_escribir){
     enviar_codigo(socket_memoria, MOV_OUT);
     t_buffer* buffer = crear_buffer();
-    buffer_write_uint32(buffer, cde_ejecutando->pid);
     buffer_write_uint32(buffer, dir_fisica);
     buffer_write_uint32(buffer, valor_a_escribir);
     buffer_write_uint32(buffer, bytes); 

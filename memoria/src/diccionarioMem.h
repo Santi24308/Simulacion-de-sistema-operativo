@@ -41,7 +41,6 @@ typedef struct{
 	char* id;
 	char* tipo;
 	int socket;
-	bool ocupada;
 	pthread_t hilo_io;
 }t_interfaz;
 
@@ -50,7 +49,6 @@ char* instrucciones_path;
 char* puerto_escucha; 
 char* retardo_respuesta;
 int socket_servidor;
-int socket_io;
 int socket_cpu;
 int socket_kernel;
 int cant_marcos_ppal;
@@ -62,6 +60,8 @@ t_config* config_memoria;
 t_list* lista_procesos;
 t_list* tabla_de_marcos;
 t_memoria_fisica* memfisica;
+
+t_list* interfacesIO;
 
 pthread_mutex_t mutex_lista_procesos;
 pthread_mutex_t mutex_lista_tablas;

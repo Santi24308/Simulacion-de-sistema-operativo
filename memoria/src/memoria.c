@@ -61,7 +61,6 @@ void conectar()
 	pthread_create(&hilo_esperar_IOs, NULL, (void *)esperarIOs, NULL);
 	pthread_detach(hilo_esperar_IOs);
 
-	sem_wait(&terminar_memoria);
 }
 
 void levantar_logger()
@@ -98,31 +97,6 @@ void conectar_kernel()
 	}
 	pthread_detach(hilo_kernel);
 }
-/*
-void esperarIOs()
-{
-	log_info(logger_memoria, "Esperando que se conecte una IO....");
-	while (1)
-	{
-		int socket_io = esperar_cliente(socket_servidor, logger_memoria);
-		// io manda buffer?
-		uint32_t tamanio_nombre;
-		uint32_t tamanio_tipo;
-		t_buffer *buffer = recibir_buffer(socket_io);
-		char *nombre = buffer_read_string(buffer, &tamanio_nombre);
-		char *tipo = buffer_read_string(buffer, &tamanio_tipo);
-		destruir_buffer(buffer);
-
-		t_interfaz *interfaz = crear_interfaz(nombre, tipo, socket_io);
-
-		list_add(interfacesIO, (void *)interfaz);
-
-		conectar_io(&interfaz->hilo_io, &interfaz->socket);
-
-		// log_info(logger_memoria, "Se conecto la IO con ID (nombre): %s  TIPO: %s", nombre, tipo);
-	}
-} */
-
 
 void conectar_io(pthread_t *hilo_io, int *socket_io)
 {
@@ -197,8 +171,7 @@ void atender_cpu()
 			devolver_nro_marco();
 			break;
 		case MOV_IN_SOLICITUD:
-			t_buffer *buffer_mov_in = recibir_buffer(socket_cpu);
-			uint32_t pid_mov_in = buffer_read_uint32(buffer_mov_in);
+			t_buffer *buffer_mov_in = recibir_buffer(socket_cpu);			
 			uint32_t dir_fisica_mov_in = buffer_read_uint32(buffer_mov_in);
 			uint32_t bytes_mov_in = buffer_read_uint32(buffer_mov_in);
 			destruir_buffer(buffer_mov_in);
@@ -223,13 +196,12 @@ void atender_cpu()
 			break;
 		case MOV_OUT_SOLICITUD:
 			t_buffer *buffer_mov_out = recibir_buffer(socket_cpu);
-			uint32_t pid_mov_out = buffer_read_uint32(buffer_mov_out);
 			uint32_t dir_fisica_mov_out = buffer_read_uint32(buffer_mov_out); // No se usa 
 			uint32_t valor_a_escribir = buffer_read_uint32(buffer_mov_out);
 			uint32_t bytes_mov_out = buffer_read_uint32(buffer_mov_out);
 			destruir_buffer(buffer_mov_out);
 
-			memcpy(memfisica->espacioMemoria, (void *)&valor_a_escribir, bytes_mov_out);
+			memcpy(memfisica->espacioMemoria+dir_fisica_mov_out, (void *)&valor_a_escribir, bytes_mov_out);
 
 			break;
 		case RESIZE_SOLICITUD:
@@ -269,7 +241,7 @@ void atender_cpu()
 				if (marcos_libres >= pagina_totales_a_crear)
 				{
 					log_info(logger_memoria, "PID: %d - Tamaño Actual: %d - Tamaño a Ampliar: %d", pid_resize, tamanio_reservado, tamanio);
-					while (cantidad_paginas_solicitadas = !0)
+					while (cantidad_paginas_solicitadas != 0)
 					{
 						uint32_t nro_pagina = list_size(proceso->tabla_de_paginas);
 						crear_pagina_y_asignar_a_pid(nro_pagina, pid_resize);
@@ -283,6 +255,7 @@ void atender_cpu()
 					enviar_codigo(socket_cpu, ERROR_OUT_OF_MEMORY);
 				}
 			}
+
 			break;
 
 		case -1:
@@ -298,16 +271,9 @@ void atender_cpu()
 void atender_io(void *socket_io)
 {
 	int socket_interfaz_io = *((int *)socket_io);
-	while (1)
-	{
-		t_buffer *buffer = NULL;
-		char *id_interfaz = NULL;
-		t_interfaz *interfaz = NULL;
-		uint32_t tamanio = 0;
-		int indice = -1;
+	while (1){
 		codigoInstruccion codigo = recibir_codigo(socket_interfaz_io);
-		switch (codigo)
-		{
+		switch (codigo){
 		case IO_STDIN_READ:
 			ejecutar_io_stdin(socket_interfaz_io);
 			break;
@@ -366,7 +332,7 @@ void ejecutar_io_stdin(int socket_interfaz_io)
 		}
 		t_pagina *pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica, pid);
 		uint32_t direccion_fisica_nueva = recalcular_direccion_fisica(pagina_siguiente);
-		memcpy(memfisica->espacioMemoria + direccion_fisica, valor_a_escribir + desplazamiento_string, bytes_a_copiar);
+		memcpy(memfisica->espacioMemoria + direccion_fisica_nueva, valor_a_escribir + desplazamiento_string, bytes_a_copiar);
 	}
 }
 
@@ -413,9 +379,58 @@ void ejecutar_io_stdout(int socket_interfaz_io)
 	uint32_t bytes_a_leer = buffer_read_uint32(buffer);
 	destruir_buffer(buffer);
 
-	// mandar por buffer
-	{
+	buffer = crear_buffer();
+
+	char* valor_a_leer = malloc((size_t)bytes_a_leer);
+	int bytes_usados = 0;
+	int desplazamiento = obtener_desplazamiento_pagina(direccion_fisica);
+	int bytes_restantes = bytes_a_leer; 
+
+	// si el desplazamiento es distinto de cero leemos hasta terminar la pagina
+	if (desplazamiento != 0){
+		bytes_usados = tamanio_paginas - desplazamiento;
+		memcpy(valor_a_leer, memfisica->espacioMemoria+direccion_fisica, bytes_usados);
+		
+		bytes_restantes = bytes_a_leer - bytes_usados;
+		
+		// caso en donde leyendo de la primer pagina ya completamos la solicitud
+		if (bytes_restantes == 0) {
+			buffer_write_string(buffer, valor_a_leer);
+			enviar_buffer(buffer, socket_interfaz_io);
+			destruir_buffer(buffer);
+			free(valor_a_leer);
+			return;
+		}
 	}
+
+	// una vez completada la primera pagina seguimos leyendo la cantidad de bytes de una pagina completa
+	// hasta que no se pueda mas
+
+	t_pagina *pagina_siguiente = NULL;
+	uint32_t direccion_fisica_nueva = UINT32_MAX;
+
+	while (bytes_restantes != 0 && bytes_restantes >= tamanio_paginas){
+		pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica, pid);
+		direccion_fisica_nueva = recalcular_direccion_fisica(pagina_siguiente);
+		memcpy(valor_a_leer+bytes_usados, memfisica->espacioMemoria+direccion_fisica_nueva, tamanio_paginas);
+		
+		bytes_usados += tamanio_paginas;
+		bytes_restantes -= tamanio_paginas;
+	}
+
+	// si sobraron bytes leemos esa cantidad 
+
+	if (bytes_restantes != 0){
+		pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica, pid);
+		direccion_fisica_nueva = recalcular_direccion_fisica(pagina_siguiente);
+		memcpy(valor_a_leer+bytes_usados, memfisica->espacioMemoria+direccion_fisica_nueva, bytes_restantes);
+	}
+
+	buffer_write_string(buffer, valor_a_leer);
+	enviar_buffer(buffer, socket_interfaz_io);
+	destruir_buffer(buffer);
+	free(valor_a_leer);
+	return;
 }
 
 //char *reconstruir_dato(void *parte1, void *parte2, uint32_t tamanio1, uint32_t tamanio2)
@@ -423,11 +438,9 @@ void ejecutar_io_stdout(int socket_interfaz_io)
 //}
 
 /*Acceso a espacio de usuario: “PID: <PID> - Accion: <LEER / ESCRIBIR> - Direccion fisica: <DIRECCION_FISICA>” - Tamaño <TAMAÑO A LEER / ESCRIBIR>*/
-void esperarIOs()
-{
+void esperarIOs() {
 	log_info(logger_memoria, "Esperando que se conecte una IO....");
-	while (1)
-	{
+	while (1){
 		int socket_io = esperar_cliente(socket_servidor, logger_memoria);
 
 		uint32_t tamanio_id;
@@ -456,10 +469,7 @@ t_interfaz* crear_interfaz(char* nombre, char* tipo, int socket){
     string_append(&interfaz->id, nombre);
     interfaz->tipo = string_new();
     string_append(&interfaz->tipo, tipo);
-    interfaz->socket = socket_io;
-    interfaz->ocupada = false;
-    //interfaz->pcb_ejecutando = NULL;
-    //interfaz->pcb_esperando = queue_create();
+    interfaz->socket = socket;
 
     return interfaz;
 }
@@ -534,6 +544,7 @@ t_proceso *crear_proceso(uint32_t pid, t_list *lista_instrucciones)
 	t_proceso *proceso = malloc(sizeof(t_proceso));
 	proceso->pid = pid;
 	proceso->lista_instrucciones = lista_instrucciones;
+	proceso->tabla_de_paginas = list_create();
 	// Apenas arranca va a ser 0, despues se hace el resize
 	// proceso->cantMaxMarcos = tamanio / config_memoria.tam_pagina;
 	return proceso;

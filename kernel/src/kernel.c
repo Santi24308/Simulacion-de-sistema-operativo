@@ -12,9 +12,6 @@ int main(int argc, char* argv[]) {
 	inicializar_modulo();
 	conectar();
 
-    while (list_size(interfacesIO) == 0);
-    
-	
     consola();
     //iniciar_proceso("instruccionesP4.txt");
     //iniciar_proceso("instruccionesP5.txt");
