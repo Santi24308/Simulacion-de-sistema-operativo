@@ -262,7 +262,11 @@ void conectar_memoria(){
         exit(EXIT_FAILURE);
     }
 
-	//io manda buffer a memoria?
+	t_buffer* buffer= crear_buffer();
+	buffer_write_string(buffer, nombreIO);
+	buffer_write_string(buffer, tipo);
+	enviar_buffer(buffer,socket_memoria);
+	destruir_buffer(buffer);
 }
 
 void conectar_kernel(){

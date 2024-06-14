@@ -45,6 +45,14 @@ int cantidad_marcos_libres();
 void crear_pagina_y_asignar_a_pid(int , int);
 void destruir_pagina_y_liberar_marco(t_pagina* );
 t_list* interfacesIO;
+void esperarIOs();
+t_interfaz* crear_interfaz(char* , char* , int );
+void ejecutar_io_stdin(int );
+void ejecutar_io_stdout(int );
+t_pagina *obtener_pagsig_de_dirfisica(uint32_t , uint32_t );
+uint32_t recalcular_direccion_fisica(t_pagina*);
+int obtener_numero_marco(int );
+int obtener_desplazamiento_pagina(int );
 
 
 

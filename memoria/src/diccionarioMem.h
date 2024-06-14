@@ -41,6 +41,7 @@ typedef struct{
 	char* id;
 	char* tipo;
 	int socket;
+	bool ocupada;
 	pthread_t hilo_io;
 }t_interfaz;
 
