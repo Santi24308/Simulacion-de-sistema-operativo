@@ -213,8 +213,14 @@ void atender_cpu()
 			uint32_t marcos_libres = cantidad_marcos_libres();
 			uint32_t cantidad_paginas_solicitadas = ceil(tamanio / tamanio_paginas);
 			t_proceso *proceso = buscar_proceso(pid_resize);
-			uint32_t tamanio_reservado = sizeof(proceso->tabla_de_paginas) * tamanio_paginas;
-			uint32_t tamanio_reservado_en_paginas = sizeof(proceso->tabla_de_paginas);
+			uint32_t tamanio_reservado = list_size(proceso->tabla_de_paginas) * tamanio_paginas;
+			uint32_t tamanio_reservado_en_paginas = list_size(proceso->tabla_de_paginas);
+
+			// este caso igual no tendia sentido que pase pero ante la duda
+			if (tamanio == tamanio_reservado) {
+				enviar_codigo(socket_cpu, PEDIDO_OK);
+				return;
+			}
 
 			// CASO REDUCCION
 			if (tamanio < tamanio_reservado)
@@ -223,7 +229,7 @@ void atender_cpu()
 				log_info(logger_memoria, "PID: %d -Tamaño actual: %d -Tamaño a Reducir: %d", pid_resize, tamanio_reservado, tamanio);
 				while (diferencia > 0)
 				{
-					uint32_t indice_pagina_a_eliminar = sizeof(list_size(proceso->tabla_de_paginas)) - 1;
+					int indice_pagina_a_eliminar = list_size(proceso->tabla_de_paginas) - 1;
 					t_pagina *pagina_a_eliminar = list_get(proceso->tabla_de_paginas, indice_pagina_a_eliminar);
 					destruir_pagina_y_liberar_marco(pagina_a_eliminar);
 					list_remove_element(proceso->tabla_de_paginas, pagina_a_eliminar);
@@ -255,6 +261,8 @@ void atender_cpu()
 					enviar_codigo(socket_cpu, ERROR_OUT_OF_MEMORY);
 				}
 			}
+
+			enviar_codigo(socket_cpu, PEDIDO_OK);
 
 			break;
 
@@ -844,9 +852,8 @@ int cantidad_marcos_libres()
 	int j = 0;
 	for (int i = 0; i < cantidadDeMarcos; i++)
 	{
-		t_pagina *pagina = list_get(tabla_de_marcos, i);
-		if (pagina == NULL)
-		{
+		t_marco* marco = list_get(tabla_de_marcos, i);
+		if (marco->paginaAsociada == NULL){
 			j++;
 		}
 	}

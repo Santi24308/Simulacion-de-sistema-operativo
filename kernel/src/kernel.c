@@ -319,7 +319,6 @@ t_pcb* crear_pcb(char* path){
 
 	//Inicializo el quantum, pid y el PC
     pcb_creado->cde->pid = pid_a_asignar; // arranca en 0 y va sumando 1 cada vez que se crea un pcb
-    pcb_creado->cde->pc = 0;
     pcb_creado->cde->motivo_desalojo = NO_DESALOJADO;
     pcb_creado->cde->motivo_finalizacion = NO_FINALIZADO;
 
@@ -454,15 +453,6 @@ void iniciar_proceso(char* path){
 
 	//Recibo la respuesta de la memoria
     mensajeMemoriaKernel cod_op = recibir_codigo(socket_memoria);
-    /*
-    if (cod_op == INICIAR_PROCESO_OK){
-        printf("\nMEMORIA CREO CORRECTAMENTE EL PROCESO\n");
-        pcb_en_ejecucion = pcb_a_new;
-       // enviar_cde_a_cpu();
-    } else if (cod_op == INICIAR_PROCESO_ERROR) {
-        printf("\nERROR AL CREAR EL PROCESO DESDE MEMORIA\n");
-    } */
-
 
     if(cod_op == INICIAR_PROCESO_OK){
         // Poner en new

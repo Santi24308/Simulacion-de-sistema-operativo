@@ -92,6 +92,7 @@ void inicializar_registros(){
 	registros_cpu->EDX = 0;
 	registros_cpu->SI = 0;
 	registros_cpu->DI = 0;
+    registros_cpu->PC = 0;
 }
 
 void inicializarSemaforos(){
@@ -266,31 +267,33 @@ uint32_t buscar_valor_registro(char* registro) {
 	return 0;
 }
 
-void cargar_registros(t_cde* cde){
-    registros_cpu->AX = cde->registros->AX;
-    registros_cpu->BX = cde->registros->BX;
-    registros_cpu->CX = cde->registros->CX;
-    registros_cpu->DX = cde->registros->DX;
-	registros_cpu->EAX = cde->registros->EAX;
-	registros_cpu->EBX = cde->registros->EBX;
-	registros_cpu->ECX = cde->registros->ECX;
-	registros_cpu->EDX = cde->registros->EDX;
-	registros_cpu->SI = cde->registros->SI;
-	registros_cpu->DI = cde->registros->DI;
+void cargar_registros(){
+    registros_cpu->AX = cde_ejecutando->registros->AX;
+    registros_cpu->BX = cde_ejecutando->registros->BX;
+    registros_cpu->CX = cde_ejecutando->registros->CX;
+    registros_cpu->DX = cde_ejecutando->registros->DX;
+	registros_cpu->EAX = cde_ejecutando->registros->EAX;
+	registros_cpu->EBX = cde_ejecutando->registros->EBX;
+	registros_cpu->ECX = cde_ejecutando->registros->ECX;
+	registros_cpu->EDX = cde_ejecutando->registros->EDX;
+	registros_cpu->SI = cde_ejecutando->registros->SI;
+	registros_cpu->DI = cde_ejecutando->registros->DI;
+    registros_cpu->PC = cde_ejecutando->registros->PC;
 }
 
 
-void guardar_registros(t_cde* cde){
-    cde->registros->AX = registros_cpu->AX;
-    cde->registros->BX = registros_cpu->BX;
-    cde->registros->CX = registros_cpu->CX;
-    cde->registros->DX = registros_cpu->DX;
-	cde->registros->EAX = registros_cpu->EAX;
-	cde->registros->EBX = registros_cpu->EBX;
-	cde->registros->ECX = registros_cpu->ECX;
-	cde->registros->EDX = registros_cpu->EDX;
-	cde->registros->SI = registros_cpu->SI;
-	cde->registros->DI = registros_cpu->DI;
+void guardar_registros(){
+    cde_ejecutando->registros->AX = registros_cpu->AX;
+    cde_ejecutando->registros->BX = registros_cpu->BX;
+    cde_ejecutando->registros->CX = registros_cpu->CX;
+    cde_ejecutando->registros->DX = registros_cpu->DX;
+	cde_ejecutando->registros->EAX = registros_cpu->EAX;
+	cde_ejecutando->registros->EBX = registros_cpu->EBX;
+	cde_ejecutando->registros->ECX = registros_cpu->ECX;
+	cde_ejecutando->registros->EDX = registros_cpu->EDX;
+	cde_ejecutando->registros->SI = registros_cpu->SI;
+	cde_ejecutando->registros->DI = registros_cpu->DI;
+    cde_ejecutando->registros->PC = registros_cpu->PC;
 }
 
 bool es_bloqueante(codigoInstruccion cod_instruccion){
@@ -334,22 +337,23 @@ bool es_bloqueante(codigoInstruccion cod_instruccion){
     }
 }
 
-void ejecutar_proceso(t_cde* cde){
-	cargar_registros(cde);	
+void ejecutar_proceso(){
+	cargar_registros(cde_ejecutando);	
 	t_instruccion* instruccion_a_ejecutar;
 
     while(interrupcion != 1 && realizar_desalojo != 1 && fin_q != 1){
 
         enviar_codigo(socket_memoria, PEDIDO_INSTRUCCION);
         t_buffer* buffer_envio = crear_buffer();
-        buffer_write_uint32(buffer_envio, cde->pid);
-        buffer_write_uint32(buffer_envio, cde->registros->PC);
+        buffer_write_uint32(buffer_envio, cde_ejecutando->pid);
+        // el PC se carga del cde a la CPU previamente en cargar registros
+        buffer_write_uint32(buffer_envio, registros_cpu->PC);
 
         enviar_buffer(buffer_envio, socket_memoria);
 
         destruir_buffer(buffer_envio);
         
-        log_info(logger_cpu, "PID: %d - FETCH - Program Counter: %d", cde->pid, cde->registros->PC);
+        log_info(logger_cpu, "PID: %d - FETCH - Program Counter: %d", cde_ejecutando->pid, registros_cpu->PC);
         
         t_buffer* buffer_recibido = recibir_buffer(socket_memoria);
         instruccion_a_ejecutar = buffer_read_instruccion(buffer_recibido);
@@ -359,10 +363,10 @@ void ejecutar_proceso(t_cde* cde){
         instruccion_actualizada = instruccion_a_ejecutar->codigo;
         pthread_mutex_unlock(&mutex_instruccion_actualizada);
 
-        copiar_ultima_instruccion(cde, instruccion_a_ejecutar);
-        ejecutar_instruccion(cde, instruccion_a_ejecutar);
+        copiar_ultima_instruccion(instruccion_a_ejecutar);
+        ejecutar_instruccion(instruccion_a_ejecutar);
 
-        cde->registros->PC++;
+        registros_cpu->PC += 1;
 	}
 
 	if(interrupcion){
@@ -371,26 +375,26 @@ void ejecutar_proceso(t_cde* cde){
 		interrupcion = 0;
         realizar_desalojo = 0;
         pthread_mutex_unlock(&mutex_desalojar);
-        log_warning(logger_cpu, "PID: %d - Volviendo a kernel por instruccion %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar));
-        cde->motivo_desalojo = INTERRUPCION;
-        desalojar_cde(cde, instruccion_a_ejecutar);
+        log_warning(logger_cpu, "PID: %d - Volviendo a kernel por instruccion %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar));
+        cde_ejecutando->motivo_desalojo = INTERRUPCION;
+        desalojar_cde(instruccion_a_ejecutar);
 	} else if (realizar_desalojo){ // salida por fin de quantum
         pthread_mutex_lock(&mutex_desalojar);
         fin_q = 0;
 		interrupcion = 0;  
         realizar_desalojo = 0;
         pthread_mutex_unlock(&mutex_desalojar);
-        log_warning(logger_cpu, "PID: %d - Desalojado por %s", cde->pid, obtener_nombre_motivo_desalojo(cde->motivo_desalojo)); 
-        desalojar_cde(cde, instruccion_a_ejecutar);
+        log_warning(logger_cpu, "PID: %d - Desalojado por %s", cde_ejecutando->pid, obtener_nombre_motivo_desalojo(cde_ejecutando->motivo_desalojo)); 
+        desalojar_cde(instruccion_a_ejecutar);
     } else if (fin_q){
         pthread_mutex_lock(&mutex_desalojar);
         fin_q = 0;
 		interrupcion = 0;  
         realizar_desalojo = 0;
         pthread_mutex_unlock(&mutex_desalojar);
-        log_warning(logger_cpu, "PID: %d - Desalojado por fin de Quantum", cde->pid); 
-        cde->motivo_desalojo = FIN_DE_QUANTUM;
-        desalojar_cde(cde, instruccion_a_ejecutar);
+        log_warning(logger_cpu, "PID: %d - Desalojado por fin de Quantum", cde_ejecutando->pid); 
+        cde_ejecutando->motivo_desalojo = FIN_DE_QUANTUM;
+        desalojar_cde(instruccion_a_ejecutar);
     }
 }
 
@@ -424,104 +428,104 @@ void imprimir_instruccion(t_instruccion* instruccion){
 	}
 }*/
 
-void ejecutar_instruccion(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
+void ejecutar_instruccion(t_instruccion* instruccion_a_ejecutar){
     uint32_t parametro2 = 0;
     switch(instruccion_a_ejecutar->codigo){
         case SET:
-            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
+            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             parametro2 = leerEnteroParametroInstruccion(2, instruccion_a_ejecutar);
             ejecutar_set(instruccion_a_ejecutar->parametro1, parametro2);
             if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
                 destruir_instruccion(instruccion_a_ejecutar);
             break;
         case SUM:
-            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
+            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             ejecutar_sum(instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
                 destruir_instruccion(instruccion_a_ejecutar);
             break;
         case SUB:
-            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
+            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             ejecutar_sub(instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
                 destruir_instruccion(instruccion_a_ejecutar); 
             break;
         case JNZ:
-            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
+            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             parametro2 = leerEnteroParametroInstruccion(2, instruccion_a_ejecutar);
-            ejecutar_jnz(instruccion_a_ejecutar->parametro1, parametro2, cde);
+            ejecutar_jnz(instruccion_a_ejecutar->parametro1, parametro2);
             if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
                 destruir_instruccion(instruccion_a_ejecutar); 
             break;
         case IO_GEN_SLEEP:
-            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
-            cde->motivo_desalojo = LLAMADA_IO;
+            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
+            cde_ejecutando->motivo_desalojo = LLAMADA_IO;
             realizar_desalojo = 1;
             break;
         case MOV_IN:
-            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
+            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             ejecutar_mov_in(instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             break;
         case MOV_OUT:
-            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
+            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             ejecutar_mov_out(instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             break;
         case RESIZE:
-            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1);
-            ejecutar_resize(atoi(instruccion_a_ejecutar->parametro1), cde);
+            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1);
+            ejecutar_resize(atoi(instruccion_a_ejecutar->parametro1));
             break;
         case WAIT:
-            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1);
-            cde->motivo_desalojo = RECURSOS;
+            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1);
+            cde_ejecutando->motivo_desalojo = RECURSOS;
             realizar_desalojo = 1;
             break;
         case SIGNAL:
-            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1);
-            cde->motivo_desalojo = RECURSOS;
+            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1);
+            cde_ejecutando->motivo_desalojo = RECURSOS;
             realizar_desalojo = 1;
             break;
         case COPY_STRING:
-            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1);
+            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1);
             break;
         case IO_STDIN_READ:
-            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
-            cde->motivo_desalojo = LLAMADA_IO;
+            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
+            cde_ejecutando->motivo_desalojo = LLAMADA_IO;
             realizar_desalojo = 1;
             break;
         case IO_STDOUT_WRITE: 
-            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2, instruccion_a_ejecutar->parametro3);
-            cde->motivo_desalojo = LLAMADA_IO;
+            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2, instruccion_a_ejecutar->parametro3);
+            cde_ejecutando->motivo_desalojo = LLAMADA_IO;
             realizar_desalojo = 1;
             break;
         case IO_FS_CREATE:
-            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
-            cde->motivo_desalojo = LLAMADA_IO;
+            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
+            cde_ejecutando->motivo_desalojo = LLAMADA_IO;
             realizar_desalojo = 1;
             break;
         case IO_FS_DELETE:
-            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
-            cde->motivo_desalojo = LLAMADA_IO;
+            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
+            cde_ejecutando->motivo_desalojo = LLAMADA_IO;
             realizar_desalojo = 1;
             break;
         case IO_FS_TRUNCATE: 
-            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2, instruccion_a_ejecutar->parametro3);
-            cde->motivo_desalojo = LLAMADA_IO;
+            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2, instruccion_a_ejecutar->parametro3);
+            cde_ejecutando->motivo_desalojo = LLAMADA_IO;
             realizar_desalojo = 1;
             break;
         case IO_FS_WRITE: 
-            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s %s %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2, instruccion_a_ejecutar->parametro3, instruccion_a_ejecutar->parametro4, instruccion_a_ejecutar->parametro5);
-            cde->motivo_desalojo = LLAMADA_IO;
+            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s %s %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2, instruccion_a_ejecutar->parametro3, instruccion_a_ejecutar->parametro4, instruccion_a_ejecutar->parametro5);
+            cde_ejecutando->motivo_desalojo = LLAMADA_IO;
             realizar_desalojo = 1;
             break;
         case IO_FS_READ: 
-            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s %s %s %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2, instruccion_a_ejecutar->parametro3, instruccion_a_ejecutar->parametro4, instruccion_a_ejecutar->parametro5);
-            cde->motivo_desalojo = LLAMADA_IO;
+            log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s %s %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2, instruccion_a_ejecutar->parametro3, instruccion_a_ejecutar->parametro4, instruccion_a_ejecutar->parametro5);
+            cde_ejecutando->motivo_desalojo = LLAMADA_IO;
             realizar_desalojo = 1;
             break;
         case EXIT:
-            log_info(logger_cpu, "PID: %d - Ejecutando: %s", cde->pid, obtener_nombre_instruccion(instruccion_a_ejecutar));
+            log_info(logger_cpu, "PID: %d - Ejecutando: %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar));
             realizar_desalojo = 1;
-            cde->motivo_desalojo = FINALIZACION_EXIT;
+            cde_ejecutando->motivo_desalojo = FINALIZACION_EXIT;
             break;
         default:
             log_warning(logger_cpu, "Instruccion no reconocida");
@@ -529,10 +533,10 @@ void ejecutar_instruccion(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
     }
 }
 
-void desalojar_cde(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
-    guardar_registros(cde); //cargar registros de cpu en el cde
-    devolver_cde_a_kernel(cde, instruccion_a_ejecutar);
-    destruir_cde(cde);
+void desalojar_cde(t_instruccion* instruccion_a_ejecutar){
+    guardar_registros(); //cargar registros de cpu en el cde
+    devolver_cde_a_kernel();
+    destruir_cde(cde_ejecutando);
     
     // seteamos un valor imposible para que el sistema sepa que no hay proceso en ejecución
     pthread_mutex_lock(&mutex_cde_ejecutando);
@@ -547,40 +551,40 @@ void desalojar_cde(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
     destruir_instruccion(instruccion_a_ejecutar);
 }
 
-void devolver_cde_a_kernel(t_cde* cde, t_instruccion* instruccion_a_ejecutar){
+void devolver_cde_a_kernel(){
     // elimine la linea en donde se copia la ultima instruccion porque ya lo hace antes de ejecutarla apenas la obtiene de memoria
     t_buffer* buffer = crear_buffer();
-    buffer_write_cde(buffer, cde);
+    buffer_write_cde(buffer, cde_ejecutando);
     enviar_buffer(buffer, socket_kernel_dispatch);
     destruir_buffer(buffer);
 }
 
-void copiar_ultima_instruccion(t_cde* cde, t_instruccion* instruccion){
-    cde->ultima_instruccion->codigo = instruccion->codigo;
+void copiar_ultima_instruccion(t_instruccion* instruccion){
+    cde_ejecutando->ultima_instruccion->codigo = instruccion->codigo;
     if(instruccion->parametro1){
-        free(cde->ultima_instruccion->parametro1);
-        cde->ultima_instruccion->parametro1 = string_new();
-        string_append(&cde->ultima_instruccion->parametro1, instruccion->parametro1);
+        free(cde_ejecutando->ultima_instruccion->parametro1);
+        cde_ejecutando->ultima_instruccion->parametro1 = string_new();
+        string_append(&cde_ejecutando->ultima_instruccion->parametro1, instruccion->parametro1);
     }
     if(instruccion->parametro2){
-        free(cde->ultima_instruccion->parametro2);
-        cde->ultima_instruccion->parametro2 = string_new();
-        string_append(&cde->ultima_instruccion->parametro2, instruccion->parametro2);
+        free(cde_ejecutando->ultima_instruccion->parametro2);
+        cde_ejecutando->ultima_instruccion->parametro2 = string_new();
+        string_append(&cde_ejecutando->ultima_instruccion->parametro2, instruccion->parametro2);
     }
     if(instruccion->parametro3){
-        free(cde->ultima_instruccion->parametro3);
-        cde->ultima_instruccion->parametro3 = string_new();
-        string_append(&cde->ultima_instruccion->parametro3, instruccion->parametro3);
+        free(cde_ejecutando->ultima_instruccion->parametro3);
+        cde_ejecutando->ultima_instruccion->parametro3 = string_new();
+        string_append(&cde_ejecutando->ultima_instruccion->parametro3, instruccion->parametro3);
     }
     if(instruccion->parametro4){
-        free(cde->ultima_instruccion->parametro4);
-        cde->ultima_instruccion->parametro4 = string_new();
-        string_append(&cde->ultima_instruccion->parametro4, instruccion->parametro4);
+        free(cde_ejecutando->ultima_instruccion->parametro4);
+        cde_ejecutando->ultima_instruccion->parametro4 = string_new();
+        string_append(&cde_ejecutando->ultima_instruccion->parametro4, instruccion->parametro4);
     }
     if(instruccion->parametro5){
-        free(cde->ultima_instruccion->parametro5);
-        cde->ultima_instruccion->parametro5 = string_new();
-        string_append(&cde->ultima_instruccion->parametro5, instruccion->parametro5);
+        free(cde_ejecutando->ultima_instruccion->parametro5);
+        cde_ejecutando->ultima_instruccion->parametro5 = string_new();
+        string_append(&cde_ejecutando->ultima_instruccion->parametro5, instruccion->parametro5);
     }
 }
 
@@ -671,47 +675,47 @@ void ejecutar_sub(char* reg_dest, char* reg_origen){
         log_warning(logger_cpu, "Registro no reconocido");
 }
 
-void ejecutar_jnz(void* registro, uint32_t nro_instruccion, t_cde* cde){
+void ejecutar_jnz(void* registro, uint32_t nro_instruccion){
 
     if(strcmp(registro, "AX") == 0){
         if(registros_cpu->AX != 0)
-            cde->registros->PC = nro_instruccion;
+           registros_cpu->PC = nro_instruccion;
     }
     else if(strcmp(registro, "BX") == 0){
         if(registros_cpu->BX != 0)
-            cde->registros->PC = nro_instruccion;
+           registros_cpu->PC = nro_instruccion;
     }
     else if(strcmp(registro, "CX") == 0){
         if(registros_cpu->CX != 0)
-            cde->registros->PC = nro_instruccion;
+           registros_cpu->PC = nro_instruccion;
     }
     else if(strcmp(registro, "DX") == 0){
         if(registros_cpu->DX != 0)
-            cde->registros->PC = nro_instruccion;
+           registros_cpu->PC = nro_instruccion;
     }
 	else if(strcmp(registro, "EAX") == 0){
         if(registros_cpu->EAX != 0)
-            cde->registros->PC = nro_instruccion;
+           registros_cpu->PC = nro_instruccion;
     }
 	else if(strcmp(registro, "EBX") == 0){
         if(registros_cpu->EBX != 0)
-            cde->registros->PC = nro_instruccion;
+           registros_cpu->PC = nro_instruccion;
     }
 	else if(strcmp(registro, "ECX") == 0){
         if(registros_cpu->ECX != 0)
-            cde->registros->PC = nro_instruccion;
+           registros_cpu->PC = nro_instruccion;
     }
 	else if(strcmp(registro, "EDX") == 0){
         if(registros_cpu->EDX != 0)
-            cde->registros->PC = nro_instruccion;
+           registros_cpu->PC = nro_instruccion;
     }
     else if(strcmp(registro, "DI") == 0){
         if(registros_cpu->DI != 0)
-            cde->registros->PC = nro_instruccion;
+           registros_cpu->PC = nro_instruccion;
     }
     else if(strcmp(registro, "SI") == 0){
         if(registros_cpu->SI != 0)
-            cde->registros->PC = nro_instruccion;
+           registros_cpu->PC = nro_instruccion;
     }
     else
         log_warning(logger_cpu, "Registro no reconocido");
@@ -723,10 +727,10 @@ void ejecutar_jnz(void* registro, uint32_t nro_instruccion, t_cde* cde){
 // -------------------------------------------------
 
 // -------- RESIZE ---------------------------------
-void ejecutar_resize(int tamanio, t_cde* cde){
-    enviar_codigo(socket_memoria, RESIZE);
+void ejecutar_resize(int tamanio){
+    enviar_codigo(socket_memoria, RESIZE_SOLICITUD);
     t_buffer* buffer = crear_buffer();
-    buffer_write_uint32(buffer, cde->pid);
+    buffer_write_uint32(buffer, cde_ejecutando->pid);
     buffer_write_uint32(buffer, tamanio);
     enviar_buffer(buffer, socket_memoria);
     destruir_buffer(buffer);
@@ -734,7 +738,7 @@ void ejecutar_resize(int tamanio, t_cde* cde){
     mensajeCpuMem cod = recibir_codigo(socket_memoria);
     if (cod == ERROR_OUT_OF_MEMORY) {
         realizar_desalojo = 1;
-        cde->motivo_desalojo = OUT_OF_MEMORY_ERROR;
+        cde_ejecutando->motivo_desalojo = OUT_OF_MEMORY_ERROR;
         return;
     }
 }
@@ -751,7 +755,7 @@ void ejecutar_mov_in(char* reg_datos, char* reg_direccion){
 
 void leer_de_dir_fisica_los_bytes(uint32_t dir_fisica, uint32_t bytes, uint32_t* valor_leido){
     *valor_leido = 0; // limpio ante la duda la variable
-    enviar_codigo(socket_memoria, MOV_IN);
+    enviar_codigo(socket_memoria, MOV_IN_SOLICITUD);
     t_buffer* buffer = crear_buffer();
     buffer_write_uint32(buffer, dir_fisica);
     buffer_write_uint32(buffer, bytes); 
@@ -896,7 +900,7 @@ void ejecutar_mov_out(char* reg_datos, char* reg_direccion){
 }
 
 void escribir_en_dir_fisica_los_bytes(uint32_t dir_fisica, uint32_t bytes, uint32_t valor_a_escribir){
-    enviar_codigo(socket_memoria, MOV_OUT);
+    enviar_codigo(socket_memoria, MOV_OUT_SOLICITUD);
     t_buffer* buffer = crear_buffer();
     buffer_write_uint32(buffer, dir_fisica);
     buffer_write_uint32(buffer, valor_a_escribir);
