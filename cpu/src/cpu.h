@@ -9,7 +9,6 @@
 void inicializar_modulo();
 void inicializarSemaforos();
 void conectar();
-void esperar_desconexiones();
 void levantar_logger();
 void levantar_config();
 void terminar_programa();
@@ -29,18 +28,42 @@ void ejecutar_sum(char*, char* );
 void ejecutar_sub(char*, char *);
 void ejecutar_jnz(void*, uint32_t , t_cde*);
 void ejecutar_sleep(uint32_t);
-void ejecutar_wait(char*);
-void ejecutar_signal(char*);
-void ejecutar_IO_GEN_SLEEP(char*, uint32_t);
 void copiar_ultima_instruccion(t_cde*, t_instruccion*);
+
+// funciones con memoria, tlb, mmu
+void ejecutar_resize(int tamanio, t_cde* cde);
+void ejecutar_mov_in(char* reg_datos, char* reg_direccion);
+void leer_de_dir_fisica_los_bytes(uint32_t dir_fisica, uint32_t bytes, uint32_t* valor_leido);
+void ejecutar_mov_in_un_byte(char* reg_datos, char* reg_direccion);
+void ejecutar_mov_in_cuatro_bytes(char* reg_datos, char* reg_direccion);
+uint32_t leer_y_guardar_de_dos_paginas(uint32_t dir_logica);
+uint32_t dato_reconstruido(uint32_t primera, uint32_t segunda, int bytes_primera, int bytes_segunda);
+bool es_reg_de_cuatro_bytes(char* reg_datos);
+void ejecutar_mov_out(char* reg_datos, char* reg_direccion);
+void escribir_en_dir_fisica_los_bytes(uint32_t dir_fisica, uint32_t bytes, uint32_t valor_a_escribir);
+void ejecutar_copy_string(int tamanio);
+void escribir_y_guardar_en_dos_paginas(uint32_t dir_logica, uint32_t* valor);
+
+// mmu
+int obtener_numero_pagina(int direccion_logica);
+int obtener_desplazamiento_pagina(int direccion_logica);
+uint32_t calcular_direccion_fisica(int direccion_logica, t_cde* cde);
+
+// tlb
+void colocar_pagina_en_tlb(uint32_t pid, uint32_t nro_pagina, uint32_t marco);
+void desalojar_y_agregar(t_pagina_tlb* nueva_pagina);
+void* mayor_tiempo_de_ultimo_acceso(void* A, void* B);
+int obtenerTiempoEnMiliSegundos(char* tiempo);
+bool se_encuentra_en_tlb(uint32_t dir_logica, uint32_t* dir_fisica);
+
+// --------------------------------
 
 void devolver_cde_a_kernel(t_cde*, t_instruccion*);
 void inicializar_registros();
 void ejecutar_proceso(t_cde*);
 void cargar_registros(t_cde*);
 void guardar_registros(t_cde*);
-uint32_t buscar_valor_registroUINT32(void*);
-uint8_t buscar_valor_registroUINT8(void*);
+uint32_t buscar_valor_registro(char*);
 void imprimir_instruccion(t_instruccion*);
 
 

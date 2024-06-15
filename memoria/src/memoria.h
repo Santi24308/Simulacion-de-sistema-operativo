@@ -31,6 +31,29 @@ void imprimir_instruccion(t_instruccion*);
 void imprimir_pids();
 void eliminar_lista_instrucciones(t_list*);
 t_proceso* buscar_proceso(uint32_t pid);
+void inicializar_paginacion();
+int calculoDeCantidadMarcos();
+void crear_tabla_global_de_marcos();
+void inicializarMarco(t_marco*);
+void crear_pagina_y_asignar_a_pid(int, int);
+char* asignarMemoriaBits(int);
+int bitsToBytes(int);
+void liberarMemoriaPaginacion();
+void devolver_nro_marco();
+uint32_t obtener_marco_libre();
+int cantidad_marcos_libres();
+void crear_pagina_y_asignar_a_pid(int , int);
+void destruir_pagina_y_liberar_marco(t_pagina* );
+t_list* interfacesIO;
+void esperarIOs();
+t_interfaz* crear_interfaz(char* , char* , int );
+void ejecutar_io_stdin(int );
+void ejecutar_io_stdout(int );
+t_pagina *obtener_pagsig_de_dirfisica(uint32_t , uint32_t );
+uint32_t recalcular_direccion_fisica(t_pagina*);
+int obtener_numero_marco(int );
+int obtener_desplazamiento_pagina(int );
+
 
 
 

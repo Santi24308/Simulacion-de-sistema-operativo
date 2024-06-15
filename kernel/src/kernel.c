@@ -12,13 +12,10 @@ int main(int argc, char* argv[]) {
 	inicializar_modulo();
 	conectar();
 
-    while (list_size(interfacesIO) == 0);
-    
-	
-    //consola();
-    iniciar_proceso("instruccionesP4.txt");
-    iniciar_proceso("instruccionesP5.txt");
-    iniciar_proceso("instruccionesP6.txt");
+    consola();
+    //iniciar_proceso("instruccionesP4.txt");
+    //iniciar_proceso("instruccionesP5.txt");
+    //iniciar_proceso("instruccionesP6.txt");
 
     sem_wait(&terminar_kernel);
 
@@ -745,9 +742,12 @@ bool instruccion_de_recursos(codigoInstruccion cod){
 } 
 
 void evaluar_instruccion(t_instruccion* ultima_instruccion){
+    // las IO se evaluan de la misma manera ya que desde kernel se comportan siempre igual
+    // lo unico que hacemos es validar y despachar/poner en espera y llegado el momento le enviamos la 
+    // ultima instruccion a la IO con los datos necesarios
     switch (ultima_instruccion->codigo){
         case IO_GEN_SLEEP:
-            evaluar_io_gen_sleep(ultima_instruccion);
+            evaluar_io(ultima_instruccion);
             break;
         case WAIT:
             evaluar_wait(ultima_instruccion->parametro1);
@@ -756,8 +756,10 @@ void evaluar_instruccion(t_instruccion* ultima_instruccion){
             evaluar_signal(ultima_instruccion->parametro1);
             break;
         case IO_STDIN_READ:
+            evaluar_io(ultima_instruccion);
             break;
         case IO_STDOUT_WRITE:
+            evaluar_io(ultima_instruccion);
             break;
         case IO_FS_CREATE:
             break;
@@ -778,7 +780,7 @@ void evaluar_instruccion(t_instruccion* ultima_instruccion){
     }
 }
 
-void evaluar_io_gen_sleep(t_instruccion* ultima_instruccion){
+void evaluar_io(t_instruccion* ultima_instruccion){
     if (!interfaz_valida(ultima_instruccion->parametro1)){
         finalizarProceso(pcb_en_ejecucion->cde->pid);
         return;

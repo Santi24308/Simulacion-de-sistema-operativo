@@ -20,15 +20,19 @@
 // AGREGAR LOS PROTOCOLOS
 
 // prototipo de protocolo entre memoria e IO
-typedef enum{
-	GUARDAR_EN_DIRECCION,
-	LEER_DIRECCION
+typedef enum{	
+	IO_STDIN_ESCRIBIR,
+	IO_STDOUT_LEER
 }mensajeIOMemoria;
 
 typedef enum{
 	PEDIDO_INSTRUCCION,
 	PEDIDO_OK,
-	FIN_INSTRUCCIONES
+	NUMERO_MARCO_SOLICITUD,
+	MOV_IN_SOLICITUD,
+	MOV_OUT_SOLICITUD,
+	RESIZE_SOLICITUD,
+	ERROR_OUT_OF_MEMORY
 }mensajeCpuMem;
 
 typedef enum{

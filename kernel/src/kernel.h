@@ -60,6 +60,7 @@ void terminar_proceso_consola(uint32_t);
 char* obtener_nombre_motivo_finalizacion(cod_finalizacion);
 
 bool instruccion_de_recursos(codigoInstruccion);
+void evaluar_io(t_instruccion* );
 
 
 // PLANIFICACION -------------------------------------------------------------------------------------------------------------------
