@@ -27,11 +27,12 @@ void inicializar_modulo()
 	levantar_logger();
 	levantar_config();
 
+	total_espacio_memoria = config_get_int_value(config_memoria, "TAM_MEMORIA");
+
 	memfisica = malloc(total_espacio_memoria); // Tamaño memoria (capaz difiere)
 	if (memfisica == NULL)
 	{
 		log_error(logger_memoria, "MALLOC FAIL para la memoria fisica!\n");
-		free(memfisica);
 		exit(EXIT_FAILURE);
 	}
 
@@ -171,7 +172,8 @@ void atender_cpu()
 			devolver_nro_marco();
 			break;
 		case MOV_IN_SOLICITUD:
-			t_buffer *buffer_mov_in = recibir_buffer(socket_cpu);			
+			t_buffer *buffer_mov_in = recibir_buffer(socket_cpu);
+			uint32_t pid_mov_in = buffer_read_uint32(buffer_mov_in);			
 			uint32_t dir_fisica_mov_in = buffer_read_uint32(buffer_mov_in);
 			uint32_t bytes_mov_in = buffer_read_uint32(buffer_mov_in);
 			destruir_buffer(buffer_mov_in);
@@ -193,15 +195,19 @@ void atender_cpu()
 			destruir_buffer(buffer_respuesta);
 			free(datos_leidos);
 
+			log_info(logger_memoria, "PID: %d - Accion: LEER - Direccion fisica: %d - Tamaño %d", pid_mov_in, dir_fisica_mov_in, bytes_mov_in);
 			break;
 		case MOV_OUT_SOLICITUD:
 			t_buffer *buffer_mov_out = recibir_buffer(socket_cpu);
+			uint32_t pid_mov_out = buffer_read_uint32(buffer_mov_out);
 			uint32_t dir_fisica_mov_out = buffer_read_uint32(buffer_mov_out); // No se usa 
 			uint32_t valor_a_escribir = buffer_read_uint32(buffer_mov_out);
 			uint32_t bytes_mov_out = buffer_read_uint32(buffer_mov_out);
 			destruir_buffer(buffer_mov_out);
 
 			memcpy(memfisica->espacioMemoria+dir_fisica_mov_out, (void *)&valor_a_escribir, bytes_mov_out);
+
+			log_info(logger_memoria, "PID: %d - Accion: ESCRIBIR - Direccion fisica: %d - Tamaño %d", pid_mov_out, dir_fisica_mov_out, bytes_mov_out);
 
 			break;
 		case RESIZE_SOLICITUD:
@@ -265,11 +271,6 @@ void atender_cpu()
 			enviar_codigo(socket_cpu, PEDIDO_OK);
 
 			break;
-
-		case -1:
-			log_error(logger_memoria, "Se desconecto CPU");
-			sem_post(&terminar_memoria);
-			return;
 		default:
 			break;
 		}
@@ -342,6 +343,8 @@ void ejecutar_io_stdin(int socket_interfaz_io)
 		uint32_t direccion_fisica_nueva = recalcular_direccion_fisica(pagina_siguiente);
 		memcpy(memfisica->espacioMemoria + direccion_fisica_nueva, valor_a_escribir + desplazamiento_string, bytes_a_copiar);
 	}
+
+	log_info(logger_memoria, "PID: %d - Accion: ESCRIBIR - Direccion fisica: %d - Tamaño %d", pid, direccion_fisica, bytes_a_copiar);
 }
 
 t_pagina *obtener_pagsig_de_dirfisica(uint32_t direccion_fisica, uint32_t pid)
@@ -368,6 +371,7 @@ uint32_t recalcular_direccion_fisica(t_pagina *pagina)
 {
 	return pagina->marco * tamanio_paginas; // retorna la direccion_fisica
 }
+
 int obtener_numero_marco(int direccion_fisica)
 {
 	return floor(direccion_fisica / tamanio_paginas);
@@ -438,14 +442,11 @@ void ejecutar_io_stdout(int socket_interfaz_io)
 	enviar_buffer(buffer, socket_interfaz_io);
 	destruir_buffer(buffer);
 	free(valor_a_leer);
+
+	log_info(logger_memoria, "PID: %d - Accion: LEER - Direccion fisica: %d - Tamaño %d", pid, direccion_fisica, bytes_a_leer);
 	return;
 }
 
-//char *reconstruir_dato(void *parte1, void *parte2, uint32_t tamanio1, uint32_t tamanio2)
-//{
-//}
-
-/*Acceso a espacio de usuario: “PID: <PID> - Accion: <LEER / ESCRIBIR> - Direccion fisica: <DIRECCION_FISICA>” - Tamaño <TAMAÑO A LEER / ESCRIBIR>*/
 void esperarIOs() {
 	log_info(logger_memoria, "Esperando que se conecte una IO....");
 	while (1){
@@ -465,12 +466,9 @@ void esperarIOs() {
 		conectar_io(&interfaz->hilo_io, &interfaz->socket);
 
 		log_info(logger_memoria, "Se conecto la IO con ID : %s  TIPO: %s", id, tipo);
-
-		// imprimir_ios();
 	}
 }
 
-// SOLUCION MOMENTANEA A VER DONDE UBICAMOS CREAR_INTERFAZ PARA NO REPETIRLO 
 t_interfaz* crear_interfaz(char* nombre, char* tipo, int socket){
     t_interfaz* interfaz = malloc(sizeof(t_interfaz));
     interfaz->id = string_new();
@@ -553,8 +551,6 @@ t_proceso *crear_proceso(uint32_t pid, t_list *lista_instrucciones)
 	proceso->pid = pid;
 	proceso->lista_instrucciones = lista_instrucciones;
 	proceso->tabla_de_paginas = list_create();
-	// Apenas arranca va a ser 0, despues se hace el resize
-	// proceso->cantMaxMarcos = tamanio / config_memoria.tam_pagina;
 	return proceso;
 }
 
@@ -600,17 +596,6 @@ t_list *levantar_instrucciones(char *path_op)
 
 	return lista_instrucciones;
 }
-/*
-void imprimir_instruccion(t_instruccion* instruccion){
-	printf("\tINSTRUCCION LEIDA: %s \n", obtener_nombre_instruccion(instruccion));
-	int i = 1;
-	while(i <= 5){
-		char* par = leerCharParametroInstruccion(i, instruccion);
-		if (par)
-			printf("\tPARAMETRO %i: %s\n", i, leerCharParametroInstruccion(i, instruccion));
-		i++;
-	}
-}*/
 
 // esta funcion fixea los casos en donde fgets al leer del archivo lee algo que deberia ser
 // "palabra" como "palabra           ".
@@ -690,6 +675,7 @@ void iterator(char *value)
 {
 	log_info(logger_memoria, "%s", value);
 }
+
 t_proceso *buscar_proceso(uint32_t pid)
 {
 	t_proceso *proceso = malloc(sizeof(t_proceso));
@@ -703,8 +689,6 @@ t_proceso *buscar_proceso(uint32_t pid)
 	}
 	return NULL;
 }
-
-////// CHECK 3 /////
 
 void devolver_nro_marco()
 {
@@ -727,8 +711,6 @@ void devolver_nro_marco()
 	log_info(logger_memoria, "Acceso a TGP - PID: %d - Página: %d - Marco: %d", pid, pagina_solicitada->nro_pagina, pagina_solicitada->marco);
 }
 
-// Exclusivo de paginacion //
-
 void inicializar_paginacion()
 {
 	cant_marcos_ppal = calculoDeCantidadMarcos();
@@ -736,24 +718,12 @@ void inicializar_paginacion()
 
 	log_info(logger_memoria, "Tengo %d marcos de %d bytes en memoria principal", cant_marcos_ppal, tamanio_paginas);
 
-	// Inicializamos la memoria a cero
-	//memset(memfisica, 0, total_espacio_memoria);
-	/*
-	memoriaReservada = asignarMemoriaBits(cant_marcos_ppal); // bitmap por cada frame
-
-	if(memoriaReservada == NULL){
-		log_error(logger_memoria ,"MALLOC FAIL para la memoria reservada!\n");
-	}
-	memset(data,0,cant_marcos_ppal/8);
-	marcos_ocupados_ppal = bitarray_create_with_mode(data, cant_marcos_ppal/8, MSB_FIRST);
-	*/
 	crear_tabla_global_de_marcos();
 }
 
 int calculoDeCantidadMarcos()
 {
 	tamanio_paginas = config_get_int_value(config_memoria, "TAM_PAGINA");
-	total_espacio_memoria = config_get_int_value(config_memoria, "TAM_MEMORIA");
 	cantidadDeMarcos = total_espacio_memoria / tamanio_paginas;
 
 	return cantidadDeMarcos;
@@ -817,8 +787,8 @@ uint32_t obtener_marco_libre()
 {
 	for (int i = 0; i < cantidadDeMarcos; i++)
 	{
-		t_pagina *pagina = list_get(tabla_de_marcos, i);
-		if (pagina == NULL)
+		t_marco* marco_obtenido = list_get(tabla_de_marcos, i);
+		if (marco_obtenido->paginaAsociada == NULL)
 			return i;
 	}
 	return -1;
@@ -859,8 +829,6 @@ int cantidad_marcos_libres()
 	}
 	return j;
 }
-
-// EVALUAR SI ES NECESARIO USAR ESTAS FUNCIONES EN OTRO MODULO PARA PORNERLA EN LIBRERIA COMUN//
 
 int bitsToBytes(int bits)
 {

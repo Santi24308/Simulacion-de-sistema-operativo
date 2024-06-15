@@ -17,6 +17,7 @@ void conectar_kernel();
 void conectar_kernel_dispatch();
 void conectar_kernel_interrupt();
 bool es_bloqueante(codigoInstruccion);
+char* uint32_to_string(uint32_t);
 
 void atender_kernel_dispatch();
 void atender_kernel_interrupt();
@@ -29,6 +30,8 @@ void ejecutar_sub(char*, char *);
 void ejecutar_jnz(void*, uint32_t);
 void ejecutar_sleep(uint32_t);
 void copiar_ultima_instruccion(t_instruccion*);
+
+void actualizar_dirLogica_a_dirFisica(t_instruccion*);
 
 // funciones con memoria, tlb, mmu
 void ejecutar_resize(int tamanio);

@@ -101,8 +101,6 @@ void inicializarSemaforos(){
 	pthread_mutex_init(&mutex_instruccion_actualizada, NULL);
 }
 
-// CONEXIONES
-
 void conectar_kernel_dispatch(){
 	log_info(logger_cpu, "Esperando Kernel (dispatch)....");
     socket_kernel_dispatch = esperar_cliente(socket_servidor_dispatch, logger_cpu);
@@ -214,7 +212,6 @@ void atender_kernel_interrupt(){
     }
 }
 
-
 void conectar_memoria(){
 	ip = config_get_string_value(config_cpu, "IP");
 	puerto_mem = config_get_string_value(config_cpu, "PUERTO_MEM");
@@ -239,8 +236,6 @@ void terminar_programa(){
 void iterator(char* value) {
 	log_info(logger_cpu,"%s", value);
 }
-
-// FUNCIONES AUXILIARES DE INSTRUCCIONES
 
 uint32_t buscar_valor_registro(char* registro) {
 	if (strcmp(registro, "AX") == 0)
@@ -280,7 +275,6 @@ void cargar_registros(){
 	registros_cpu->DI = cde_ejecutando->registros->DI;
     registros_cpu->PC = cde_ejecutando->registros->PC;
 }
-
 
 void guardar_registros(){
     cde_ejecutando->registros->AX = registros_cpu->AX;
@@ -364,7 +358,7 @@ void ejecutar_proceso(){
         pthread_mutex_unlock(&mutex_instruccion_actualizada);
 
         copiar_ultima_instruccion(instruccion_a_ejecutar);
-        ejecutar_instruccion(instruccion_a_ejecutar);
+        ejecutar_instruccion(cde_ejecutando->ultima_instruccion);
 
         registros_cpu->PC += 1;
 	}
@@ -416,17 +410,6 @@ char* obtener_nombre_motivo_desalojo(cod_desalojo cod){
             return NULL;  // nunca deberia entrar aca, esta pueso por los warning de retorno
     }
 }
-/*
-void imprimir_instruccion(t_instruccion* instruccion){
-	printf("\tINSTRUCCION LEIDA: %s \n", obtener_nombre_instruccion(instruccion));
-	int i = 1;
-	while(i <= 5){
-		char* par = leerCharParametroInstruccion(i, instruccion);
-		if (par)
-			printf("\tPARAMETRO %i: %s\n", i, leerCharParametroInstruccion(i, instruccion));
-		i++;
-	}
-}*/
 
 void ejecutar_instruccion(t_instruccion* instruccion_a_ejecutar){
     uint32_t parametro2 = 0;
@@ -490,11 +473,13 @@ void ejecutar_instruccion(t_instruccion* instruccion_a_ejecutar){
         case IO_STDIN_READ:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             cde_ejecutando->motivo_desalojo = LLAMADA_IO;
+            actualizar_dirLogica_a_dirFisica(instruccion_a_ejecutar);
             realizar_desalojo = 1;
             break;
         case IO_STDOUT_WRITE: 
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2, instruccion_a_ejecutar->parametro3);
             cde_ejecutando->motivo_desalojo = LLAMADA_IO;
+            actualizar_dirLogica_a_dirFisica(instruccion_a_ejecutar);
             realizar_desalojo = 1;
             break;
         case IO_FS_CREATE:
@@ -531,6 +516,30 @@ void ejecutar_instruccion(t_instruccion* instruccion_a_ejecutar){
             log_warning(logger_cpu, "Instruccion no reconocida");
             break;
     }
+}
+
+void actualizar_dirLogica_a_dirFisica(t_instruccion* instruccion_a_ejecutar){
+    uint32_t dir_fisica = UINT32_MAX;
+    bool pagina_en_tlb = se_encuentra_en_tlb(atoi(instruccion_a_ejecutar->parametro2), &dir_fisica); 
+    if (!pagina_en_tlb)
+        dir_fisica = calcular_direccion_fisica(atoi(instruccion_a_ejecutar->parametro2), cde_ejecutando);
+
+    instruccion_a_ejecutar->parametro2 = uint32_to_string(dir_fisica);
+}
+
+char* uint32_to_string(uint32_t number) {
+    // Determinar el tamaño máximo necesario para almacenar el número en una cadena.
+    // El tamaño máximo de un uint32_t en decimal es 10 dígitos más el carácter nulo.
+    char* str = malloc(11);
+    if (!str) {
+        // Manejo de error de memoria (opcional).
+        return NULL;
+    }
+
+    // Convertir el número a cadena.
+    sprintf(str, "%u", number);
+
+    return str;
 }
 
 void desalojar_cde(t_instruccion* instruccion_a_ejecutar){
@@ -588,11 +597,9 @@ void copiar_ultima_instruccion(t_instruccion* instruccion){
     }
 }
 
-
 // -------------------------------------------------
 //          INSTRUCCIONES SIN MEMORIA
 // -------------------------------------------------
-
 
 void ejecutar_set(char* registro, uint32_t valor_recibido){
     uint32_t valor_registro = buscar_valor_registro(registro);
@@ -721,7 +728,6 @@ void ejecutar_jnz(void* registro, uint32_t nro_instruccion){
         log_warning(logger_cpu, "Registro no reconocido");
 }
 
-
 // -------------------------------------------------
 //          INSTRUCCIONES CON MEMORIA
 // -------------------------------------------------
@@ -743,7 +749,6 @@ void ejecutar_resize(int tamanio){
     }
 }
 
-
 // -------- MOV_IN ---------------------------------
 void ejecutar_mov_in(char* reg_datos, char* reg_direccion){
     if(es_reg_de_cuatro_bytes(reg_datos)){
@@ -757,6 +762,7 @@ void leer_de_dir_fisica_los_bytes(uint32_t dir_fisica, uint32_t bytes, uint32_t*
     *valor_leido = 0; // limpio ante la duda la variable
     enviar_codigo(socket_memoria, MOV_IN_SOLICITUD);
     t_buffer* buffer = crear_buffer();
+    buffer_write_uint32(buffer, cde_ejecutando->pid);
     buffer_write_uint32(buffer, dir_fisica);
     buffer_write_uint32(buffer, bytes); 
     enviar_buffer(buffer, socket_memoria);
@@ -869,7 +875,6 @@ bool es_reg_de_cuatro_bytes(char* reg_datos){
         return true;
 }
 
-
 // -------- MOV_OUT ---------------------------------
 void ejecutar_mov_out(char* reg_datos, char* reg_direccion){
     uint32_t dir_logica = buscar_valor_registro(reg_direccion);
@@ -902,6 +907,7 @@ void ejecutar_mov_out(char* reg_datos, char* reg_direccion){
 void escribir_en_dir_fisica_los_bytes(uint32_t dir_fisica, uint32_t bytes, uint32_t valor_a_escribir){
     enviar_codigo(socket_memoria, MOV_OUT_SOLICITUD);
     t_buffer* buffer = crear_buffer();
+    buffer_write_uint32(buffer, cde_ejecutando->pid);
     buffer_write_uint32(buffer, dir_fisica);
     buffer_write_uint32(buffer, valor_a_escribir);
     buffer_write_uint32(buffer, bytes); 
@@ -944,7 +950,6 @@ void escribir_y_guardar_en_dos_paginas(uint32_t dir_logica_destino, uint32_t* va
     free(valor_parte_1_ptr);
     free(valor_parte_2_ptr);
 }
-
 
 // -------- COPY_STRING ------------------------------
 void ejecutar_copy_string(int tamanio){
@@ -1023,12 +1028,9 @@ void ejecutar_copy_string(int tamanio){
     }
 }
 
-
-
 // -------------------------------------------------
 //                     MMU
 // -------------------------------------------------
-
 
 int obtener_numero_pagina(int direccion_logica){
 	return floor(direccion_logica / tamanio_pagina);

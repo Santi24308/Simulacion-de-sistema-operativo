@@ -122,36 +122,6 @@ char* buffer_read_string(t_buffer* buffer, uint32_t* tam){
 	return cadena;
 }
 
-/*
-void buffer_write_string(t_buffer* buffer, char* cadena){
-	
-	uint32_t tam = 0;
-
-	while(cadena[tam])
-		tam++;
-
-	buffer_write_uint32(buffer,tam);
-
-	buffer->stream = realloc(buffer->stream, buffer->size + tam);
-
-	memcpy(buffer->stream + buffer->size, cadena , tam);
-	buffer->size += tam;
-}
-
-char* buffer_read_string(t_buffer* buffer, uint32_t* tam){
-	(*tam) = buffer_read_uint32(buffer);
-	char* cadena = malloc((*tam) + 1);
-	
-
-	memcpy(cadena, buffer->stream + buffer->offset, (*tam));
-	buffer->offset += (*tam);
-
-	*(cadena + (*tam)) = '\0';
-
-	return cadena;
-}
-*/
-
 // CONTEXTO DE EJECUCION
 void buffer_write_cde(t_buffer* buffer, t_cde* cde_recibido){
 	buffer->stream = realloc(buffer->stream, buffer->size + sizeof(t_cde));

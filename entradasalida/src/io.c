@@ -20,8 +20,7 @@ int main(int argc, char* argv[]) {
 
 bool chequeo_parametros(int argc, char** argv){
 	// I/O debe recibir el NOMBRE y el CONFIG
-	// Duda: en el enunciado dice que el nombre es unico en el sistema, cual seria una manera
-	// de corroborar eso (en caso de ser necesario)...
+	
 	if(argc != 3) {
 		printf("\x1b[31m""ERROR: Tenés que pasar el nombre de I/O y el path del archivo config de Entradasalida""\x1b[0m""\n");
 		return false;
@@ -71,10 +70,7 @@ void atender_kernel_generica(){
 				buffer_write_string(buffer, nombreIO);
 				enviar_buffer(buffer, socket_kernel);
 				destruir_buffer(buffer);
-				break;	
-			case -1:
-				log_info(logger_io, "Se desconecto Kernel");
-				return;
+				break;
 			case NULO: // lo usamos para testear que siga conectada desde kernel 
 				break;
 			default:
@@ -90,15 +86,13 @@ void atender_kernel_stdin(){
 			case IO_STDIN_READ:
 					ejecutar_std_in();
 					//leer_y_enviar_a_memoria();
-				break;	
-			case -1:
-				log_info(logger_io, "Se desconecto Kernel");
-				return;
+				break;
 			default:
 				break;
 		}
 	}
 }
+
 void atender_kernel_stdout(){
 	while(1){
 		codigoInstruccion cod = recibir_codigo(socket_kernel);
@@ -106,15 +100,13 @@ void atender_kernel_stdout(){
 			case IO_STDOUT_WRITE:
 				ejecutar_std_out();
 				//leer_y_mostrar_resultado();
-				break;	
-			case -1:
-				log_info(logger_io, "Se desconecto Kernel");
-				return;
+				break;
 			default:
 				break;
 		}
 	}
 }
+
 void atender_kernel_dialfs(){
 	while(1){
 		codigoInstruccion cod = recibir_codigo(socket_kernel);
@@ -129,9 +121,6 @@ void atender_kernel_dialfs(){
 				break;
 			case IO_FS_READ:
 				break;
-			case -1:
-				log_info(logger_io, "Se desconecto Kernel");
-				return;
 			default:
 				break;
 		}
@@ -196,61 +185,6 @@ void ejecutar_std_out(){
 
 	printf("%s", valor_a_mostrar);
 }
-
-// esto ya no es del checkpoint 2
-/*void leer_y_enviar_a_memoria(){
-	enviar_codigo(socket_memoria, GUARDAR_EN_DIRECCION);
-
-	// primero leo la direccion que me llego de kernel
-	t_buffer* buffer_recibido = recibir_buffer(socket_kernel);
-	uint32_t tamanio_direccion;
-	char* direccion_memoria = buffer_read_string(buffer_recibido, &tamanio_direccion);
-
-	char* leido = readline("> ");
-
-	t_buffer* buffer_a_enviar = crear_buffer();
-	buffer_write_string(buffer_a_enviar, direccion_memoria);
-	buffer_write_string(buffer_a_enviar, leido);
-
-	enviar_buffer(buffer_a_enviar, socket_memoria);
-
-	free(leido);
-	destruir_buffer(buffer_recibido);
-	destruir_buffer(buffer_a_enviar);
-}
-
-void leer_y_mostrar_resultado(){
-
-	//falta saber cual es la direccion que quiero leer
-
-	
-	//Le aviso a memoria que quiero leer tal direccion
-
-	enviar_codigo(socket_memoria , LEER_DIRECCION);
-
-	//Memoria me responde con un buffer que contiene la direccion
-	t_buffer* buffer_recibido = recibir_buffer(socket_memoria);
-	uint32_t tamanio_direccion;
-	char* direccion_memoria = buffer_read_string(buffer_recibido , &tamanio_direccion);   //deberia verificar que sea valida esa direccion (futuro refinamiento del tp)
-
-	//leo el valor de la direccion con funcion de las common y la guardo en una variable
-	char* contenido_a_imprimir  = mem_hexstring(direccion_memoria, string_length(direccion_memoria) + 1);
-	//duermo 1 unidad de tiempo
-	sleep(1);
-
-	//imprimo el valor guardado de la direccion
-	// podria hacerse con printf tambien pero me parecio que estaba bueno dejar el logg
-	log_info(logger_io ,contenido_a_imprimir);
-
-
-	//destruyo estructuras creadas
-	destruir_buffer(buffer_recibido);
-	free(contenido_a_imprimir);
-
-}
-*/
-//--------------------------------------------------------------------------------------------------------------
-
 
 void conectar_memoria(){
 	ip = config_get_string_value(config_io, "IP");
