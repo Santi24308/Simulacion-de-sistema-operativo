@@ -17,21 +17,24 @@ void conectar_kernel();
 void conectar_kernel_dispatch();
 void conectar_kernel_interrupt();
 bool es_bloqueante(codigoInstruccion);
+char* uint32_to_string(uint32_t);
 
 void atender_kernel_dispatch();
 void atender_kernel_interrupt();
 void conectar_memoria();
 void iterator(char* );
-void ejecutar_instruccion(t_cde*, t_instruccion* );
+void ejecutar_instruccion(t_instruccion* );
 void ejecutar_set(char*, uint32_t );
 void ejecutar_sum(char*, char* );
 void ejecutar_sub(char*, char *);
-void ejecutar_jnz(void*, uint32_t , t_cde*);
+void ejecutar_jnz(void*, uint32_t);
 void ejecutar_sleep(uint32_t);
-void copiar_ultima_instruccion(t_cde*, t_instruccion*);
+void copiar_ultima_instruccion(t_instruccion*);
+
+void actualizar_dirLogica_a_dirFisica(t_instruccion*);
 
 // funciones con memoria, tlb, mmu
-void ejecutar_resize(int tamanio, t_cde* cde);
+void ejecutar_resize(int tamanio);
 void ejecutar_mov_in(char* reg_datos, char* reg_direccion);
 void leer_de_dir_fisica_los_bytes(uint32_t dir_fisica, uint32_t bytes, uint32_t* valor_leido);
 void ejecutar_mov_in_un_byte(char* reg_datos, char* reg_direccion);
@@ -58,16 +61,16 @@ bool se_encuentra_en_tlb(uint32_t dir_logica, uint32_t* dir_fisica);
 
 // --------------------------------
 
-void devolver_cde_a_kernel(t_cde*, t_instruccion*);
+void devolver_cde_a_kernel();
 void inicializar_registros();
-void ejecutar_proceso(t_cde*);
-void cargar_registros(t_cde*);
-void guardar_registros(t_cde*);
+void ejecutar_proceso();
+void cargar_registros();
+void guardar_registros();
 uint32_t buscar_valor_registro(char*);
 void imprimir_instruccion(t_instruccion*);
 
 
-void desalojar_cde(t_cde*, t_instruccion*);
+void desalojar_cde(t_instruccion*);
 char* obtener_nombre_instruccion(t_instruccion* );
 char* obtener_nombre_motivo_desalojo(cod_desalojo);
 

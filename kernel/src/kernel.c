@@ -13,9 +13,6 @@ int main(int argc, char* argv[]) {
 	conectar();
 
     consola();
-    //iniciar_proceso("instruccionesP4.txt");
-    //iniciar_proceso("instruccionesP5.txt");
-    //iniciar_proceso("instruccionesP6.txt");
 
     sem_wait(&terminar_kernel);
 
@@ -71,22 +68,8 @@ void esperarIOs(){
         conectar_io(&interfaz->hilo_io, &interfaz->socket);
 
         log_info(logger_kernel, "Se conecto la IO con ID (nombre): %s  TIPO: %s", nombre, tipo);
-
-        //imprimir_ios();
     }
 } 
-
-void imprimir_ios(){
-    int cantidad = list_size(interfacesIO);
-    int i = 0;
-    printf("\nLas IOs conectadas hasta el momento son:\n");
-    while (i<cantidad){
-        t_interfaz* interfaz = list_get(interfacesIO, i);
-        printf("\n\tNOMBRE:  %s,  TIPO:  %s", interfaz->nombre, interfaz->tipo);
-        i++;
-    }
-    printf("\n\n");
-}
 
 t_interfaz* crear_interfaz(char* nombre, char* tipo, int socket){
     t_interfaz* interfaz = malloc(sizeof(t_interfaz));
@@ -302,8 +285,6 @@ void cambiar_grado_multiprogramacion(char* nuevo_grado){
     }
 }
 
-///////// CHECKPOINT 2 PLANIFICACION /////////////////
-
 t_pcb* crear_pcb(char* path){
     t_pcb* pcb_creado = malloc(sizeof(t_pcb));
     // Asigno memoria a las estructuras
@@ -319,7 +300,6 @@ t_pcb* crear_pcb(char* path){
 
 	//Inicializo el quantum, pid y el PC
     pcb_creado->cde->pid = pid_a_asignar; // arranca en 0 y va sumando 1 cada vez que se crea un pcb
-    pcb_creado->cde->pc = 0;
     pcb_creado->cde->motivo_desalojo = NO_DESALOJADO;
     pcb_creado->cde->motivo_finalizacion = NO_FINALIZADO;
 
@@ -454,15 +434,6 @@ void iniciar_proceso(char* path){
 
 	//Recibo la respuesta de la memoria
     mensajeMemoriaKernel cod_op = recibir_codigo(socket_memoria);
-    /*
-    if (cod_op == INICIAR_PROCESO_OK){
-        printf("\nMEMORIA CREO CORRECTAMENTE EL PROCESO\n");
-        pcb_en_ejecucion = pcb_a_new;
-       // enviar_cde_a_cpu();
-    } else if (cod_op == INICIAR_PROCESO_ERROR) {
-        printf("\nERROR AL CREAR EL PROCESO DESDE MEMORIA\n");
-    } */
-
 
     if(cod_op == INICIAR_PROCESO_OK){
         // Poner en new
@@ -485,13 +456,8 @@ void iniciar_proceso(char* path){
 }
 
 void finalizarProceso(uint32_t pid_string){
-    // Antes de hacer finalizar proceso, hay que ver que como desde todos los estados podes pasar a exit, quiza conviene 
-    // tener el estado en el pcb, para saber en que lista lo sacas? 
-    // Aunque sin este parametro se puede hacer quiza es un poco mas rebuscado?
-
     int resultado = 0;
     retirar_pcb_de_su_respectivo_estado(pid_string, &resultado);    
-    // detectar deadlock se llama en menu.c
     return;
 }
 
@@ -663,7 +629,6 @@ void iniciar_planificacion(){
     planificacion_detenida = 0;
 }
 
-
 void detener_planificacion(){ 
     planificacion_detenida = 1;
 }
@@ -690,8 +655,6 @@ void listar_procesos_por_estado(){
     free(procesos_cargados_en_blocked);
     free(procesos_cargados_en_exit);
 }
-
-// IDA Y VUELTA CON CPU
 
 void enviar_cde_a_cpu(){
     enviar_codigo(socket_cpu_dispatch, EJECUTAR_PROCESO);
@@ -1048,7 +1011,6 @@ t_interfaz* obtener_interfaz_en_lista(char* nombre, int* indice){
         return NULL;
 }
 
-// UTILS COLAS DE ESTADOS
 void agregar_pcb_a(t_queue* cola, t_pcb* pcb_a_agregar, pthread_mutex_t* mutex){
     
     pthread_mutex_lock(mutex);
@@ -1138,9 +1100,6 @@ char* obtener_nombre_estado(t_estados estado){
     }
 }
 
-
-///////// CHECKPOINT 1 CONEXIONES Y CONSOLA /////////
-
 void conectar_consola(){
 	int err = pthread_create(&hilo_consola, NULL, (void*)consola, NULL);
 	if (err != 0) {
@@ -1224,7 +1183,6 @@ void conectar_cpu_dispatch(){
 	log_info(logger_kernel, "Conexion dispatch lista!");
 }
 
-
 void conectar_cpu_interrupt(){
 	ip = config_get_string_value(config_kernel, "IP");
 	puerto_cpu_interrupt = config_get_string_value(config_kernel, "PUERTO_CPU_INTERRUPT");
@@ -1262,7 +1220,6 @@ void terminar_programa(){
 void iterator(char* value) {
 	log_info(logger_kernel,"%s", value);
 }
-
 
 // TANSICIONES ENTRE ESTADOS -------------------------------------------------------------------------------------------------
 // las siguientes dos funciones (o dos transiciones) son las que van a bloquearse en caso
@@ -1453,7 +1410,6 @@ void enviar_pcb_de_block_a_readyPlus(t_pcb* pcb){
     sem_post(&procesos_en_ready);
 }
 
-
 void enviar_de_ready_a_exec(){
     while(1){
         sem_wait(&cpu_libre);
@@ -1535,6 +1491,7 @@ int esta_proceso_en_cola_bloqueados(t_pcb* pcb){
     }
     return posicion_pcb;
 }
+
 // FIN TANSICIONES ENTRE ESTADOS -------------------------------------------------------------------------------------------------
 
 // PLANIFICACION
