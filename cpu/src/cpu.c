@@ -569,29 +569,28 @@ void devolver_cde_a_kernel(){
 }
 
 void copiar_ultima_instruccion(t_instruccion* instruccion){
+    // limpiamos la anterior
+    destruir_instruccion(instruccion);
+
+    // copiamos la nueva
     cde_ejecutando->ultima_instruccion->codigo = instruccion->codigo;
     if(instruccion->parametro1){
-        free(cde_ejecutando->ultima_instruccion->parametro1);
         cde_ejecutando->ultima_instruccion->parametro1 = string_new();
         string_append(&cde_ejecutando->ultima_instruccion->parametro1, instruccion->parametro1);
     }
     if(instruccion->parametro2){
-        free(cde_ejecutando->ultima_instruccion->parametro2);
         cde_ejecutando->ultima_instruccion->parametro2 = string_new();
         string_append(&cde_ejecutando->ultima_instruccion->parametro2, instruccion->parametro2);
     }
     if(instruccion->parametro3){
-        free(cde_ejecutando->ultima_instruccion->parametro3);
         cde_ejecutando->ultima_instruccion->parametro3 = string_new();
         string_append(&cde_ejecutando->ultima_instruccion->parametro3, instruccion->parametro3);
     }
     if(instruccion->parametro4){
-        free(cde_ejecutando->ultima_instruccion->parametro4);
         cde_ejecutando->ultima_instruccion->parametro4 = string_new();
         string_append(&cde_ejecutando->ultima_instruccion->parametro4, instruccion->parametro4);
     }
     if(instruccion->parametro5){
-        free(cde_ejecutando->ultima_instruccion->parametro5);
         cde_ejecutando->ultima_instruccion->parametro5 = string_new();
         string_append(&cde_ejecutando->ultima_instruccion->parametro5, instruccion->parametro5);
     }

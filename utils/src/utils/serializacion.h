@@ -90,7 +90,7 @@ uint8_t buffer_read_uint8(t_buffer *buffer);
 
 // STRING
 void buffer_write_string(t_buffer* buffer, char* string_a_escribir);
-char* buffer_read_string(t_buffer* buffer, uint32_t* tam);
+char* buffer_read_string(t_buffer* buffer);
 
 //REGISTROS
 void buffer_write_registros(t_buffer* buffer, t_registro* cde);

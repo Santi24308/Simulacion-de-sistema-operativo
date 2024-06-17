@@ -309,12 +309,11 @@ void atender_io(void *socket_io)
 
 void ejecutar_io_stdin(int socket_interfaz_io)
 {	
-	uint32_t tamanio_valor;
 	t_buffer *buffer = recibir_buffer(socket_interfaz_io);
 	uint32_t pid = buffer_read_uint32(buffer);
 	uint32_t direccion_fisica = buffer_read_uint32(buffer);
 	uint32_t bytes_a_copiar = buffer_read_uint32(buffer);
-	char *valor_a_escribir = buffer_read_string(buffer, &tamanio_valor); 
+	char *valor_a_escribir = buffer_read_string(buffer); 
 	destruir_buffer(buffer);
 
 	uint32_t bytes_disp_frame = tamanio_paginas - obtener_desplazamiento_pagina(bytes_a_copiar);
@@ -452,11 +451,9 @@ void esperarIOs() {
 	while (1){
 		int socket_io = esperar_cliente(socket_servidor, logger_memoria);
 
-		uint32_t tamanio_id;
-		uint32_t tamanio_tipo;
 		t_buffer *buffer = recibir_buffer(socket_io);
-		char *id = buffer_read_string(buffer, &tamanio_id);
-		char *tipo = buffer_read_string(buffer, &tamanio_tipo);
+		char *id = buffer_read_string(buffer);
+		char *tipo = buffer_read_string(buffer);
 		destruir_buffer(buffer);
 
 		t_interfaz *interfaz = crear_interfaz(id, tipo, socket_io);
@@ -483,10 +480,9 @@ t_interfaz* crear_interfaz(char* nombre, char* tipo, int socket){
 void iniciar_proceso()
 { // ver atender io de kernel
 	t_buffer *buffer_recibido = recibir_buffer(socket_kernel);
-	uint32_t tam = 0;
 	uint32_t pid = buffer_read_uint32(buffer_recibido);
 
-	char *nombre_archivo = buffer_read_string(buffer_recibido, &tam); // path de kernel, inst del proceso a ejecutar
+	char *nombre_archivo = buffer_read_string(buffer_recibido); // path de kernel, inst del proceso a ejecutar
 
 	destruir_buffer(buffer_recibido);
 
@@ -533,16 +529,6 @@ void imprimir_pids()
 		i++;
 	}
 	printf("\n");
-}
-
-void eliminar_instruccion(t_instruccion *instruccion)
-{
-	free(instruccion->parametro1);
-	free(instruccion->parametro2);
-	free(instruccion->parametro3);
-	free(instruccion->parametro4);
-	free(instruccion->parametro5);
-	free(instruccion);
 }
 
 t_proceso *crear_proceso(uint32_t pid, t_list *lista_instrucciones)
@@ -632,7 +618,7 @@ void eliminar_lista_instrucciones(t_list *lista)
 	while (i < list_size(lista))
 	{
 		t_instruccion *instruccion = list_get(lista, i);
-		eliminar_instruccion(instruccion);
+		destruir_instruccion(instruccion);
 		list_remove(lista, i);
 		i++;
 	}

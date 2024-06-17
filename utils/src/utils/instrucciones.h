@@ -52,5 +52,6 @@ void escribirCharParametroInstruccion(int indice, t_instruccion* instr, char* st
 char* leerCharParametroInstruccion(int indice, t_instruccion* instr);
 char* obtener_nombre_instruccion(t_instruccion* instruccion);
 codigoInstruccion obtener_codigo_instruccion(char* cod_char);
+int cantidad_parametros_instruccion(codigoInstruccion codigo);
 
 #endif /* SRC_UTILS_INSTRUCCIONES_H_ */

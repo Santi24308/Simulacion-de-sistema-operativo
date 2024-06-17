@@ -54,11 +54,9 @@ void esperarIOs(){
     while (1){
         int socket_io = esperar_cliente(socket_servidor, logger_kernel);
 
-        uint32_t tamanio_nombre;
-        uint32_t tamanio_tipo;
         t_buffer* buffer = recibir_buffer(socket_io);
-        char* nombre = buffer_read_string(buffer, &tamanio_nombre);
-        char* tipo = buffer_read_string(buffer, &tamanio_tipo);        
+        char* nombre = buffer_read_string(buffer);
+        char* tipo = buffer_read_string(buffer);        
         destruir_buffer(buffer);
 
         t_interfaz* interfaz = crear_interfaz(nombre, tipo, socket_io);
@@ -292,11 +290,6 @@ t_pcb* crear_pcb(char* path){
     pcb_creado->cde->registros = malloc(sizeof(t_registro));
     
     pcb_creado->cde->ultima_instruccion = crear_instruccion(NULO);
-    escribirCharParametroInstruccion(1, pcb_creado->cde->ultima_instruccion, "");
-    escribirCharParametroInstruccion(2, pcb_creado->cde->ultima_instruccion, "");
-    escribirCharParametroInstruccion(3, pcb_creado->cde->ultima_instruccion, "");
-    escribirCharParametroInstruccion(4, pcb_creado->cde->ultima_instruccion, "");
-    escribirCharParametroInstruccion(5, pcb_creado->cde->ultima_instruccion, "");
 
 	//Inicializo el quantum, pid y el PC
     pcb_creado->cde->pid = pid_a_asignar; // arranca en 0 y va sumando 1 cada vez que se crea un pcb
@@ -1115,14 +1108,13 @@ void atender_io(void* socket_io){
         t_buffer* buffer = NULL;
         char* id_interfaz = NULL;
         t_interfaz* interfaz = NULL;
-        uint32_t tamanio = 0;
         int indice = -1;
         mensajeIOKernel codigo = recibir_codigo(socket_interfaz_io);
         switch (codigo){
         case LIBRE:
             // recibo en un uint32 el id de la interfaz
             buffer = recibir_buffer(socket_interfaz_io);
-            id_interfaz = buffer_read_string(buffer, &tamanio);
+            id_interfaz = buffer_read_string(buffer);
             destruir_buffer(buffer);
             // busco en la lista de interfaces
             interfaz = obtener_interfaz_en_lista(id_interfaz, &indice);
@@ -1147,7 +1139,7 @@ void atender_io(void* socket_io){
         case DESCONEXION: // suponemos que hay alguna manera de avisar
             // recibo el id
             buffer = recibir_buffer(socket_interfaz_io);
-            id_interfaz = buffer_read_string(buffer, &tamanio);
+            id_interfaz = buffer_read_string(buffer);
             destruir_buffer(buffer);
             // la saco de la lista
             interfaz = obtener_interfaz_en_lista(id_interfaz, &indice);

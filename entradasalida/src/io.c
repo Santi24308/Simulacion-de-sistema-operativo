@@ -178,9 +178,8 @@ void ejecutar_std_out(){
 	enviar_buffer(buffer, socket_memoria);
 	destruir_buffer(buffer);
 
-	uint32_t tam = 0;
 	buffer = recibir_buffer(socket_memoria);
-	char* valor_a_mostrar = buffer_read_string(buffer, &tam);
+	char* valor_a_mostrar = buffer_read_string(buffer);
 	destruir_buffer(buffer);
 
 	printf("%s", valor_a_mostrar);
