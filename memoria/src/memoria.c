@@ -344,6 +344,8 @@ void ejecutar_io_stdin(int socket_interfaz_io)
 	}
 
 	log_info(logger_memoria, "PID: %d - Accion: ESCRIBIR - Direccion fisica: %d - Tamaño %d", pid, direccion_fisica, bytes_a_copiar);
+
+	enviar_codigo(socket_interfaz_io, OK);
 }
 
 t_pagina *obtener_pagsig_de_dirfisica(uint32_t direccion_fisica, uint32_t pid)

@@ -12,8 +12,8 @@ int main(int argc, char* argv[]) {
 	inicializar_modulo();
 	conectar();
 
-    iniciar_proceso("instruccionesP0.txt");
-    //consola();
+    //iniciar_proceso("instruccionesP0.txt");
+    consola();
 
     sem_wait(&terminar_kernel);
 

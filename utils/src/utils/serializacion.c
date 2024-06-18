@@ -102,8 +102,7 @@ uint8_t buffer_read_uint8(t_buffer* buffer){
 
 void buffer_write_string(t_buffer* buffer, char* cadena){
 	uint32_t tam = string_length(cadena);
-	printf("\t\n\ndebo escribir:    %s\n\n", cadena);
-	printf("\t\n\nde tamaño:   %d\n\n", tam);
+
 	buffer_write_uint32(buffer,tam);
 
 	buffer->stream = realloc(buffer->stream, buffer->size + tam);

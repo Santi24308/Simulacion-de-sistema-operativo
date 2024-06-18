@@ -19,7 +19,11 @@
 
 // AGREGAR LOS PROTOCOLOS
 
-// prototipo de protocolo entre memoria e IO
+// mensajes que da memoria tanto a cpu como IO
+typedef enum{
+	OK
+}mensajeMemoria;
+
 typedef enum{	
 	IO_STDIN_ESCRIBIR,
 	IO_STDOUT_LEER

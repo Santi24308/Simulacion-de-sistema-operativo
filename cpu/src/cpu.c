@@ -420,27 +420,19 @@ void ejecutar_instruccion(t_instruccion* instruccion_a_ejecutar){
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             parametro2 = leerEnteroParametroInstruccion(2, instruccion_a_ejecutar);
             ejecutar_set(instruccion_a_ejecutar->parametro1, parametro2);
-            if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
-                destruir_instruccion(instruccion_a_ejecutar);
             break;
         case SUM:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             ejecutar_sum(instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
-            if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
-                destruir_instruccion(instruccion_a_ejecutar);
             break;
         case SUB:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             ejecutar_sub(instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
-            if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
-                destruir_instruccion(instruccion_a_ejecutar); 
             break;
         case JNZ:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             parametro2 = leerEnteroParametroInstruccion(2, instruccion_a_ejecutar);
             ejecutar_jnz(instruccion_a_ejecutar->parametro1, parametro2);
-            if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
-                destruir_instruccion(instruccion_a_ejecutar); 
             break;
         case IO_GEN_SLEEP:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
@@ -527,6 +519,10 @@ void actualizar_dirLogica_a_dirFisica(t_instruccion* instruccion_a_ejecutar){
         dir_fisica = calcular_direccion_fisica(atoi(instruccion_a_ejecutar->parametro2), cde_ejecutando);
 
     instruccion_a_ejecutar->parametro2 = uint32_to_string(dir_fisica);
+
+    // actualizo el parametro de tamanio tambien
+    uint32_t tamanio = buscar_valor_registro(instruccion_a_ejecutar->parametro3);
+    instruccion_a_ejecutar->parametro3 = uint32_to_string(tamanio);
 }
 
 char* uint32_to_string(uint32_t number) {
@@ -573,28 +569,26 @@ void devolver_cde_a_kernel(){
 // -------------------------------------------------
 
 void ejecutar_set(char* registro, uint32_t valor_recibido){
-    uint32_t valor_registro = buscar_valor_registro(registro);
-
     if (strcmp(registro, "AX") == 0) 
-        registros_cpu->AX = valor_registro;   
+        registros_cpu->AX = valor_recibido;   
     else if(strcmp(registro, "BX") == 0)
-        registros_cpu->BX = valor_registro;
+        registros_cpu->BX = valor_recibido;
     else if(strcmp(registro, "CX") == 0)
-        registros_cpu->CX = valor_registro;
+        registros_cpu->CX = valor_recibido;
     else if(strcmp(registro, "DX") == 0)
-        registros_cpu->DX = valor_registro;
+        registros_cpu->DX = valor_recibido;
 	else if(strcmp(registro, "EAX") == 0)
-        registros_cpu->EAX= valor_registro;
+        registros_cpu->EAX= valor_recibido;
 	else if(strcmp(registro, "EBX") == 0)
-        registros_cpu->EBX = valor_registro;
+        registros_cpu->EBX = valor_recibido;
 	else if(strcmp(registro, "ECX") == 0)
-        registros_cpu->ECX = valor_registro;	
+        registros_cpu->ECX = valor_recibido;	
 	else if(strcmp(registro, "EDX") == 0)
-        registros_cpu->EDX = valor_registro;	
+        registros_cpu->EDX = valor_recibido;	
 	else if(strcmp(registro, "SI") == 0)
-        registros_cpu->SI = valor_registro;		
+        registros_cpu->SI = valor_recibido;		
 	else if(strcmp(registro, "DI") == 0)
-        registros_cpu->DI = valor_registro;	
+        registros_cpu->DI = valor_recibido;	
     else
         log_error(logger_cpu, "No se reconoce el registro %s", registro);
 }
