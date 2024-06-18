@@ -1,1 +1,1 @@
-INICIAR_PROCESO instruccionesP1.txt
+INICIAR_PROCESO instruccionesP0.txt

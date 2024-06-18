@@ -357,8 +357,10 @@ void ejecutar_proceso(){
         instruccion_actualizada = instruccion_a_ejecutar->codigo;
         pthread_mutex_unlock(&mutex_instruccion_actualizada);
 
-        copiar_ultima_instruccion(instruccion_a_ejecutar);
-        ejecutar_instruccion(cde_ejecutando->ultima_instruccion);
+        destruir_instruccion(cde_ejecutando->ultima_instruccion);
+        cde_ejecutando->ultima_instruccion = instruccion_a_ejecutar;
+
+        ejecutar_instruccion(instruccion_a_ejecutar);
 
         registros_cpu->PC += 1;
 	}
@@ -556,8 +558,6 @@ void desalojar_cde(t_instruccion* instruccion_a_ejecutar){
     pthread_mutex_lock(&mutex_instruccion_actualizada);
     instruccion_actualizada = NULO;
     pthread_mutex_unlock(&mutex_instruccion_actualizada);
-
-    destruir_instruccion(instruccion_a_ejecutar);
 }
 
 void devolver_cde_a_kernel(){
@@ -566,34 +566,6 @@ void devolver_cde_a_kernel(){
     buffer_write_cde(buffer, cde_ejecutando);
     enviar_buffer(buffer, socket_kernel_dispatch);
     destruir_buffer(buffer);
-}
-
-void copiar_ultima_instruccion(t_instruccion* instruccion){
-    // limpiamos la anterior
-    destruir_instruccion(instruccion);
-
-    // copiamos la nueva
-    cde_ejecutando->ultima_instruccion->codigo = instruccion->codigo;
-    if(instruccion->parametro1){
-        cde_ejecutando->ultima_instruccion->parametro1 = string_new();
-        string_append(&cde_ejecutando->ultima_instruccion->parametro1, instruccion->parametro1);
-    }
-    if(instruccion->parametro2){
-        cde_ejecutando->ultima_instruccion->parametro2 = string_new();
-        string_append(&cde_ejecutando->ultima_instruccion->parametro2, instruccion->parametro2);
-    }
-    if(instruccion->parametro3){
-        cde_ejecutando->ultima_instruccion->parametro3 = string_new();
-        string_append(&cde_ejecutando->ultima_instruccion->parametro3, instruccion->parametro3);
-    }
-    if(instruccion->parametro4){
-        cde_ejecutando->ultima_instruccion->parametro4 = string_new();
-        string_append(&cde_ejecutando->ultima_instruccion->parametro4, instruccion->parametro4);
-    }
-    if(instruccion->parametro5){
-        cde_ejecutando->ultima_instruccion->parametro5 = string_new();
-        string_append(&cde_ejecutando->ultima_instruccion->parametro5, instruccion->parametro5);
-    }
 }
 
 // -------------------------------------------------

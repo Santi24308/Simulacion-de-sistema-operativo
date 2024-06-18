@@ -104,6 +104,5 @@ void destruir_cde(t_cde* cde);
 // INSTRUCCIONES
 t_instruccion* buffer_read_instruccion(t_buffer* buffer);
 void buffer_write_instruccion(t_buffer* buffer, t_instruccion* instruccion);
-void destruir_instruccion(t_instruccion* instruccion);
 
 #endif /* SRC_UTILS_SERIALIZACION_H_ */

@@ -1,7 +1,7 @@
 #include "instrucciones.h"
 
 t_instruccion* crear_instruccion(codigoInstruccion codigo){
-	t_instruccion* instruccion = malloc(sizeof(t_instruccion));
+	t_instruccion* instruccion = calloc(1, sizeof(t_instruccion));
 	if (!instruccion) {
 		perror("No se pudo reservar memoria para instruccion.\n");
 		return NULL;
@@ -247,4 +247,20 @@ int cantidad_parametros_instruccion(codigoInstruccion codigo){
 		default:
 			return 0;
     }	
+}
+
+void destruir_instruccion(t_instruccion* instruccion){
+	if (!instruccion)
+		return;
+	if (instruccion->parametro1) 
+		free(instruccion->parametro1);
+	if (instruccion->parametro2)
+		free(instruccion->parametro2);
+	if (instruccion->parametro3)
+		free(instruccion->parametro3);
+	if (instruccion->parametro4)
+		free(instruccion->parametro4);
+	if (instruccion->parametro5)
+		free(instruccion->parametro5);
+	free(instruccion);
 }
