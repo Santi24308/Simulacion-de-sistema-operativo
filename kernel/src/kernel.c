@@ -12,7 +12,7 @@ int main(int argc, char* argv[]) {
 	inicializar_modulo();
 	conectar();
 
-    //iniciar_proceso("instruccionesP0.txt");
+    //iniciar_proceso("instruccionesP1.txt");
     consola();
 
     sem_wait(&terminar_kernel);

@@ -23,10 +23,6 @@ typedef struct{
 }t_proceso;
 
 typedef struct{
-	void* espacioMemoria;
-} t_memoria_fisica;
-
-typedef struct{
     int nro_pagina;
     int pid;
     int marco; 
@@ -44,6 +40,8 @@ typedef struct{
 	pthread_t hilo_io;
 }t_interfaz;
 
+void* memoria_fisica;
+
 char* config_path;
 char* instrucciones_path;
 char* puerto_escucha; 
@@ -59,7 +57,6 @@ t_log* logger_memoria;
 t_config* config_memoria;
 t_list* lista_procesos;
 t_list* tabla_de_marcos;
-t_memoria_fisica* memfisica;
 
 t_list* interfacesIO;
 

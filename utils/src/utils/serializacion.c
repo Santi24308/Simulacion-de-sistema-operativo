@@ -184,7 +184,6 @@ void buffer_write_cde(t_buffer* buffer, t_cde* cde_recibido){
 
 t_cde* buffer_read_cde(t_buffer* buffer){
 	t_cde* cde = calloc(1, sizeof(t_cde));
-	t_registro* registros_creados = calloc(1, sizeof(t_registro));
 	t_instruccion* ultima_instruccion_creada = calloc(1, sizeof(t_instruccion));
 	
 	cde->pid = buffer_read_uint32(buffer);
@@ -219,7 +218,6 @@ t_cde* buffer_read_cde(t_buffer* buffer){
 		ultima_instruccion_creada->parametro5 = buffer_read_string(buffer);
 
 	// por ultimo corregimos los punteros del cde
-	cde->registros = registros_creados;
 	cde->ultima_instruccion = ultima_instruccion_creada;
 
 	return cde;

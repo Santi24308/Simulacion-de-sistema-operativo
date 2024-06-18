@@ -149,19 +149,21 @@ void ejecutar_std_in(){
 
 	int limite_bytes = atoi(instruccion->parametro3);
 	printf("\nLimite de bytes  %d", limite_bytes);
-	// para poner el \0 y evitar conflictos, sabemos que en la serializacion no se va a copiar el \0
-	limite_bytes++;
 
 	char* leido = readline("> ");
 	printf("\n el sting leido tiene  %ld bytes", strlen(leido) + 1);
 
-	void* valor_a_escribir = malloc(limite_bytes);
+	// para poner el \0 y evitar conflictos, sabemos que en la serializacion no se va a copiar el \0
+	void* valor_a_escribir = malloc(limite_bytes + 1);
 
 	memcpy(valor_a_escribir, leido, limite_bytes);
 	char* palabra = valor_a_escribir;
 	palabra[limite_bytes] = '\0';
 
 	printf("\nLa palabra limitada queda: %s", palabra);
+	printf("\nEn bytes queda:");
+	mem_hexdump(palabra, limite_bytes);
+
 
 	enviar_codigo(socket_memoria, IO_STDIN_READ);
 	buffer = crear_buffer();
@@ -178,6 +180,10 @@ void ejecutar_std_in(){
 	}
 
 	enviar_codigo(socket_kernel, LIBRE);
+	buffer = crear_buffer();
+	buffer_write_string(buffer, nombreIO);
+	enviar_buffer(buffer, socket_kernel);
+	destruir_buffer(buffer);
 }
 
 void ejecutar_std_out(){
@@ -198,8 +204,13 @@ void ejecutar_std_out(){
 	char* valor_a_mostrar = buffer_read_string(buffer);
 	destruir_buffer(buffer);
 
-	printf("%s", valor_a_mostrar);
+	printf("\t\nEl string que llego es: %s\n", valor_a_mostrar);
+
 	enviar_codigo(socket_kernel, LIBRE);
+	buffer = crear_buffer();	
+	buffer_write_string(buffer, nombreIO);
+	enviar_buffer(buffer, socket_kernel);
+	destruir_buffer(buffer);
 }
 
 void conectar_memoria(){

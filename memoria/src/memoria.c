@@ -29,8 +29,8 @@ void inicializar_modulo()
 
 	total_espacio_memoria = config_get_int_value(config_memoria, "TAM_MEMORIA");
 
-	memfisica = malloc(total_espacio_memoria); // Tamaño memoria (capaz difiere)
-	if (memfisica == NULL)
+	memoria_fisica = calloc(1, total_espacio_memoria); 
+	if (memoria_fisica == NULL)
 	{
 		log_error(logger_memoria, "MALLOC FAIL para la memoria fisica!\n");
 		exit(EXIT_FAILURE);
@@ -185,7 +185,7 @@ void atender_cpu()
 				break;
 			}
 
-			memcpy(datos_leidos, memfisica->espacioMemoria + dir_fisica_mov_in, bytes_mov_in);
+			memcpy(datos_leidos, memoria_fisica + dir_fisica_mov_in, bytes_mov_in);
 
 			uint32_t dato = *(uint32_t *)datos_leidos;
 
@@ -205,7 +205,7 @@ void atender_cpu()
 			uint32_t bytes_mov_out = buffer_read_uint32(buffer_mov_out);
 			destruir_buffer(buffer_mov_out);
 
-			memcpy(memfisica->espacioMemoria+dir_fisica_mov_out, (void *)&valor_a_escribir, bytes_mov_out);
+			memcpy(memoria_fisica+dir_fisica_mov_out, (void *)&valor_a_escribir, bytes_mov_out);
 
 			log_info(logger_memoria, "PID: %d - Accion: ESCRIBIR - Direccion fisica: %d - Tamaño %d", pid_mov_out, dir_fisica_mov_out, bytes_mov_out);
 
@@ -318,13 +318,20 @@ void ejecutar_io_stdin(int socket_interfaz_io)
 
 	uint32_t bytes_disp_frame = tamanio_paginas - obtener_desplazamiento_pagina(bytes_a_copiar);
 	if (bytes_disp_frame >= bytes_a_copiar)
-	{
-		memcpy(memfisica->espacioMemoria + direccion_fisica, valor_a_escribir, bytes_a_copiar);
+	{	
+		printf("\nMemria antes de la escritura:\n");
+		mem_hexdump(memoria_fisica + direccion_fisica, bytes_a_copiar);
+		memcpy(memoria_fisica + direccion_fisica, valor_a_escribir, bytes_a_copiar);
+		printf("\nMemria despues de la escritura:\n");
+		mem_hexdump(memoria_fisica + direccion_fisica, bytes_a_copiar);
+		enviar_codigo(socket_interfaz_io, OK);
+		log_info(logger_memoria, "PID: %d - Accion: ESCRIBIR - Direccion fisica: %d - Tamaño %d", pid, direccion_fisica, bytes_a_copiar);
+
 		return;
 	}
 	else
 	{
-		memcpy(memfisica->espacioMemoria + direccion_fisica, valor_a_escribir, bytes_disp_frame);
+		memcpy(memoria_fisica + direccion_fisica, valor_a_escribir, bytes_disp_frame);
 		// termina una pagina
 		bytes_a_copiar = bytes_a_copiar - bytes_disp_frame;
 		int cant_paginas_restantes = ceil(bytes_a_copiar / tamanio_paginas);
@@ -333,14 +340,14 @@ void ejecutar_io_stdin(int socket_interfaz_io)
 		{
 			t_pagina *pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica, pid);
 			uint32_t direccion_fisica_nueva = recalcular_direccion_fisica(pagina_siguiente);
-			memcpy(memfisica->espacioMemoria + direccion_fisica_nueva, valor_a_escribir + desplazamiento_string, tamanio_paginas);
+			memcpy(memoria_fisica + direccion_fisica_nueva, valor_a_escribir + desplazamiento_string, tamanio_paginas);
 			desplazamiento_string = tamanio_paginas;
 			bytes_a_copiar = bytes_a_copiar - tamanio_paginas;
 			cant_paginas_restantes = ceil(bytes_a_copiar / tamanio_paginas);
 		}
 		t_pagina *pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica, pid);
 		uint32_t direccion_fisica_nueva = recalcular_direccion_fisica(pagina_siguiente);
-		memcpy(memfisica->espacioMemoria + direccion_fisica_nueva, valor_a_escribir + desplazamiento_string, bytes_a_copiar);
+		memcpy(memoria_fisica + direccion_fisica_nueva, valor_a_escribir + desplazamiento_string, bytes_a_copiar);
 	}
 
 	log_info(logger_memoria, "PID: %d - Accion: ESCRIBIR - Direccion fisica: %d - Tamaño %d", pid, direccion_fisica, bytes_a_copiar);
@@ -394,7 +401,8 @@ void ejecutar_io_stdout(int socket_interfaz_io)
 
 	buffer = crear_buffer();
 
-	char* valor_a_leer = malloc((size_t)bytes_a_leer);
+	// se le suma 1 para el \0
+	char* valor_a_leer = calloc(1, (size_t)bytes_a_leer + 1);
 	int bytes_usados = 0;
 	int desplazamiento = obtener_desplazamiento_pagina(direccion_fisica);
 	int bytes_restantes = bytes_a_leer; 
@@ -402,7 +410,7 @@ void ejecutar_io_stdout(int socket_interfaz_io)
 	// si el desplazamiento es distinto de cero leemos hasta terminar la pagina
 	if (desplazamiento != 0){
 		bytes_usados = tamanio_paginas - desplazamiento;
-		memcpy(valor_a_leer, memfisica->espacioMemoria+direccion_fisica, bytes_usados);
+		memcpy(valor_a_leer, memoria_fisica+direccion_fisica, bytes_usados);
 		
 		bytes_restantes = bytes_a_leer - bytes_usados;
 		
@@ -412,7 +420,36 @@ void ejecutar_io_stdout(int socket_interfaz_io)
 			enviar_buffer(buffer, socket_interfaz_io);
 			destruir_buffer(buffer);
 			free(valor_a_leer);
+			log_info(logger_memoria, "PID: %d - Accion: LEER - Direccion fisica: %d - Tamaño %d", pid, direccion_fisica, bytes_a_leer);
 			return;
+		}
+	} else {
+		// en este caso tenemos que leer de una sola pagina pero desde el comienzo - CON PROBABILIDAD DE QUE NO SEA SUFICIENTE -
+
+		// nos fijamos si lo que hay que leer es menor o igual a una pagina para asegurar que leemos y completamos la solicitud
+		if (bytes_a_leer <= tamanio_paginas){
+			printf("\nCadena antes de la lectura:\n");
+			mem_hexdump(valor_a_leer, bytes_a_leer);
+			memcpy(valor_a_leer,  memoria_fisica+direccion_fisica, bytes_a_leer);
+			printf("\nCadena despues de la lectura:\n");
+			mem_hexdump(valor_a_leer, bytes_a_leer);
+
+			valor_a_leer[bytes_a_leer] = '\0';
+			buffer_write_string(buffer, valor_a_leer);
+			enviar_buffer(buffer, socket_interfaz_io);
+			destruir_buffer(buffer);
+			free(valor_a_leer);
+			log_info(logger_memoria, "PID: %d - Accion: LEER - Direccion fisica: %d - Tamaño %d", pid, direccion_fisica, bytes_a_leer);
+			return;
+		} else {
+			// en este caso leemos una pagina completa y actualizamos los bytes usados
+			printf("\nCadena antes de la lectura:\n");
+			mem_hexdump(valor_a_leer, bytes_a_leer);
+			memcpy(valor_a_leer,  memoria_fisica+direccion_fisica, tamanio_paginas);
+			printf("\nCadena despues de la lectura:\n");
+			mem_hexdump(valor_a_leer, bytes_a_leer);
+
+			bytes_restantes = bytes_a_leer - tamanio_paginas;
 		}
 	}
 
@@ -425,7 +462,7 @@ void ejecutar_io_stdout(int socket_interfaz_io)
 	while (bytes_restantes != 0 && bytes_restantes >= tamanio_paginas){
 		pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica, pid);
 		direccion_fisica_nueva = recalcular_direccion_fisica(pagina_siguiente);
-		memcpy(valor_a_leer+bytes_usados, memfisica->espacioMemoria+direccion_fisica_nueva, tamanio_paginas);
+		memcpy(valor_a_leer+bytes_usados, memoria_fisica+direccion_fisica_nueva, tamanio_paginas);
 		
 		bytes_usados += tamanio_paginas;
 		bytes_restantes -= tamanio_paginas;
@@ -436,9 +473,10 @@ void ejecutar_io_stdout(int socket_interfaz_io)
 	if (bytes_restantes != 0){
 		pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica, pid);
 		direccion_fisica_nueva = recalcular_direccion_fisica(pagina_siguiente);
-		memcpy(valor_a_leer+bytes_usados, memfisica->espacioMemoria+direccion_fisica_nueva, bytes_restantes);
+		memcpy(valor_a_leer+bytes_usados, memoria_fisica+direccion_fisica_nueva, bytes_restantes);
 	}
 
+	valor_a_leer[bytes_a_leer] = '\0';
 	buffer_write_string(buffer, valor_a_leer);
 	enviar_buffer(buffer, socket_interfaz_io);
 	destruir_buffer(buffer);
