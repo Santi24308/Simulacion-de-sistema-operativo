@@ -179,6 +179,7 @@ void atender_cpu()
 			destruir_buffer(buffer_mov_in);
 
 			void *datos_leidos = malloc(bytes_mov_in);
+			memset(datos_leidos, 0 , bytes_mov_in);
 			if (datos_leidos == NULL)
 			{
 				log_error(logger_memoria, "Error al asignar memoria para datos leídos.\n");
@@ -316,7 +317,10 @@ void ejecutar_io_stdin(int socket_interfaz_io)
 	char *valor_a_escribir = buffer_read_string(buffer); 
 	destruir_buffer(buffer);
 
-	uint32_t bytes_disp_frame = tamanio_paginas - obtener_desplazamiento_pagina(bytes_a_copiar);
+	// esto es porque despues hacemos cuenta regresiva con bytes_a_copiar y usamos el original para el log
+	uint32_t bytes_a_copiar_original = bytes_a_copiar;
+
+	uint32_t bytes_disp_frame = tamanio_paginas - obtener_desplazamiento_pagina(direccion_fisica);
 	if (bytes_disp_frame >= bytes_a_copiar)
 	{	
 		printf("\nMemria antes de la escritura:\n");
@@ -325,7 +329,7 @@ void ejecutar_io_stdin(int socket_interfaz_io)
 		printf("\nMemria despues de la escritura:\n");
 		mem_hexdump(memoria_fisica + direccion_fisica, bytes_a_copiar);
 		enviar_codigo(socket_interfaz_io, OK);
-		log_info(logger_memoria, "PID: %d - Accion: ESCRIBIR - Direccion fisica: %d - Tamaño %d", pid, direccion_fisica, bytes_a_copiar);
+		log_info(logger_memoria, "PID: %d - Accion: ESCRIBIR - Direccion fisica: %d - Tamaño %d", pid, direccion_fisica, bytes_a_copiar_original);
 
 		return;
 	}
@@ -350,7 +354,7 @@ void ejecutar_io_stdin(int socket_interfaz_io)
 		memcpy(memoria_fisica + direccion_fisica_nueva, valor_a_escribir + desplazamiento_string, bytes_a_copiar);
 	}
 
-	log_info(logger_memoria, "PID: %d - Accion: ESCRIBIR - Direccion fisica: %d - Tamaño %d", pid, direccion_fisica, bytes_a_copiar);
+	log_info(logger_memoria, "PID: %d - Accion: ESCRIBIR - Direccion fisica: %d - Tamaño %d", pid, direccion_fisica, bytes_a_copiar_original);
 
 	enviar_codigo(socket_interfaz_io, OK);
 }
@@ -770,13 +774,13 @@ void crear_tabla_global_de_marcos()
 
 	for (int i = 0; i < cantidadDeMarcos; i++)
 	{
-		marco = (t_marco *)malloc(sizeof(t_marco));
+		marco = (t_marco *)calloc(1, sizeof(t_marco));
 		if (marco == NULL)
 		{
 			log_error(logger_memoria, "error en la creacion del marco %d", i);
 			break; // Si malloc falla, salimos del ciclo para evitar un bucle infinito
 		}
-		inicializarMarco(marco);
+		//inicializarMarco(marco);
 		pthread_mutex_lock(&mutex_lista_tablas);
 		list_add(tabla_de_marcos, marco);
 		pthread_mutex_unlock(&mutex_lista_tablas);
@@ -797,16 +801,17 @@ void crear_pagina_y_asignar_a_pid(int numero_pagina, int pid)
 {
 	t_pagina *pagina = malloc(sizeof(t_pagina));
 	int numeroMarco = obtener_marco_libre();
+	t_marco* marco_seleccionado =  list_get(tabla_de_marcos, numeroMarco);
+
 	pagina->nro_pagina = numero_pagina;
 	pagina->pid = pid;
 	pagina->marco = numeroMarco;
 
+	marco_seleccionado->bit_uso = 1;
+	marco_seleccionado->paginaAsociada = pagina;
+
 	t_proceso *proceso = buscar_proceso(pid);
 	list_add(proceso->tabla_de_paginas, pagina);
-
-	pthread_mutex_lock(&mutex_lista_tablas);
-	list_replace(tabla_de_marcos, numeroMarco, pagina);
-	pthread_mutex_unlock(&mutex_lista_tablas);
 }
 
 uint32_t obtener_marco_libre()
@@ -814,7 +819,7 @@ uint32_t obtener_marco_libre()
 	for (int i = 0; i < cantidadDeMarcos; i++)
 	{
 		t_marco* marco_obtenido = list_get(tabla_de_marcos, i);
-		if (marco_obtenido->paginaAsociada == NULL)
+		if (marco_obtenido->bit_uso == 0)
 			return i;
 	}
 	return -1;

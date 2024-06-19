@@ -732,8 +732,13 @@ void leer_de_dir_fisica_los_bytes(uint32_t dir_fisica, uint32_t bytes, uint32_t*
     buffer_write_uint32(buffer, bytes); 
     enviar_buffer(buffer, socket_memoria);
 
+
+    printf("\nValor leido antes de la lectura:\n");
+	mem_hexdump(valor_leido, bytes);
     buffer = recibir_buffer(socket_memoria);
     *valor_leido = buffer_read_uint32(buffer);
+	printf("\nCadena despues de la lectura:\n");
+    mem_hexdump(valor_leido, bytes);
     destruir_buffer(buffer);
 
     log_info(logger_cpu, "Lectura/Escritura Memoria: “PID: %d - Acción: LEER - Dirección Física: %d - Valor: %d.", cde_ejecutando->pid, dir_fisica, *valor_leido);
@@ -815,16 +820,25 @@ uint32_t leer_y_guardar_de_dos_paginas(uint32_t dir_logica){
 }
 
 uint32_t dato_reconstruido(uint32_t primera, uint32_t segunda, int bytes_primera, int bytes_segunda){
-    uint32_t dato_reconstruido = 0;
 
     void* primera_ptr = &primera;
     void* segunda_ptr = &segunda;
-    void* dato_reconstruido_ptr = &dato_reconstruido;
+    void* dato_reconstruido_ptr = malloc(4);
+    memset(dato_reconstruido_ptr, 0, 4);
 
-    memcpy(dato_reconstruido_ptr, primera_ptr, (size_t)bytes_primera);
-    memcpy(dato_reconstruido_ptr + (size_t)bytes_primera, segunda_ptr, (size_t)bytes_segunda);
+    printf("\nDato antes de ser reconstruido:\n");
+	mem_hexdump(dato_reconstruido_ptr, 4);
 
-    return dato_reconstruido;
+    memcpy(dato_reconstruido_ptr, segunda_ptr, (size_t)bytes_segunda);
+    memcpy(dato_reconstruido_ptr + (size_t)bytes_segunda, primera_ptr, (size_t)bytes_primera);
+
+    printf("\nDato despues de ser reconstruido:\n");
+	mem_hexdump(dato_reconstruido_ptr, 4);
+
+    uint32_t valor = *(uint32_t*)dato_reconstruido_ptr;
+
+    free(dato_reconstruido_ptr);
+    return valor;
 }
 
 bool es_reg_de_cuatro_bytes(char* reg_datos){
