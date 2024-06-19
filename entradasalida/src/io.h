@@ -34,4 +34,13 @@ void leer_y_mostrar_resultado();
 void ejecutar_std_in();
 void ejecutar_std_out();
 
+void ejecutar_fs_create();				
+void ejecutar_fs_delete();			
+void ejecutar_fs_truncate();			
+void ejecutar_fs_write();				
+void ejecutar_fs_read();
+
+void crear_archivo_bloques();
+void crear_archivo_bitmap();
+
 #endif
