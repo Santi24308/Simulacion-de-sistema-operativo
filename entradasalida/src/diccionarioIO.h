@@ -23,6 +23,40 @@ char* puerto_kernel;
 int socket_memoria;
 int socket_kernel;
 int id_interfaz;  // necesario para que kernel pueda guiarse despues
+
+int block_size;
+int block_size;
+
+//-------------------------------------------------
+//ESTRUCTURA DE LOS ARCHIVOS DE DIAL FS
+
+typedef struct {    
+    t_metadata archivoMetadata;
+}t_archivo;
+
+typedef struct {
+    void* bloque; 
+}t_bloque;
+
+
+/*
+typedef struct{  
+
+    //t_list archivos_en_fs;
+}t_fileSystem;
+
+/*
+indice del array de bits
+bloques | bitmap  | archivo
+0       |1        | A
+1       |1        | A (segun el tamaño de A)
+2       |1        | B
+3       |0        | 
+4       |1        | C
+*/
+//-------------------------------------------------
+
+
 t_log* logger_io;
 t_config* config_io;
 pthread_t hilo_kernel;
