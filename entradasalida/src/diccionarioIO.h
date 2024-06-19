@@ -29,7 +29,7 @@ int block_size;
 
 //-------------------------------------------------
 //ESTRUCTURA DE LOS ARCHIVOS DE DIAL FS
-
+/*
 typedef struct {    
     t_metadata archivoMetadata;
 }t_archivo;
@@ -37,13 +37,13 @@ typedef struct {
 typedef struct {
     void* bloque; 
 }t_bloque;
-
+*/
 
 /*
 typedef struct{  
 
     //t_list archivos_en_fs;
-}t_fileSystem;
+}t_fileSystem; */
 
 /*
 indice del array de bits

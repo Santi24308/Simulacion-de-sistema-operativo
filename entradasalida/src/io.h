@@ -8,12 +8,12 @@
 
 // es buena idea pero en el enunciado piden que TIPO_INTERFAZ llegue 
 // como string desde config
-typedef enum{
+/* typedef enum{
     GENERICA,
     STDIN,
     STDOUT,
     DIALFS
-}tipoIO;
+}tipoIO; */
 
 bool chequeo_parametros(int, char**);
 void levantar_logger();

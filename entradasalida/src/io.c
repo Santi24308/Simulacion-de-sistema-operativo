@@ -106,7 +106,7 @@ void atender_kernel_stdout(){
 		}
 	}
 }
-
+/*
 void atender_kernel_dialfs(){
 	
 	crear_archivo_bloques();
@@ -140,6 +140,7 @@ void atender_kernel_dialfs(){
 		}
 	}
 }
+*/
 
 void atender(){
 	if (strcmp(tipo, "GENERICA")==0)
@@ -148,8 +149,8 @@ void atender(){
 		atender_kernel_stdin();
 	else if (strcmp(tipo, "STDOUT")==0)
 		atender_kernel_stdout();
-	else if (strcmp(tipo, "DIALFS")==0)
-		atender_kernel_dialfs();
+	//else if (strcmp(tipo, "DIALFS")==0)
+	//	atender_kernel_dialfs();
 	else  
 		log_error(logger_io, "El tipo de I/O indicado en config es incorrecto, terminando programa...");
 }
@@ -297,7 +298,7 @@ void terminar_programa(){
 	
 /////////////////     DIALFS     /////////////////
 
-
+/*
 // CPU -> KERNEL -> IO ( y la logica de FS)
 
 //kernel le manda al FS que tiene que ejecuta
@@ -312,10 +313,10 @@ void ejecutar_fs_truncate(){}
 void ejecutar_fs_write(){}
 				
 void ejecutar_fs_read(){}
-
+*/
 
 //-------------------------------------------------------------------------------------
-
+/*
 void crear_archivo_bloques(){
 	block_size  = config_get_int_value(config_io, "BLOCK_SIZE");
 	block_count = config_get_int_value(config_io,"BLOCK_COUNT");
@@ -357,7 +358,7 @@ void crear_archivo_bitmap(){
     
     fclose(fp); // Cerrar el archivo después de escribir todos los bloques
 }
-
+*/
 //-------------------------------------------------------------------------------------
 
 //Cambio de tamanio del archivo: chequeamos si es mayor o menos el nuevo
