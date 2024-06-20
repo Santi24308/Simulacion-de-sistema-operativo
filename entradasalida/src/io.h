@@ -3,6 +3,7 @@
 
 #include <utils/conexiones.h>
 #include <commons/string.h>
+#include <commons/bitarray.h>
 #include <diccionarioIO.h>
 #include <stdbool.h>
 

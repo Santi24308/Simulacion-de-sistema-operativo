@@ -106,7 +106,7 @@ void atender_kernel_stdout(){
 		}
 	}
 }
-/*
+
 void atender_kernel_dialfs(){
 	
 	crear_archivo_bloques();
@@ -121,26 +121,26 @@ void atender_kernel_dialfs(){
 				break;
 			case IO_FS_DELETE:
 				usleep(1000);
-				ejecutar_fs_delete();
+				//ejecutar_fs_delete();
 				break;
 			case IO_FS_TRUNCATE:
 				usleep(1000);
-				ejecutar_fs_truncate();
+				//ejecutar_fs_truncate();
 				break;
 			case IO_FS_WRITE:
 				usleep(1000);
-				ejecutar_fs_write();
+				//ejecutar_fs_write();
 				break;
 			case IO_FS_READ:
 				usleep(1000);
-				ejecutar_fs_read();
+				//ejecutar_fs_read();
 				break;
 			default:
 				break;
 		}
 	}
 }
-*/
+
 
 void atender(){
 	if (strcmp(tipo, "GENERICA")==0)
@@ -149,8 +149,8 @@ void atender(){
 		atender_kernel_stdin();
 	else if (strcmp(tipo, "STDOUT")==0)
 		atender_kernel_stdout();
-	//else if (strcmp(tipo, "DIALFS")==0)
-	//	atender_kernel_dialfs();
+	else if (strcmp(tipo, "DIALFS")==0)
+		atender_kernel_dialfs();
 	else  
 		log_error(logger_io, "El tipo de I/O indicado en config es incorrecto, terminando programa...");
 }
@@ -294,18 +294,30 @@ void terminar_programa(){
 	terminar_conexiones(2, socket_memoria, socket_kernel);
     if(logger_io) log_destroy(logger_io);
     if(config_io) config_destroy(config_io);
-
+}
 	
 /////////////////     DIALFS     /////////////////
 
-/*
+
 // CPU -> KERNEL -> IO ( y la logica de FS)
 
 //kernel le manda al FS que tiene que ejecuta
-void ejecutar_fs_create(nombreArchivo){
-//t_buffer buffer =  recibir_buffer(socket_kernel);	
+void ejecutar_fs_create(){
+	
+	//REPETICION DE LOGICA EN TODAS LAS IOS
+	t_buffer* buffer =  recibir_buffer(socket_kernel);	
+	int pid = buffer_read_uint32(buffer);
+    t_instruccion* instruccion = buffer_read_instruccion(buffer);
+   	destruir_buffer(buffer);
+	//REPETICION DE LOGICA EN TODAS LAS IOS
+	
+	/*IO_FS_CREATE Int4 notas.txt se cree un archivo en el FS montado en dicha interfaz.*/
+	char* nombreIO = instruccion -> parametro1;
+	char* nombreArchivo = instruccion -> parametro2;
+	FILE *archivo = fopen(nombreArchivo, "w"); 	 
+	//agregar_bloque_archivo(archivo);
 }
-				
+/*				
 void ejecutar_fs_delete(){}
 			
 void ejecutar_fs_truncate(){}
@@ -314,24 +326,24 @@ void ejecutar_fs_write(){}
 				
 void ejecutar_fs_read(){}
 */
-
 //-------------------------------------------------------------------------------------
-/*
+
 void crear_archivo_bloques(){
 	block_size  = config_get_int_value(config_io, "BLOCK_SIZE");
 	block_count = config_get_int_value(config_io,"BLOCK_COUNT");
 	
 // Función para inicializar y escribir el archivo bloques.dat
-    FILE *fp = fopen("bloques.dat", "w");  // Abrir el archivo en modo escritura binaria
+    FILE *fp = fopen("bloques.dat", "wb");  // Abrir el archivo en modo escritura binaria
     if (fp == NULL) {
-        perror("Error al abrir el archivo bloques.dat");
-        return;   
+        log_error(logger_io,"Error al abrir el archivo bloques.dat");
+		return;         
 	}
 
 	t_bloque* bloque_vacio = malloc(sizeof(t_bloque));
-		if(bloque_vacio == NULL){
-		log_error(logger_io , "Error malloc en crear bloque");
-		return -1;
+	bloque_vacio->bloque = malloc(block_size);
+	if(bloque_vacio == NULL){
+		log_error(logger_io , "Error malloc en crear bloque");		
+		return;
 		}
 
     memset(bloque_vacio->bloque, 0, block_size);  // Inicializar un bloque vacío con ceros
@@ -341,32 +353,59 @@ void crear_archivo_bloques(){
     }
 
     fclose(fp); // Cerrar el archivo después de escribir todos los bloques
-	free(bloque_vacio);
+	free(bloque_vacio);	
 }
 
 void crear_archivo_bitmap(){
-	// Función para inicializar y escribir el archivo bloques.dat
-    FILE *fp = fopen("bitmap.dat", "w");  // Abrir el archivo en modo escritura binaria
+	// Función para inicializar y escribir el archivo bitmap.dat
+    FILE *fp = fopen("bitmap.dat", "wb");  // Abrir el archivo en modo escritura binaria
     if (fp == NULL) {
-        perror("Error al abrir el archivo bloques.dat");
+       	log_error(logger_io ,"Error al abrir el archivo bitmap.dat");
         return;   
-	}
-	//char* array_bits = crear_array_bits();
-	t_bitarray bitarray = bitarray_create(0,block_count); //struct de commons. 0??
-	
-    fwrite(bitarray, sizeof(t_bitarray), 1, fp);  // Escribir el bloque vacío en el archivo
-    
+	}	
+
+
+	//REVISAR//
+	t_bitarray* bitarray = bitarray_create(0,block_count); 
+    fwrite(bitarray->bitarray, sizeof(t_bitarray), 1, fp);  // Escribir el bloque vacío en el archivo
     fclose(fp); // Cerrar el archivo después de escribir todos los bloques
 }
-*/
+
 //-------------------------------------------------------------------------------------
+/*
+void agregar_bloque_archivo(FILE* archivo) {
+    uint32_t primerBloqueLibre = obtener_primer_bloque_libre();
+    if (primerBloqueLibre == -1) {
+        log_error(logger_io , "No hay bloques libres disponibles.\n");
+        return;
+    }
+
+    // Marcar el primer bloque libre como ocupado
+    escribir_BitMap(primerBloqueLibre, 1);
+
+    // Abrir el archivo de bloques
+    FILE *file = fopen("bloques.dat", "rb+");
+    if (file == NULL) {
+        log_error(logger_io , "Error abriendo bloques.dat");
+        return;
+    }
+
+    // Escribir el número del nuevo bloque en el último bloque del archivo
+    fseek(file, primerBloqueLibre * block_size, SEEK_SET);
+    uint32_t nuevoBloque = primerBloqueLibre;
+    fwrite(&nuevoBloque, block_size, 1, file);
+
+    // Cerrar el archivo
+    fclose(file);
+}
+
 
 //Cambio de tamanio del archivo: chequeamos si es mayor o menos el nuevo
 // tamanio al tamanio anterior, si es mayor el tamanio se agrega el bloque
 // al archivo y se escribe el archivo bitmap. En caso contrario, se elimina
 // el bloque y se actualiza el bit map
 
-/*
+
 
 void cambiar_tamanio_archivo(char* nombreArchivo, uint32_t nuevo_tamanio){
     char* ruta_fcb_buscado = obtener_ruta_archivo(nombreArchivo);
@@ -400,31 +439,7 @@ void cambiar_tamanio_archivo(char* nombreArchivo, uint32_t nuevo_tamanio){
 
 //-------------------------------------------------------------------------------------
 
-void agregar_bloque_archivo(uint32_t bloqueInicial) {
-    uint32_t primerBloqueLibre = obtener_primer_bloque_libre();
-    if (primerBloqueLibre == UINT32_MAX) {
-        printf("No hay bloques libres disponibles.\n");
-        return;
-    }
 
-    // Marcar el primer bloque libre como ocupado
-    escribir_BitMap(primerBloqueLibre, 1);
-
-    // Abrir el archivo de bloques
-    FILE *file = fopen("bloques.dat", "rb+");
-    if (file == NULL) {
-        perror("Error abriendo bloques.dat");
-        return;
-    }
-
-    // Escribir el número del nuevo bloque en el último bloque del archivo
-    fseek(file, bloqueInicial * sizeof(uint32_t), SEEK_SET);
-    uint32_t nuevoBloque = primerBloqueLibre;
-    fwrite(&nuevoBloque, sizeof(uint32_t), 1, file);
-
-    // Cerrar el archivo
-    fclose(file);
-}
 //---------------------------------------
 
 void sacar_bloque_archivo(uint32_t bloqueInicial) {
@@ -463,6 +478,14 @@ void sacar_bloque_archivo(uint32_t bloqueInicial) {
     fclose(file);
 }
 
+uint32_t obtener_nro_bloque_libre(){
+    for(int nroBloque = 0; nroBloque < config_file_system.cantidad_bloques_total; nroBloque++){
+        uint8_t bloqueOcupado = leer_de_bitmap(nroBloque);
+        if(!bloqueOcupado)
+            return nroBloque;
+    }
+	return -1;
+}
 //-------------------------------------------------------------------------------------
 // Escribimos en el archivo bloques.dat y pisamos con "valor" en el nro de bloque correspondiente
 
@@ -472,18 +495,14 @@ void escribir_BitMap(uint32_t nroBloque, uint8_t valor){
         perror("Error abriendo bitmap.dat");
         return;
     }
-    // Mover el puntero del archivo a la posición correspondiente
     if (fseek(file, nroBloque, SEEK_SET) != 0) {
         perror("Error buscando en bitmap.dat");
         fclose(file);
         return;
     }
-    // Escribir el nuevo valor en la posición correspondiente
     if (fwrite(&valor, sizeof(uint8_t), 1, file) != 1) {
         perror("Error escribiendo en bitmap.dat");
     }
-
-    // Cerrar el archivo
     fclose(file);
 }
 //-------------------------------------------------------------------------
@@ -518,14 +537,6 @@ uint8_t leer_de_bitmap(uint32_t nroBloque) {
 }
 
 //---------------------------------------------------
-uint32_t obtener_nro_bloque_libre(){
-    for(int nroBloque = 0; nroBloque < config_file_system.cantidad_bloques_total; nroBloque++){
-        uint8_t bloqueOcupado = leer_de_bitmap(nroBloque);
-        if(!bloqueOcupado)
-            return nroBloque;
-    }
-}
+
 */
 
-
-}

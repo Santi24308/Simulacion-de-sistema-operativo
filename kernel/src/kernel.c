@@ -719,12 +719,16 @@ void evaluar_instruccion(t_instruccion* ultima_instruccion){
             evaluar_io(ultima_instruccion);
             break;
         case IO_FS_CREATE:
+            evaluar_io(ultima_instruccion);
             break;
         case IO_FS_TRUNCATE:
+            evaluar_io(ultima_instruccion);
             break;
         case IO_FS_WRITE:
+            evaluar_io(ultima_instruccion);
             break;
         case IO_FS_READ:
+            evaluar_io(ultima_instruccion);
             break;
         case EXIT:
             pcb_en_ejecucion->cde->motivo_finalizacion = SUCCESS;

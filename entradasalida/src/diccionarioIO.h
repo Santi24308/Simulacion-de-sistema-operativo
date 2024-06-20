@@ -24,20 +24,21 @@ int socket_memoria;
 int socket_kernel;
 int id_interfaz;  // necesario para que kernel pueda guiarse despues
 
-int block_size;
+int block_count;
 int block_size;
 
 //-------------------------------------------------
 //ESTRUCTURA DE LOS ARCHIVOS DE DIAL FS
-/*
-typedef struct {    
-    t_metadata archivoMetadata;
-}t_archivo;
 
 typedef struct {
     void* bloque; 
 }t_bloque;
-*/
+
+typedef struct {
+    size_t tamanio;
+    t_bloque* bloqueInicial;
+}t_metadata;
+
 
 /*
 typedef struct{  
