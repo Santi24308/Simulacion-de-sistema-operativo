@@ -26,6 +26,8 @@ int id_interfaz;  // necesario para que kernel pueda guiarse despues
 
 int block_count;
 int block_size;
+char* path_filesystem;
+
 
 //-------------------------------------------------
 //ESTRUCTURA DE LOS ARCHIVOS DE DIAL FS
@@ -33,11 +35,6 @@ int block_size;
 typedef struct {
     void* bloque; 
 }t_bloque;
-
-typedef struct {
-    size_t tamanio;
-    t_bloque* bloqueInicial;
-}t_metadata;
 
 
 /*
