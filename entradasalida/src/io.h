@@ -5,6 +5,7 @@
 #include <commons/string.h>
 #include <diccionarioIO.h>
 #include <stdbool.h>
+#include <math.h>
 
 // es buena idea pero en el enunciado piden que TIPO_INTERFAZ llegue 
 // como string desde config
@@ -33,5 +34,16 @@ void leer_y_mostrar_resultado();
 
 void ejecutar_std_in();
 void ejecutar_std_out();
+
+void ejecutar_fs_create();				
+void ejecutar_fs_delete();			
+void ejecutar_fs_truncate();			
+void ejecutar_fs_write();				
+void ejecutar_fs_read();
+
+void crear_archivo_bloques();
+void crear_archivo_bitmap();
+void crear_metadata(char*);
+
 
 #endif
