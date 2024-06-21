@@ -344,14 +344,22 @@ void ejecutar_io_stdin(int socket_interfaz_io)
 		{
 			t_pagina *pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica, pid);
 			uint32_t direccion_fisica_nueva = recalcular_direccion_fisica(pagina_siguiente);
+			printf("\nMemria antes de la escritura:\n");
+			mem_hexdump(memoria_fisica + direccion_fisica, tamanio_paginas);
 			memcpy(memoria_fisica + direccion_fisica_nueva, valor_a_escribir + desplazamiento_string, tamanio_paginas);
+			printf("\nMemria despues de la escritura:\n");
+			mem_hexdump(memoria_fisica + direccion_fisica, tamanio_paginas);
 			desplazamiento_string = tamanio_paginas;
 			bytes_a_copiar = bytes_a_copiar - tamanio_paginas;
 			cant_paginas_restantes = ceil(bytes_a_copiar / tamanio_paginas);
 		}
 		t_pagina *pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica, pid);
 		uint32_t direccion_fisica_nueva = recalcular_direccion_fisica(pagina_siguiente);
+		printf("\nMemria antes de la escritura:\n");
+		mem_hexdump(memoria_fisica + direccion_fisica, bytes_a_copiar);
 		memcpy(memoria_fisica + direccion_fisica_nueva, valor_a_escribir + desplazamiento_string, bytes_a_copiar);
+		printf("\nMemria despues de la escritura:\n");
+		mem_hexdump(memoria_fisica + direccion_fisica, bytes_a_copiar);
 	}
 
 	log_info(logger_memoria, "PID: %d - Accion: ESCRIBIR - Direccion fisica: %d - Tamaño %d", pid, direccion_fisica, bytes_a_copiar_original);
@@ -414,7 +422,11 @@ void ejecutar_io_stdout(int socket_interfaz_io)
 	// si el desplazamiento es distinto de cero leemos hasta terminar la pagina
 	if (desplazamiento != 0){
 		bytes_usados = tamanio_paginas - desplazamiento;
+		printf("\nVariable antes de la lectura:\n");
+		mem_hexdump(valor_a_leer, bytes_a_leer);
 		memcpy(valor_a_leer, memoria_fisica+direccion_fisica, bytes_usados);
+		printf("\nVariable despues de la lectura:\n");
+		mem_hexdump(valor_a_leer, bytes_a_leer);
 		
 		bytes_restantes = bytes_a_leer - bytes_usados;
 		
@@ -432,10 +444,10 @@ void ejecutar_io_stdout(int socket_interfaz_io)
 
 		// nos fijamos si lo que hay que leer es menor o igual a una pagina para asegurar que leemos y completamos la solicitud
 		if (bytes_a_leer <= tamanio_paginas){
-			printf("\nCadena antes de la lectura:\n");
+			printf("\nVariable antes de la lectura:\n");
 			mem_hexdump(valor_a_leer, bytes_a_leer);
 			memcpy(valor_a_leer,  memoria_fisica+direccion_fisica, bytes_a_leer);
-			printf("\nCadena despues de la lectura:\n");
+			printf("\nVariable despues de la lectura:\n");
 			mem_hexdump(valor_a_leer, bytes_a_leer);
 
 			valor_a_leer[bytes_a_leer] = '\0';
@@ -447,10 +459,10 @@ void ejecutar_io_stdout(int socket_interfaz_io)
 			return;
 		} else {
 			// en este caso leemos una pagina completa y actualizamos los bytes usados
-			printf("\nCadena antes de la lectura:\n");
+			printf("\nVariable antes de la lectura:\n");
 			mem_hexdump(valor_a_leer, bytes_a_leer);
 			memcpy(valor_a_leer,  memoria_fisica+direccion_fisica, tamanio_paginas);
-			printf("\nCadena despues de la lectura:\n");
+			printf("\nVariable despues de la lectura:\n");
 			mem_hexdump(valor_a_leer, bytes_a_leer);
 
 			bytes_restantes = bytes_a_leer - tamanio_paginas;
@@ -466,7 +478,11 @@ void ejecutar_io_stdout(int socket_interfaz_io)
 	while (bytes_restantes != 0 && bytes_restantes >= tamanio_paginas){
 		pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica, pid);
 		direccion_fisica_nueva = recalcular_direccion_fisica(pagina_siguiente);
+		printf("\nVariable antes de la lectura:\n");
+		mem_hexdump(valor_a_leer, bytes_a_leer);
 		memcpy(valor_a_leer+bytes_usados, memoria_fisica+direccion_fisica_nueva, tamanio_paginas);
+		printf("\nVariable despues de la lectura:\n");
+		mem_hexdump(valor_a_leer, bytes_a_leer);
 		
 		bytes_usados += tamanio_paginas;
 		bytes_restantes -= tamanio_paginas;
@@ -477,7 +493,11 @@ void ejecutar_io_stdout(int socket_interfaz_io)
 	if (bytes_restantes != 0){
 		pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica, pid);
 		direccion_fisica_nueva = recalcular_direccion_fisica(pagina_siguiente);
+		printf("\nVariable antes de la lectura:\n");
+		mem_hexdump(valor_a_leer, bytes_a_leer);
 		memcpy(valor_a_leer+bytes_usados, memoria_fisica+direccion_fisica_nueva, bytes_restantes);
+		printf("\nVariable despues de la lectura:\n");
+		mem_hexdump(valor_a_leer, bytes_a_leer);
 	}
 
 	valor_a_leer[bytes_a_leer] = '\0';

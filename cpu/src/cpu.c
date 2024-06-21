@@ -741,7 +741,7 @@ void leer_de_dir_fisica_los_bytes(uint32_t dir_fisica, uint32_t bytes, uint32_t*
     mem_hexdump(valor_leido, bytes);
     destruir_buffer(buffer);
 
-    log_info(logger_cpu, "Lectura/Escritura Memoria: “PID: %d - Acción: LEER - Dirección Física: %d - Valor: %d.", cde_ejecutando->pid, dir_fisica, *valor_leido);
+    log_info(logger_cpu, "Lectura/Escritura Memoria: “PID: %d - Acción: LEER - Dirección Física: %d - Valor: %p.", cde_ejecutando->pid, dir_fisica, (void*)valor_leido);
 }
 
 void ejecutar_mov_in_un_byte(char* reg_datos, char* reg_direccion){
@@ -892,7 +892,7 @@ void escribir_en_dir_fisica_los_bytes(uint32_t dir_fisica, uint32_t bytes, uint3
     buffer_write_uint32(buffer, bytes); 
     enviar_buffer(buffer, socket_memoria);
 
-    log_info(logger_cpu, "Lectura/Escritura Memoria: “PID: %d - Acción: ESCRIBIR - Dirección Física: %d - Valor: %d.", cde_ejecutando->pid, dir_fisica, valor_a_escribir);
+    log_info(logger_cpu, "Lectura/Escritura Memoria: “PID: %d - Acción: ESCRIBIR - Dirección Física: %d - Valor: %p.", cde_ejecutando->pid, dir_fisica, (void *)&valor_a_escribir);
 }
 
 void escribir_y_guardar_en_dos_paginas(uint32_t dir_logica_destino, uint32_t* valor){
