@@ -186,7 +186,11 @@ void atender_cpu()
 				break;
 			}
 
+			printf("\nVariable antes de la lectura:\n");
+			mem_hexdump(datos_leidos, bytes_mov_in);
 			memcpy(datos_leidos, memoria_fisica + dir_fisica_mov_in, bytes_mov_in);
+			printf("\nVariable despues de la lectura:\n");
+			mem_hexdump(datos_leidos, bytes_mov_in);
 
 			uint32_t dato = *(uint32_t *)datos_leidos;
 
@@ -206,7 +210,11 @@ void atender_cpu()
 			uint32_t bytes_mov_out = buffer_read_uint32(buffer_mov_out);
 			destruir_buffer(buffer_mov_out);
 
+			printf("\nMemoria antes de la escritura:\n");
+			mem_hexdump(memoria_fisica, 64);
 			memcpy(memoria_fisica+dir_fisica_mov_out, (void *)&valor_a_escribir, bytes_mov_out);
+			printf("\nMemoria despues de la escritura:\n");
+			mem_hexdump(memoria_fisica, 64);
 
 			log_info(logger_memoria, "PID: %d - Accion: ESCRIBIR - Direccion fisica: %d - Tamaño %d", pid_mov_out, dir_fisica_mov_out, bytes_mov_out);
 
@@ -218,7 +226,7 @@ void atender_cpu()
 			destruir_buffer(buffer_resize);
 
 			uint32_t marcos_libres = cantidad_marcos_libres();
-			uint32_t cantidad_paginas_solicitadas = ceil(tamanio / tamanio_paginas);
+			uint32_t cantidad_paginas_solicitadas = ceil((float)tamanio / tamanio_paginas);
 			t_proceso *proceso = buscar_proceso(pid_resize);
 			uint32_t tamanio_reservado = list_size(proceso->tabla_de_paginas) * tamanio_paginas;
 			uint32_t tamanio_reservado_en_paginas = list_size(proceso->tabla_de_paginas);
@@ -323,11 +331,11 @@ void ejecutar_io_stdin(int socket_interfaz_io)
 	uint32_t bytes_disp_frame = tamanio_paginas - obtener_desplazamiento_pagina(direccion_fisica);
 	if (bytes_disp_frame >= bytes_a_copiar)
 	{	
-		printf("\nMemria antes de la escritura:\n");
-		mem_hexdump(memoria_fisica + direccion_fisica, bytes_a_copiar);
+		printf("\nMemoria antes de la escritura:\n");
+		mem_hexdump(memoria_fisica, 64);
 		memcpy(memoria_fisica + direccion_fisica, valor_a_escribir, bytes_a_copiar);
-		printf("\nMemria despues de la escritura:\n");
-		mem_hexdump(memoria_fisica + direccion_fisica, bytes_a_copiar);
+		printf("\nMemoria despues de la escritura:\n");
+		mem_hexdump(memoria_fisica, 64);
 		enviar_codigo(socket_interfaz_io, OK);
 		log_info(logger_memoria, "PID: %d - Accion: ESCRIBIR - Direccion fisica: %d - Tamaño %d", pid, direccion_fisica, bytes_a_copiar_original);
 
@@ -338,28 +346,28 @@ void ejecutar_io_stdin(int socket_interfaz_io)
 		memcpy(memoria_fisica + direccion_fisica, valor_a_escribir, bytes_disp_frame);
 		// termina una pagina
 		bytes_a_copiar = bytes_a_copiar - bytes_disp_frame;
-		int cant_paginas_restantes = ceil(bytes_a_copiar / tamanio_paginas);
+		int cant_paginas_restantes = ceil((float)bytes_a_copiar / tamanio_paginas);
 		int desplazamiento_string = bytes_disp_frame;
 		while (cant_paginas_restantes > 1)
 		{
 			t_pagina *pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica, pid);
 			uint32_t direccion_fisica_nueva = recalcular_direccion_fisica(pagina_siguiente);
-			printf("\nMemria antes de la escritura:\n");
-			mem_hexdump(memoria_fisica + direccion_fisica, tamanio_paginas);
+			printf("\nMemoria antes de la escritura:\n");
+			mem_hexdump(memoria_fisica, 64);
 			memcpy(memoria_fisica + direccion_fisica_nueva, valor_a_escribir + desplazamiento_string, tamanio_paginas);
-			printf("\nMemria despues de la escritura:\n");
-			mem_hexdump(memoria_fisica + direccion_fisica, tamanio_paginas);
+			printf("\nMemoria despues de la escritura:\n");
+			mem_hexdump(memoria_fisica, 64);
 			desplazamiento_string = tamanio_paginas;
 			bytes_a_copiar = bytes_a_copiar - tamanio_paginas;
-			cant_paginas_restantes = ceil(bytes_a_copiar / tamanio_paginas);
+			cant_paginas_restantes = ceil((float)bytes_a_copiar / tamanio_paginas);
 		}
 		t_pagina *pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica, pid);
 		uint32_t direccion_fisica_nueva = recalcular_direccion_fisica(pagina_siguiente);
-		printf("\nMemria antes de la escritura:\n");
-		mem_hexdump(memoria_fisica + direccion_fisica, bytes_a_copiar);
+		printf("\nMemoria antes de la escritura:\n");
+		mem_hexdump(memoria_fisica, 64);
 		memcpy(memoria_fisica + direccion_fisica_nueva, valor_a_escribir + desplazamiento_string, bytes_a_copiar);
-		printf("\nMemria despues de la escritura:\n");
-		mem_hexdump(memoria_fisica + direccion_fisica, bytes_a_copiar);
+		printf("\nMemoria despues de la escritura:\n");
+		mem_hexdump(memoria_fisica, 64);
 	}
 
 	log_info(logger_memoria, "PID: %d - Accion: ESCRIBIR - Direccion fisica: %d - Tamaño %d", pid, direccion_fisica, bytes_a_copiar_original);
@@ -414,7 +422,7 @@ void ejecutar_io_stdout(int socket_interfaz_io)
 	buffer = crear_buffer();
 
 	// se le suma 1 para el \0
-	char* valor_a_leer = calloc(1, (size_t)bytes_a_leer + 1);
+	char* valor_a_leer = calloc(1, (size_t)bytes_a_leer);
 	int bytes_usados = 0;
 	int desplazamiento = obtener_desplazamiento_pagina(direccion_fisica);
 	int bytes_restantes = bytes_a_leer; 
@@ -465,6 +473,7 @@ void ejecutar_io_stdout(int socket_interfaz_io)
 			printf("\nVariable despues de la lectura:\n");
 			mem_hexdump(valor_a_leer, bytes_a_leer);
 
+			bytes_usados += tamanio_paginas;
 			bytes_restantes = bytes_a_leer - tamanio_paginas;
 		}
 	}
@@ -500,7 +509,12 @@ void ejecutar_io_stdout(int socket_interfaz_io)
 		mem_hexdump(valor_a_leer, bytes_a_leer);
 	}
 
-	valor_a_leer[bytes_a_leer] = '\0';
+	// si ya tenia el \0 no quiero agregarlo de nuevo por lo que achico al tamaño original
+	if(valor_a_leer[bytes_a_leer-1] != '\0'){
+		valor_a_leer = realloc(valor_a_leer, bytes_a_leer+1);
+		valor_a_leer[bytes_a_leer] = '\0';
+	}
+		
 	buffer_write_string(buffer, valor_a_leer);
 	enviar_buffer(buffer, socket_interfaz_io);
 	destruir_buffer(buffer);
@@ -889,7 +903,7 @@ int bitsToBytes(int bits)
 	else
 	{
 		double c = (double)bits;
-		bytes = ceil(c / 8.0);
+		bytes = ceil((float)c / 8.0);
 	}
 	return bytes;
 }

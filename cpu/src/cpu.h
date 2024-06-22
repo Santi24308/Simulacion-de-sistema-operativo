@@ -33,6 +33,9 @@ void copiar_ultima_instruccion(t_instruccion*);
 
 void actualizar_dirLogica_a_dirFisica(t_instruccion*);
 
+void* formar_string(uint32_t* dir_logica_string, int bytes_totales);
+void escribir_string(uint32_t* dir_logica_destino, void* valor_ptr, int bytes_totales);
+
 // funciones con memoria, tlb, mmu
 void ejecutar_resize(int tamanio);
 void ejecutar_mov_in(char* reg_datos, char* reg_direccion);
