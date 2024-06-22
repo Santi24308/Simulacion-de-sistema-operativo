@@ -463,6 +463,7 @@ void ejecutar_instruccion(t_instruccion* instruccion_a_ejecutar){
             break;
         case COPY_STRING:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1);
+            ejecutar_copy_string(atoi(instruccion_a_ejecutar->parametro1));
             break;
         case IO_STDIN_READ:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
@@ -946,7 +947,7 @@ void ejecutar_copy_string(int tamanio){
     bool pagina_dividida = false;
     bool pagina_en_tlb = false;
 
-    while (bytes_usados < tamanio && bytes_usados + 4 < tamanio){
+    while (bytes_usados <= tamanio && bytes_usados + 4 <= tamanio){
 
         // parte de LECTURA
 

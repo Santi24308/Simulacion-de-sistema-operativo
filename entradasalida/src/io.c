@@ -109,8 +109,8 @@ void atender_kernel_stdout(){
 
 void atender_kernel_dialfs(){
 	
-	crear_archivo_bloques();
-	crear_archivo_bitmap();
+	//crear_archivo_bloques();
+	//crear_archivo_bitmap();
 	
 	while(1){
 		codigoInstruccion cod = recibir_codigo(socket_kernel);
