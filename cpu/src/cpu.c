@@ -515,9 +515,9 @@ void ejecutar_instruccion(t_instruccion* instruccion_a_ejecutar){
 
 void actualizar_dirLogica_a_dirFisica(t_instruccion* instruccion_a_ejecutar){
     uint32_t dir_fisica = UINT32_MAX;
-    bool pagina_en_tlb = se_encuentra_en_tlb(atoi(instruccion_a_ejecutar->parametro2), &dir_fisica); 
+    bool pagina_en_tlb = se_encuentra_en_tlb(buscar_valor_registro(instruccion_a_ejecutar->parametro2), &dir_fisica); 
     if (!pagina_en_tlb)
-        dir_fisica = calcular_direccion_fisica(atoi(instruccion_a_ejecutar->parametro2), cde_ejecutando);
+        dir_fisica = calcular_direccion_fisica(buscar_valor_registro(instruccion_a_ejecutar->parametro2), cde_ejecutando);
 
     instruccion_a_ejecutar->parametro2 = uint32_to_string(dir_fisica);
 

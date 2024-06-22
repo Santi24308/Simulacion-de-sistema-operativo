@@ -805,9 +805,9 @@ void crear_tabla_global_de_marcos()
 		list_add(tabla_de_marcos, marco);
 		pthread_mutex_unlock(&mutex_lista_tablas);
 
-		log_info(logger_memoria, "Marco %d inicializado y añadido a la tabla", i);
+		//log_info(logger_memoria, "Marco %d inicializado y añadido a la tabla", i);
 	}
-
+	log_info(logger_memoria, "Se crearon %d marcos", list_size(tabla_de_marcos));
 	log_info(logger_memoria, "Tabla de marcos creada con éxito");
 }
 
