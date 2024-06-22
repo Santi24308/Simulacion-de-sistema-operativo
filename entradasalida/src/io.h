@@ -44,6 +44,6 @@ void ejecutar_fs_read();
 
 void crear_archivo_bloques();
 void crear_archivo_bitmap();
-void crear_metadata(char*);
+void crear_metadata(char*, char*);
 
 #endif

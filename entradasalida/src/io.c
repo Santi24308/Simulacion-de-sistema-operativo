@@ -109,8 +109,12 @@ void atender_kernel_stdout(){
 
 void atender_kernel_dialfs(){
 	
-	//crear_archivo_bloques();
-	//crear_archivo_bitmap();
+	block_size  = config_get_int_value(config_io, "BLOCK_SIZE");
+    block_count = config_get_int_value(config_io,"BLOCK_COUNT");
+    path_filesystem = config_get_string_value(config_io,"PATH_BASE_DIALFS");
+
+    crear_archivo_bloques();
+    crear_archivo_bitmap();
 	
 	while(1){
 		codigoInstruccion cod = recibir_codigo(socket_kernel);
@@ -298,7 +302,46 @@ void terminar_programa(){
 	
 /////////////////     DIALFS     /////////////////
 
+void crear_archivo_bloques(){
+    char *archivo_bloques = malloc(strlen("bloques.dat") + strlen(path_filesystem) + 1);
+    sprintf(archivo_bloques, "%sbloques.dat", path_filesystem);
 
+// Función para inicializar y escribir el archivo bloques.dat
+
+    FILE *file = fopen(archivo_bloques, "r");
+    if (file == NULL) {
+         file = fopen(archivo_bloques, "wb");  // Abrir el archivo en modo escritura binaria
+           if (file == NULL) {
+            log_error(logger_io,"Error al abrir el archivo bloques.dat");
+            return;
+        }
+    }
+    fclose(file);
+}
+
+void crear_archivo_bitmap(){
+
+    char *archivo_bitmap = malloc(strlen("bitmap.dat") + strlen(path_filesystem) + 1);
+    sprintf(archivo_bitmap, "%sbitmap.dat", path_filesystem);
+
+    FILE* file = fopen(archivo_bitmap, "r");
+    if (file == NULL) {
+        file = fopen(archivo_bitmap, "wb");  // Abrir el archivo en modo escritura binaria
+        if (file == NULL) {
+               log_error(logger_io ,"Error al abrir el archivo bitmap.dat");
+            return;
+        }
+        int tamanioEnBits = floor(block_count / 8);
+
+        char* bitmap = malloc(block_count); //que pasa si no es multiplo de 8? se asume que siempre sera multiplo de 8
+
+        memset(bitmap, 0 , tamanioEnBits);
+        t_bitarray* bitarray = bitarray_create(bitmap,block_count); 
+            fwrite(bitarray->bitarray,floor(bitarray->size / 8), 1, file);
+    }
+
+    fclose(file); 
+}
 // CPU -> KERNEL -> IO ( y la logica de FS)
 
 //kernel le manda al FS que tiene que ejecuta
@@ -311,6 +354,8 @@ void ejecutar_fs_create(){
    	destruir_buffer(buffer);
 	//REPETICION DE LOGICA EN TODAS LAS IOS
 	
+	log_info(logger_io, path_filesystem);
+	
 	//char* nombreIO = instruccion -> parametro1;
 	char* nombreArchivo = instruccion -> parametro2;
 
@@ -319,7 +364,7 @@ void ejecutar_fs_create(){
 	
 	FILE *archivo = fopen(nombreArchivoPath , "w"); 	 
 	
-	crear_metadata(nombreArchivo);	
+	crear_metadata(nombreArchivo, path_filesystem);	
 	
 	//agregar_bloques(archivo, 1);
 	
@@ -338,14 +383,13 @@ void ejecutar_fs_read(){}
 //-------------------------------------------------------------------------------------
 
 
-void crear_metadata(char* nombreArchivo){
-
-	char *nombreMetadata = malloc(strlen("metadata/") + strlen(nombreArchivo) + strlen(path_filesystem) + 1);
+void crear_metadata(char* nombreArchivo, char* path_filesystem) {
+    char *nombreMetadata = malloc(strlen("metadata/") + strlen(nombreArchivo) + strlen(path_filesystem) + 1);
 	sprintf(nombreMetadata, path_filesystem, "metadata/" , nombreArchivo);
 
 	t_config *metadata = config_create(nombreMetadata); 
 	if(metadata == NULL){
-		log_error(logger_io , "No se pudo crear el metada del archivo");
+		log_error(logger_io , "No se pudo crear el metadata del archivo");
 		return;
 	}	
 	config_set_value(metadata, "BLOQUE_INICIAL", "-1"); //-1 para decir que no tiene ningun bloque asociado 
