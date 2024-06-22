@@ -305,7 +305,6 @@ void terminar_programa(){
 void crear_archivo_bloques(){
     char *archivo_bloques = malloc(strlen("bloques.dat") + strlen(path_filesystem) + 1);
     sprintf(archivo_bloques, "%sbloques.dat", path_filesystem);
-
 // Función para inicializar y escribir el archivo bloques.dat
 
     FILE *file = fopen(archivo_bloques, "r");
@@ -360,7 +359,7 @@ void ejecutar_fs_create(){
 	char* nombreArchivo = instruccion -> parametro2;
 
 	char *nombreArchivoPath = malloc(strlen(nombreArchivo) + strlen(path_filesystem) + 1);
-	sprintf(nombreArchivoPath, path_filesystem, nombreArchivo);
+	sprintf(nombreArchivoPath, "%s/%s", path_filesystem, nombreArchivo);
 	
 	FILE *archivo = fopen(nombreArchivoPath , "w"); 	 
 	
@@ -370,6 +369,7 @@ void ejecutar_fs_create(){
 	
 	fclose(archivo);
 	free(nombreArchivoPath);
+	free(nombreArchivo);
 }
 /*				
 void ejecutar_fs_delete(){}
@@ -384,20 +384,44 @@ void ejecutar_fs_read(){}
 
 
 void crear_metadata(char* nombreArchivo, char* path_filesystem) {
-    char *nombreMetadata = malloc(strlen("metadata/") + strlen(nombreArchivo) + strlen(path_filesystem) + 1);
-	sprintf(nombreMetadata, path_filesystem, "metadata/" , nombreArchivo);
+    char *metadataDirPath = malloc(strlen(path_filesystem) + strlen("metadata") + 1);
+    sprintf(metadataDirPath, "%smetadata", path_filesystem);
+    mkdir(metadataDirPath, 0755);  // Crear el directorio con permisos adecuados
+	log_info(logger_io, "Se creo la carpeta con path %s", metadataDirPath);
 
-	t_config *metadata = config_create(nombreMetadata); 
-	if(metadata == NULL){
-		log_error(logger_io , "No se pudo crear el metadata del archivo");
-		return;
-	}	
+    // Crear la ruta completa del archivo de metadata
+    char *nombreMetadata = malloc(strlen(metadataDirPath) + strlen("/") + strlen(nombreArchivo) + 1);
+    sprintf(nombreMetadata, "%s/%s", metadataDirPath, nombreArchivo);
+	log_info(logger_io, "Ruta del archivo de metadata: %s", nombreMetadata);
+
+
+    // Crear el archivo metadata
+	FILE *file = fopen(nombreMetadata, "w");
+    if (file == NULL) {
+        log_error(logger_io, "No se pudo crear el archivo de metadata: %s", nombreMetadata);
+        free(nombreMetadata);
+        free(metadataDirPath);
+        return;
+    }
+    fclose(file);
+	
+    // Crear el config en arhvio metadata creado antes
+    t_config *metadata = config_create(nombreMetadata);
+    if (metadata == NULL) {
+        log_error(logger_io, "No se pudo crear el metadata del archivo: %s", nombreMetadata);
+        free(nombreMetadata);
+        free(metadataDirPath);
+        return;
+    }
+
+	//Inicializacion de datos del config
 	config_set_value(metadata, "BLOQUE_INICIAL", "-1"); //-1 para decir que no tiene ningun bloque asociado 
 	config_set_value(metadata, "TAMANIO_ARCHIVO" , "0");
-
 	config_save(metadata);
 
+
 	free(nombreMetadata);
+	free(metadataDirPath);
 }
 
 
