@@ -884,6 +884,20 @@ void ejecutar_mov_out(char* reg_direccion, char* reg_datos){
     }
 }
 
+// esta funcion se usa solo para limpiar los bytes que a valgrind no le gustan 
+uint32_t truncar_bytes(uint32_t valor, uint32_t bytes_usados) {
+    switch (bytes_usados) {
+        case 1:
+            return valor & 0xFF;         // Máscara para 1 byte (8 bits)
+        case 2:
+            return valor & 0xFFFF;       // Máscara para 2 bytes (16 bits)
+        case 3:
+            return valor & 0xFFFFFF;     // Máscara para 3 bytes (24 bits)
+        default:
+            return valor;
+    }
+}
+
 void escribir_en_dir_fisica_los_bytes(uint32_t dir_fisica, uint32_t bytes, uint32_t valor_a_escribir){
     enviar_codigo(socket_memoria, MOV_OUT_SOLICITUD);
     t_buffer* buffer = crear_buffer();
@@ -915,7 +929,8 @@ void escribir_y_guardar_en_dos_paginas(uint32_t dir_logica_destino, uint32_t* va
     if (!pagina_en_tlb)
         dir_fisica_destino = calcular_direccion_fisica(dir_logica_destino, cde_ejecutando);
 
-    escribir_en_dir_fisica_los_bytes(dir_fisica_destino, bytes_a_escribir_primera_pag, valor_parte_1);
+    escribir_en_dir_fisica_los_bytes(dir_fisica_destino, bytes_a_escribir_primera_pag, truncar_bytes(valor_parte_1, bytes_a_escribir_primera_pag));
+
 
     // actualizo la dir, me muevo a la siguiente
     uint32_t dir_logica_segunda_pag = dir_logica_destino + bytes_a_escribir_primera_pag;
@@ -925,7 +940,7 @@ void escribir_y_guardar_en_dos_paginas(uint32_t dir_logica_destino, uint32_t* va
     if (!pagina_en_tlb)
         dir_fisica_destino_segunda_pag = calcular_direccion_fisica(dir_logica_segunda_pag, cde_ejecutando);
 
-    escribir_en_dir_fisica_los_bytes(dir_fisica_destino_segunda_pag, bytes_a_escribir_segunda_pag, valor_parte_2);
+    escribir_en_dir_fisica_los_bytes(dir_fisica_destino_segunda_pag, bytes_a_escribir_segunda_pag, truncar_bytes(valor_parte_2, bytes_a_escribir_segunda_pag));
 
     free(valor_parte_1_ptr);
     free(valor_parte_2_ptr);
