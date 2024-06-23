@@ -195,7 +195,11 @@ void atender_cpu()
 			uint32_t dato = *(uint32_t *)datos_leidos;
 
 			t_buffer *buffer_respuesta = crear_buffer();
-			buffer_write_uint32(buffer_respuesta, dato);
+			if (bytes_mov_in == 1){
+				buffer_write_uint8(buffer_respuesta, *(uint8_t*)datos_leidos);
+			} else 
+				buffer_write_uint32(buffer_respuesta, dato);
+				
 			enviar_buffer(buffer_respuesta, socket_cpu);
 			destruir_buffer(buffer_respuesta);
 			free(datos_leidos);

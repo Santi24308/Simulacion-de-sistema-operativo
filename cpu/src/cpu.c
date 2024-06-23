@@ -239,13 +239,13 @@ void iterator(char* value) {
 
 uint32_t buscar_valor_registro(char* registro) {
 	if (strcmp(registro, "AX") == 0)
-		return registros_cpu->AX;
+		return (uint8_t)registros_cpu->AX;
 	else if (strcmp(registro, "BX") == 0)
-		return registros_cpu->BX;
+		return (uint8_t)registros_cpu->BX;
 	else if (strcmp(registro, "CX") == 0)
-		return registros_cpu->CX;
+		return (uint8_t)registros_cpu->CX;
 	else if (strcmp(registro, "DX") == 0)
-		return registros_cpu->DX;
+		return (uint8_t)registros_cpu->DX;
 	else if (strcmp(registro, "EAX") == 0)
 		return registros_cpu->EAX;
 	else if (strcmp(registro, "EBX") == 0)
@@ -737,7 +737,13 @@ void leer_de_dir_fisica_los_bytes(uint32_t dir_fisica, uint32_t bytes, uint32_t*
     printf("\nValor leido antes de la lectura:\n");
 	mem_hexdump(valor_leido, bytes);
     buffer = recibir_buffer(socket_memoria);
-    *valor_leido = buffer_read_uint32(buffer);
+
+    if (bytes == 1) {
+        *valor_leido = buffer_read_uint8(buffer);
+    } else {
+        *valor_leido = buffer_read_uint32(buffer);
+    }
+
 	printf("\nCadena despues de la lectura:\n");
     mem_hexdump(valor_leido, bytes);
     destruir_buffer(buffer);
