@@ -53,6 +53,7 @@ t_pagina *obtener_pagsig_de_dirfisica(uint32_t , uint32_t );
 uint32_t recalcular_direccion_fisica(t_pagina*);
 int obtener_numero_marco(int );
 int obtener_desplazamiento_pagina(int );
+uint32_t truncar_bytes(void* valor_ptr, uint32_t bytes_usados);
 
 
 

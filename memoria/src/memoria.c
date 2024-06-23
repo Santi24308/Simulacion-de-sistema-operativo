@@ -178,7 +178,7 @@ void atender_cpu()
 			uint32_t bytes_mov_in = buffer_read_uint32(buffer_mov_in);
 			destruir_buffer(buffer_mov_in);
 
-			void *datos_leidos = malloc(bytes_mov_in);
+			uint32_t *datos_leidos = calloc(1, bytes_mov_in);
 			memset(datos_leidos, 0 , bytes_mov_in);
 			if (datos_leidos == NULL)
 			{
@@ -192,14 +192,8 @@ void atender_cpu()
 			printf("\nVariable despues de la lectura:\n");
 			mem_hexdump(datos_leidos, bytes_mov_in);
 
-			uint32_t dato = *(uint32_t *)datos_leidos;
-
 			t_buffer *buffer_respuesta = crear_buffer();
-			if (bytes_mov_in == 1){
-				buffer_write_uint8(buffer_respuesta, *(uint8_t*)datos_leidos);
-			} else 
-				buffer_write_uint32(buffer_respuesta, dato);
-				
+			buffer_write_uint32(buffer_respuesta, truncar_bytes(datos_leidos, bytes_mov_in)); // el truncar es porque valgrind molesta con que hay bytes sin inicializar
 			enviar_buffer(buffer_respuesta, socket_cpu);
 			destruir_buffer(buffer_respuesta);
 			free(datos_leidos);
@@ -288,6 +282,20 @@ void atender_cpu()
 			break;
 		}
 	}
+}
+
+uint32_t truncar_bytes(void* valor_ptr, uint32_t bytes_usados) {
+	uint32_t valor = *(uint32_t*)valor_ptr;
+    switch (bytes_usados) {
+        case 1:
+            return valor & 0xFF;         // Máscara para 1 byte (8 bits)
+        case 2:
+            return valor & 0xFFFF;       // Máscara para 2 bytes (16 bits)
+        case 3:
+            return valor & 0xFFFFFF;     // Máscara para 3 bytes (24 bits)
+        default:
+            return valor;
+    }
 }
 
 void atender_io(void *socket_io)

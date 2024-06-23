@@ -737,13 +737,7 @@ void leer_de_dir_fisica_los_bytes(uint32_t dir_fisica, uint32_t bytes, uint32_t*
     printf("\nValor leido antes de la lectura:\n");
 	mem_hexdump(valor_leido, bytes);
     buffer = recibir_buffer(socket_memoria);
-
-    if (bytes == 1) {
-        *valor_leido = buffer_read_uint8(buffer);
-    } else {
-        *valor_leido = buffer_read_uint32(buffer);
-    }
-
+    *valor_leido = buffer_read_uint32(buffer);
 	printf("\nCadena despues de la lectura:\n");
     mem_hexdump(valor_leido, bytes);
     destruir_buffer(buffer);
@@ -836,8 +830,8 @@ uint32_t dato_reconstruido(uint32_t primera, uint32_t segunda, int bytes_primera
     printf("\nDato antes de ser reconstruido:\n");
 	mem_hexdump(dato_reconstruido_ptr, 4);
 
-    memcpy(dato_reconstruido_ptr, segunda_ptr, (size_t)bytes_segunda);
-    memcpy(dato_reconstruido_ptr + (size_t)bytes_segunda, primera_ptr, (size_t)bytes_primera);
+    memcpy(dato_reconstruido_ptr, primera_ptr, (size_t)bytes_primera);
+    memcpy(dato_reconstruido_ptr + (size_t)bytes_primera, segunda_ptr, (size_t)bytes_segunda);
 
     printf("\nDato despues de ser reconstruido:\n");
 	mem_hexdump(dato_reconstruido_ptr, 4);
@@ -862,7 +856,7 @@ bool es_reg_de_cuatro_bytes(char* reg_datos){
 }
 
 // -------- MOV_OUT ---------------------------------
-void ejecutar_mov_out(char* reg_datos, char* reg_direccion){
+void ejecutar_mov_out(char* reg_direccion, char* reg_datos){
     uint32_t dir_logica = buscar_valor_registro(reg_direccion);
     uint32_t valor_a_escribir = buscar_valor_registro(reg_datos);
     bool pagina_dividida = (obtener_desplazamiento_pagina(dir_logica) + 4 > tamanio_pagina);
