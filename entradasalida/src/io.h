@@ -45,5 +45,11 @@ void ejecutar_fs_read();
 void crear_archivo_bloques();
 void crear_archivo_bitmap();
 void crear_metadata(char*, char*);
+void agregar_bloque(uint32_t );
+void sacar_bloque_archivo(uint32_t );
+void cambiar_tamanio_archivo(uint32_t , uint32_t );
+uint32_t obtener_nro_bloque_libre();
+void modificar_BitMap(uint32_t , uint8_t);
+uint8_t leer_de_bitmap(uint32_t );
 
 #endif
