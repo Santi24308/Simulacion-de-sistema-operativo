@@ -51,5 +51,6 @@ void cambiar_tamanio_archivo(uint32_t , uint32_t );
 uint32_t obtener_nro_bloque_libre();
 void modificar_BitMap(uint32_t , uint8_t);
 uint8_t leer_de_bitmap(uint32_t );
+char* obtener_lista_archivos_abiertos(t_list* );
 
 #endif

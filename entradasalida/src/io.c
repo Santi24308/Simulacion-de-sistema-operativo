@@ -115,6 +115,7 @@ void atender_kernel_dialfs(){
 
     crear_archivo_bloques();
     crear_archivo_bitmap();
+	inicializar_listas();
 	
 	while(1){
 		codigoInstruccion cod = recibir_codigo(socket_kernel);
@@ -301,7 +302,7 @@ void terminar_programa(){
 }
 	
 /////////////////     DIALFS     /////////////////
-
+/*
 void crear_archivo_bloques(){
     char *archivo_bloques = malloc(strlen("bloques.dat") + strlen(path_filesystem) + 1);
     sprintf(archivo_bloques, "%sbloques.dat", path_filesystem);
@@ -316,6 +317,46 @@ void crear_archivo_bloques(){
         }
     }
     fclose(file);
+} */
+
+void crear_archivo_bloques() {
+    char *archivo_bloques = malloc(strlen("bloques.dat") + strlen(path_filesystem) + 1);
+	if(archivo_bloques) log_error(logger_io, "error maloc bloque.dat");
+	
+    sprintf(archivo_bloques, "%sbloques.dat", path_filesystem);
+
+    //creo el
+    int fd = open(archivo_bloques, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    if (fd == -1) {
+        log_error(logger_io, "Error al abrir/crear el archivo bloques.dat");
+        free(archivo_bloques);
+        return;
+    }
+	
+    // Si el archivo es nuevo y no tiene tamaño, inicializarlo con el tamaño deseado
+    if (tamanio_archivo_bloqueDat == 0) {
+        tamanio_archivo_bloqueDat = block_count * block_size;
+        if (ftruncate(fd, tamanio_archivo_bloqueDat) == -1) {
+            log_error(logger_io, "Error al establecer el tamaño del archivo bloques.dat");
+            close(fd);
+            free(archivo_bloques);
+            return;
+        }
+    }
+
+    // Mapear el archivo en memoria
+    void *map = mmap(NULL, tamanio_archivo_bloqueDat, PROT_WRITE, MAP_SHARED, fd, 0);
+    if (map == MAP_FAILED) {
+        log_error(logger_io, "Error al mapear el archivo bloques.dat");
+        close(fd);
+        free(archivo_bloques);
+        return;
+    }
+
+    // Aquí puedes manipular el contenido del archivo a través del puntero 'map'
+	
+    close(fd);
+    free(archivo_bloques);
 }
 
 void crear_archivo_bitmap(){
@@ -341,9 +382,17 @@ void crear_archivo_bitmap(){
 
     fclose(file); 
 }
-// CPU -> KERNEL -> IO ( y la logica de FS)
 
-//kernel le manda al FS que tiene que ejecuta
+void inicializar_listas(){
+
+	lista_global_archivos_abiertos = list_create();
+	lista_global_archivos_cerrados = list_create();
+
+	return; 
+}
+
+
+
 void ejecutar_fs_create(){
 	
 	//REPETICION DE LOGICA EN TODAS LAS IOS
@@ -358,20 +407,74 @@ void ejecutar_fs_create(){
 	sprintf(nombreArchivoPath, "%s/%s", path_filesystem, nombreArchivo);
 	
 	FILE *archivo = fopen(nombreArchivoPath , "w"); 	 
-	
-	crear_metadata(nombreArchivo, path_filesystem);	
+	metadata_t* metadata = crear_metadata(nombreArchivo, path_filesystem);	
+
+	archivo_t* archivoAgregar = crear_archivo(nombreArchivoPath , archivo , metadata);
 
 	log_info(logger_io, "DialFS - Crear Archivo: PID: %d - Crear Archivo: %s", pid, nombreArchivo);
 	
+	list_add(lista_global_archivos_abiertos , archivoAgregar);
+
+	char* lista_de_archivos_abiertos = obtener_lista_archivos_abiertos(lista_global_archivos_abiertos);
+	log_info(logger_io, "DialFS - Agregado a lista %s el archivo:  %s", lista_global_archivos_abiertos, nombreArchivo);
+
 	fclose(archivo);
 	free(nombreArchivoPath);
 	free(nombreArchivo);
 }
-/*				
-void ejecutar_fs_delete(){}
-			
+
+archivo_t* crear_archivo(char* nombre, FILE* archivo, metadata_t* metadata){
+	archivo_t* archivo_creado = malloc(sizeof(archivo_t));
+
+	archivo_creado->nombre_archivo = string_new();
+	string_append(archivo_creado->nombre_archivo, nombre);
+
+	archivo_creado->archivo = archivo;
+	archivo_creado->metadata_del_mismo = metadata;
+
+	return archivo_creado;
+}
+
+void ejecutar_fs_delete(){
+	t_buffer* buffer =  recibir_buffer(socket_kernel);	
+	int pid = buffer_read_uint32(buffer);
+    t_instruccion* instruccion = buffer_read_instruccion(buffer);
+   	destruir_buffer(buffer);
+	char* nombreArchivo = instruccion -> parametro2;
+
+	//elimino de la lista global de archivos abiertos el archivo a eliminar
+	eliminar_archivo_de_lista( lista_global_archivos_abiertos ,nombreArchivo);	
+
+
+	//libero los campos del t_archivo con el nombre del archivo (hacer funcion)
+
+
+	//agrego el archivo eliminado a la lista de archivo eliminado
+	list_add(lista_global_archivos_cerrados , nombreArchivo);
+	char* lista_de_archivos_cerrado = obtener_lista_archivos_abiertos(lista_global_archivos_cerrados);
+	log_info(logger_io, "DialFS - Agregado a lista %s el archivo:  %s", lista_global_archivos_cerrados, nombreArchivo);
+
+
+	void hacer_compactacion();
+	
+} 
+
+/*			
 void ejecutar_fs_truncate(){}
 */
+
+/*
+IO_FS_WRITE 
+(Interfaz, Nombre Archivo, Registro Dirección, Registro Tamaño, Registro Puntero Archivo):
+Esta instrucción solicita al Kernel que mediante la interfaz seleccionada,
+ se lea desde Memoria la cantidad de bytes indicadas por el Registro Tamaño 
+ a partir de la dirección lógica que se encuentra en el Registro Dirección 
+ y se escriban en el archivo a partir del valor del Registro Puntero Archivo.
+*/
+
+
+
+
 
 void ejecutar_fs_write(){
     t_buffer* buffer = recibir_buffer(socket_kernel);
@@ -380,14 +483,13 @@ void ejecutar_fs_write(){
     destruir_buffer(buffer);
 
     char* nombreArchivo = instruccion->parametro2;
-    uint32_t tamanioAEscribir = instruccion->parametro3;
-    uint32_t punteroArchivo = instruccion->parametro4;
+    uint32_t registroDireccion = instruccion->parametro3;
+    uint32_t registroTamanio = instruccion->parametro4;
+	uint32_t registroPunteroArchivo = instruccion->parametro5;
 
     char* nombreArchivoPath = malloc(strlen(nombreArchivo) + strlen(path_filesystem) + 1);
     sprintf(nombreArchivoPath, "%s/%s", path_filesystem, nombreArchivo);
 
-	log_info(logger_io,"Hasta aca llega");
-    // Abrir el archivo en modo de lectura y escritura
     FILE* archivo = fopen(nombreArchivoPath, "r+");
     if (archivo == NULL) {
         perror("Error abriendo archivo para escritura");
@@ -395,11 +497,9 @@ void ejecutar_fs_write(){
         return;
     }
 
-    // Mover el puntero de archivo a la posición indicada por el punteroArchivo
-    fseek(archivo, punteroArchivo, SEEK_SET);
+    fseek(archivo, registroTamanio, SEEK_SET);
 
-    // Escribir en el archivo
-    if (fwrite(buffer->stream, tamanioAEscribir, 1, archivo) != 1) {
+    if (fwrite(buffer->stream, registroPunteroArchivo, 1, archivo) != 1) {
         perror("Error escribiendo en archivo");
         fclose(archivo);
         free(nombreArchivoPath);
@@ -409,7 +509,7 @@ void ejecutar_fs_write(){
     fclose(archivo);
 
 
-    log_info(logger_io,"DialFS - Escribir Archivo: PID: %d - Escribir Archivo: %s - Tamaño a Escribir: %d - Puntero Archivo: %d",pid, nombreArchivo, tamanioAEscribir, punteroArchivo);
+    log_info(logger_io,"DialFS - Escribir Archivo: PID: %d - Escribir Archivo: %s - Tamaño a Escribir: %d - Puntero Archivo: %d", pid, nombreArchivo, registroTamanio, registroPunteroArchivo);
     
     free(nombreArchivoPath);
     free(nombreArchivo);
@@ -421,7 +521,7 @@ void ejecutar_fs_read(){}
 //-------------------------------------------------------------------------------------
 
 
-void crear_metadata(char* nombreArchivo, char* path_filesystem) {
+metadata_t* crear_metadata(char* nombreArchivo, char* path_filesystem) {
     char *metadataDirPath = malloc(strlen(path_filesystem) + strlen("metadata") + 1);
     sprintf(metadataDirPath, "%smetadata", path_filesystem);
     mkdir(metadataDirPath, 0755);  // Crear el directorio con permisos adecuados
@@ -444,7 +544,7 @@ void crear_metadata(char* nombreArchivo, char* path_filesystem) {
     fclose(file);
 	
     // Crear el config en arhvio metadata creado antes
-    t_config *metadata = config_create(nombreMetadata);
+    metadata = config_create(nombreMetadata);
     if (metadata == NULL) {
         log_error(logger_io, "No se pudo crear el metadata del archivo: %s", nombreMetadata);
         free(nombreMetadata);
@@ -455,12 +555,39 @@ void crear_metadata(char* nombreArchivo, char* path_filesystem) {
 	//Inicializacion de datos del config
 	config_set_value(metadata, "BLOQUE_INICIAL", "-1"); //-1 para decir que no tiene ningun bloque asociado 
 	config_set_value(metadata, "TAMANIO_ARCHIVO" , "0");
-	config_save(metadata);
+	config_save(metadata); // entedemos que guarda los cambios
 
+	// crear el archivo_t
+	// nuevo archivo t;
+	// archivo->nombre = nombreArchivo;
+	// 
+
+	metadata_t* metadata_a_crear = malloc(sizeof(metadata_t));
+	metadata_a_crear->archivo = file;
+	metadata_a_crear->metadata_archivo = metadata;
 
 	free(nombreMetadata);
 	free(metadataDirPath);
+
+    return metadata_a_crear;
 }
+
+char* obtener_lista_archivos_abiertos(t_list* lista){
+	char* aux = string_new();
+    string_append(&aux,"[");
+    char* aux_2;
+    for(int i = 0 ; i < list_size(lista); i++){
+        archivo_t* archivo = list_get(lista,i);
+        aux_2 = archivo->nombre_archivo;
+        string_append(&aux, aux_2);
+        if(i != list_size(lista)-1)
+            string_append(&aux,", ");
+    }
+    string_append(&aux,"]");
+    return aux;
+}
+
+
 
 
 /*void agregar_bloque(FILE* archivo , int cantidad_bloques) {   

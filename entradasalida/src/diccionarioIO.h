@@ -13,6 +13,24 @@
 #include <commons/string.h>
 #include <pthread.h>
 #include <semaphore.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#include <sys/stat.h>
+
+t_list* lista_global_archivos_abiertos;
+t_list* lista_global_archivos_cerrados; //para debugear
+
+typedef struct {
+	char* nombre_archivo; // se usa de ID
+	FILE* archivo;
+    metadata_t* metadata_del_mismo;
+}archivo_t;
+
+typedef struct {
+    FILE* archivo;
+    t_config metadata_archivo;
+}metadata_t;
 
 char* tipo;
 char* nombreIO;
@@ -27,7 +45,9 @@ int id_interfaz;  // necesario para que kernel pueda guiarse despues
 int block_count;
 int block_size;
 char* path_filesystem;
+int tamanio_archivo_bloqueDat;
 
+t_config* metadata;
 
 //-------------------------------------------------
 //ESTRUCTURA DE LOS ARCHIVOS DE DIAL FS
