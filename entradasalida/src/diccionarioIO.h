@@ -19,18 +19,25 @@
 #include <sys/stat.h>
 
 t_list* lista_global_archivos_abiertos;
-t_list* lista_global_archivos_cerrados; //para debugear
 
-typedef struct {
+typedef struct {  // no hace falta que tenga el FILE ya que no los vamos a mantener abiertos
 	char* nombre_archivo; // se usa de ID
-	FILE* archivo;
-    metadata_t* metadata_del_mismo;
+    char* path;
+    t_config* metadata;
 }archivo_t;
 
-typedef struct {
-    FILE* archivo;
-    t_config metadata_archivo;
-}metadata_t;
+// se usan globales y se crean una unica vez, cuando arranca el modulo
+// ya que segun la info, msync, se encarga de mantener actualizado el mapeo 
+t_bitarray* bitmap;
+void* bloquesmap; 
+
+int fd_bitarray;
+int fd_bloques;
+
+char* path_archivo_bloques;
+size_t tamanio_archivo_bloques;
+char* path_archivo_bitarray;
+size_t tamanio_archivo_bitarray;
 
 char* tipo;
 char* nombreIO;
@@ -45,9 +52,9 @@ int id_interfaz;  // necesario para que kernel pueda guiarse despues
 int block_count;
 int block_size;
 char* path_filesystem;
-int tamanio_archivo_bloqueDat;
 
 t_config* metadata;
+
 
 //-------------------------------------------------
 //ESTRUCTURA DE LOS ARCHIVOS DE DIAL FS

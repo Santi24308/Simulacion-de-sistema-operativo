@@ -107,15 +107,24 @@ void atender_kernel_stdout(){
 	}
 }
 
-void atender_kernel_dialfs(){
-	
+void inicializar_fs(){
+	tamanio_archivo_bloques = 0;
 	block_size  = config_get_int_value(config_io, "BLOCK_SIZE");
     block_count = config_get_int_value(config_io,"BLOCK_COUNT");
     path_filesystem = config_get_string_value(config_io,"PATH_BASE_DIALFS");
 
-    crear_archivo_bloques();
-    crear_archivo_bitmap();
-	inicializar_listas();
+    //crear_archivo_bloques();
+    //crear_archivo_bitmap();
+	levantar_archivo_bitarray();
+	levantar_archivo_bloques();
+	lista_global_archivos_abiertos = list_create();
+
+	bitmap = mmap(NULL, tamanio_archivo_bitarray, PROT_READ | PROT_WRITE, MAP_SHARED, fd_bitarray, 0);
+	bloquesmap = mmap(NULL, tamanio_archivo_bloques, PROT_READ | PROT_WRITE, MAP_SHARED, fd_bloques, 0);
+}
+
+void atender_kernel_dialfs(){
+	inicializar_fs();
 	
 	while(1){
 		codigoInstruccion cod = recibir_codigo(socket_kernel);
@@ -126,7 +135,7 @@ void atender_kernel_dialfs(){
 				break;
 			case IO_FS_DELETE:
 				usleep(1000);
-				//ejecutar_fs_delete();
+				ejecutar_fs_delete();
 				break;
 			case IO_FS_TRUNCATE:
 				usleep(1000);
@@ -320,78 +329,125 @@ void crear_archivo_bloques(){
 } */
 
 void crear_archivo_bloques() {
-    char *archivo_bloques = malloc(strlen("bloques.dat") + strlen(path_filesystem) + 1);
-	if(archivo_bloques) log_error(logger_io, "error maloc bloque.dat");
+    path_archivo_bloques = malloc(strlen("bloques.dat") + strlen(path_filesystem) + 1);
+	if(!path_archivo_bloques) {
+		log_error(logger_io, "error maloc bloques.dat");
+		return;
+	}
 	
-    sprintf(archivo_bloques, "%sbloques.dat", path_filesystem);
-
-    //creo el
-    int fd = open(archivo_bloques, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    sprintf(path_archivo_bloques, "%sbloques.dat", path_filesystem);
+	
+    int fd = open(path_archivo_bloques, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
     if (fd == -1) {
         log_error(logger_io, "Error al abrir/crear el archivo bloques.dat");
-        free(archivo_bloques);
+        free(path_archivo_bloques);
         return;
     }
 	
     // Si el archivo es nuevo y no tiene tamaño, inicializarlo con el tamaño deseado
-    if (tamanio_archivo_bloqueDat == 0) {
-        tamanio_archivo_bloqueDat = block_count * block_size;
-        if (ftruncate(fd, tamanio_archivo_bloqueDat) == -1) {
+    if (tamanio_archivo_bloques == 0) {
+        tamanio_archivo_bloques = block_count * block_size;
+        if (ftruncate(fd, tamanio_archivo_bloques) == -1) {
             log_error(logger_io, "Error al establecer el tamaño del archivo bloques.dat");
             close(fd);
-            free(archivo_bloques);
+            free(path_archivo_bloques);
             return;
         }
     }
 
-    // Mapear el archivo en memoria
-    void *map = mmap(NULL, tamanio_archivo_bloqueDat, PROT_WRITE, MAP_SHARED, fd, 0);
-    if (map == MAP_FAILED) {
-        log_error(logger_io, "Error al mapear el archivo bloques.dat");
-        close(fd);
-        free(archivo_bloques);
-        return;
-    }
-
-    // Aquí puedes manipular el contenido del archivo a través del puntero 'map'
-	
     close(fd);
-    free(archivo_bloques);
 }
-
+/*
 void crear_archivo_bitmap(){
 
-    char *archivo_bitmap = malloc(strlen("bitmap.dat") + strlen(path_filesystem) + 1);
-    sprintf(archivo_bitmap, "%sbitmap.dat", path_filesystem);
+    path_archivo_bitarray = malloc(strlen("bitmap.dat") + strlen(path_filesystem) + 1);
+    sprintf(path_archivo_bitarray, "%sbitmap.dat", path_filesystem);
 
-    FILE* file = fopen(archivo_bitmap, "r");
-    if (file == NULL) {
-        file = fopen(archivo_bitmap, "wb");  // Abrir el archivo en modo escritura binaria
-        if (file == NULL) {
+    FILE* archivo_bitmap = fopen(path_archivo_bitarray, "r");
+    if (archivo_bitmap == NULL) {
+        archivo_bitmap = fopen(path_archivo_bitarray, "wb");  // Abrir el archivo en modo escritura binaria
+        if (archivo_bitmap == NULL) {
                log_error(logger_io ,"Error al abrir el archivo bitmap.dat");
             return;
         }
+		tamanio_archivo_bitarray = block_count; // usado en mmap para mayor legibilidad
         int tamanioEnBits = floor(block_count / 8);
 
         char* bitmap = malloc(block_count); //que pasa si no es multiplo de 8? se asume que siempre sera multiplo de 8
 
         memset(bitmap, 0 , tamanioEnBits);
         t_bitarray* bitarray = bitarray_create(bitmap,block_count); 
-            fwrite(bitarray->bitarray,floor(bitarray->size / 8), 1, file);
+        fwrite(bitarray->bitarray,floor(bitarray->size / 8), 1, archivo_bitmap);
     }
 
-    fclose(file); 
+    fclose(archivo_bitmap); 
+}
+*/
+
+void levantar_archivo_bitarray(){
+	path_archivo_bitarray = malloc(strlen("bitmap.dat") + strlen(path_filesystem) + 1);
+    sprintf(path_archivo_bitarray, "%sbitmap.dat", path_filesystem);
+
+	FILE* archivo_bitmap = fopen(path_archivo_bitarray, "r");
+	if (!archivo_bitmap) {
+		// hay que crearlo
+		fd_bitarray = open(path_archivo_bitarray, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+		if (fd_bitarray == -1){
+			log_info(logger_io, "Error al levantar fd del bitarray");
+			free(path_archivo_bitarray);
+			return;
+		}
+		if (ftruncate(fd_bitarray, block_count) == -1) {
+            log_error(logger_io, "Error al establecer el tamaño del archivo bitmap.dat");
+            close(fd_bitarray);
+            free(path_archivo_bitarray);
+            return;
+        }
+		tamanio_archivo_bitarray = block_count; // usado en mmap para mayor legibilidad
+
+		char* bitmap = malloc(block_count); //que pasa si no es multiplo de 8? se asume que siempre sera multiplo de 8
+        memset(bitmap, 0 , block_count);
+
+		t_bitarray* bitarray = bitarray_create_with_mode(bitmap, block_count, LSB_FIRST);
+		fwrite(bitarray->bitarray,floor(bitarray->size), 1, archivo_bitmap);
+	} else {
+		fclose(archivo_bitmap);
+		fd_bitarray = open(path_archivo_bitarray, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+	}
+
+	// hay que dejar el archivo abierto
 }
 
-void inicializar_listas(){
+void levantar_archivo_bloques(){
+    path_archivo_bloques = malloc(strlen("bloques.dat") + strlen(path_filesystem) + 1);
+	if(!path_archivo_bloques) {
+		log_error(logger_io, "error maloc bloques.dat");
+		return;
+	}
+	
+    sprintf(path_archivo_bloques, "%sbloques.dat", path_filesystem);
 
-	lista_global_archivos_abiertos = list_create();
-	lista_global_archivos_cerrados = list_create();
-
-	return; 
+	FILE* archivo_bloques = fopen(path_archivo_bloques, "r");
+	if (!archivo_bloques) {
+		// hay que crearlo
+		fd_bloques = open(path_archivo_bloques, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+		if (fd_bloques == -1) {
+			log_error(logger_io, "Error al crear el archivo bloques.dat");
+			free(path_archivo_bloques);
+			return;
+		}
+		tamanio_archivo_bloques = block_count * block_size;
+        if (ftruncate(fd_bloques, tamanio_archivo_bloques) == -1) {
+            log_error(logger_io, "Error al establecer el tamaño del archivo bloques.dat");
+            close(fd_bloques);
+            free(path_archivo_bloques);
+            return;
+        }
+	} else {
+		fclose(archivo_bloques);
+		fd_bloques = open(path_archivo_bloques, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+	}
 }
-
-
 
 void ejecutar_fs_create(){
 	
@@ -403,34 +459,83 @@ void ejecutar_fs_create(){
 	
 	char* nombreArchivo = instruccion -> parametro2;
 
-	char *nombreArchivoPath = malloc(strlen(nombreArchivo) + strlen(path_filesystem) + 1);
-	sprintf(nombreArchivoPath, "%s/%s", path_filesystem, nombreArchivo);
-	
-	FILE *archivo = fopen(nombreArchivoPath , "w"); 	 
-	metadata_t* metadata = crear_metadata(nombreArchivo, path_filesystem);	
+	int verificacion = verificar_espacio_suficiente();
+	if (verificacion != 0 ){
+		log_error(logger_io, "No hay espacio suficiente para crear: %s" , nombreArchivo);
+		return;
+	}
 
-	archivo_t* archivoAgregar = crear_archivo(nombreArchivoPath , archivo , metadata);
+	char *nombreArchivoPath = malloc(strlen(nombreArchivo) + strlen(path_filesystem) + 1);
+	sprintf(nombreArchivoPath, "%s%s", path_filesystem, nombreArchivo);
+	
+	FILE *archivo_file = fopen(nombreArchivoPath , "w"); 	 
+	t_config* metadata = crear_metadata(nombreArchivo, path_filesystem);	
+
+	archivo_t* archivoAgregar = crear_archivo(nombreArchivo , nombreArchivoPath , metadata);
 
 	log_info(logger_io, "DialFS - Crear Archivo: PID: %d - Crear Archivo: %s", pid, nombreArchivo);
 	
 	list_add(lista_global_archivos_abiertos , archivoAgregar);
 
 	char* lista_de_archivos_abiertos = obtener_lista_archivos_abiertos(lista_global_archivos_abiertos);
-	log_info(logger_io, "DialFS - Agregado a lista %s el archivo:  %s", lista_global_archivos_abiertos, nombreArchivo);
+	log_info(logger_io, "DialFS - Agregado a lista %s el archivo:  %s", lista_de_archivos_abiertos, nombreArchivo);
 
-	fclose(archivo);
+	fclose(archivo_file); // necesario para despues reabrir con open
+
+	asignar_bloque(archivoAgregar);
+
 	free(nombreArchivoPath);
 	free(nombreArchivo);
 }
 
-archivo_t* crear_archivo(char* nombre, FILE* archivo, metadata_t* metadata){
+void asignar_bloque(archivo_t* archivo){
+	int indice = obtener_indice_bloque_libre();
+	if (indice == -1){
+		log_info(logger_io, "Error al asignar bloque a archivo %s", archivo->nombre_archivo);
+		return;
+	}
+
+	char valor[5];
+	sprintf(valor, "%d", indice);
+
+	config_set_value(archivo->metadata, "BLOQUE_INICIAL" , valor);
+	// el tamaño sigue siendo cero la primera vez
+}
+
+int obtener_indice_bloque_libre(){
+	bool encontrado = false;
+	int i = 0;
+	while (!encontrado && i < bitarray_get_max_bit(bitmap)) {
+		// el test bit devuelve false (0) o true(1), si esta libre tiene que dar false
+		if (!bitarray_test_bit(bitmap, i)) {
+			encontrado = true;
+			bitarray_set_bit(bitmap, i);  // seteamos como ocupado
+			if (msync(bitmap, tamanio_archivo_bitarray, MS_SYNC) == -1)
+            	perror("msync fileA");
+		} else
+			i++;
+	}
+
+	// si el archivo de bloques esta lleno retorna -1
+	return (encontrado)? i : -1;
+}
+
+
+int verificar_espacio_suficiente(){
+	return (obtener_indice_bloque_libre() < 1)? -1 : 0;
+}
+
+
+archivo_t* crear_archivo(char* nombre, char* path, t_config* metadata){
 	archivo_t* archivo_creado = malloc(sizeof(archivo_t));
 
 	archivo_creado->nombre_archivo = string_new();
-	string_append(archivo_creado->nombre_archivo, nombre);
+	string_append(&archivo_creado->nombre_archivo, nombre);
 
-	archivo_creado->archivo = archivo;
-	archivo_creado->metadata_del_mismo = metadata;
+	archivo_creado->path = string_new();
+	string_append(&archivo_creado->path, path);
+
+	archivo_creado->metadata = metadata;
 
 	return archivo_creado;
 }
@@ -442,22 +547,71 @@ void ejecutar_fs_delete(){
    	destruir_buffer(buffer);
 	char* nombreArchivo = instruccion -> parametro2;
 
-	//elimino de la lista global de archivos abiertos el archivo a eliminar
-	eliminar_archivo_de_lista( lista_global_archivos_abiertos ,nombreArchivo);	
+
+	//elimino de la lista global de archivos abiertos el archivo a eliminar y eliminar el archivo en si 
+	bool encontrado = false;
+	eliminar_archivo_de_lista( lista_global_archivos_abiertos ,nombreArchivo, &encontrado);	
+	if (!encontrado) {
+		destruir_buffer(buffer);
+		log_info(logger_io, "El archivo buscado no existe.");
+		return;
+	}
 
 
-	//libero los campos del t_archivo con el nombre del archivo (hacer funcion)
+	log_info(logger_io , "DialFS - Eliminar Archivo: PID: %d - Eliminar Archivo: %s " , pid, nombreArchivo);
 
 
-	//agrego el archivo eliminado a la lista de archivo eliminado
-	list_add(lista_global_archivos_cerrados , nombreArchivo);
-	char* lista_de_archivos_cerrado = obtener_lista_archivos_abiertos(lista_global_archivos_cerrados);
-	log_info(logger_io, "DialFS - Agregado a lista %s el archivo:  %s", lista_global_archivos_cerrados, nombreArchivo);
+	log_info (logger_io ,"DialFS - Inicio Compactación: PID: %d - Inicio Compactación." , pid );
 
-
-	void hacer_compactacion();
+	//void hacer_compactacion();
 	
+	log_info(logger_io , "DialFS - Fin Compactación: PID: %d - Fin Compactación. " , pid);
 } 
+
+void liberar_espacio_en_disco(int bloque_inicial, int tamanio_archivo){
+	int cantidad_bloques_totales = ceil(tamanio_archivo / block_size);
+	int i = 0;
+	while (i < cantidad_bloques_totales){
+		bitarray_clean_bit(bitmap, bloque_inicial + i);
+		i++;
+	}
+}
+
+void liberar_archivo(archivo_t* archivo) {
+    if (archivo != NULL) {
+
+		liberar_espacio_en_disco(config_get_int_value(archivo->metadata, "BLOQUE_INICIAL"), config_get_int_value(archivo->metadata, "TAMANIO_ARCHIVO"));
+		msync(bitmap, tamanio_archivo_bitarray, MS_SYNC);
+
+        if (archivo->nombre_archivo != NULL) {
+            free(archivo->nombre_archivo);
+        }
+        if (archivo->path != NULL) {
+            free(archivo->path);
+        }
+        if (archivo->metadata != NULL) {
+        	config_destroy(archivo->metadata);
+        }  
+		
+        free(archivo);
+    }
+}
+
+void eliminar_archivo_de_lista(t_list* lista, char* nombreArchivo, bool* encontrado) {
+    for (int i = 0; i < list_size(lista); i++) {
+        archivo_t* archivo = list_get(lista, i);
+        if (strcmp(archivo->nombre_archivo, nombreArchivo) == 0) {
+			// hay que setear sus bits de uso en 0 
+            list_remove(lista, i);
+            liberar_archivo(archivo);
+			*encontrado = true;
+			log_info(logger_io, "Se elimina el archivo de nombre: %s", nombreArchivo);
+            break;
+        }
+    }
+}
+
+
 
 /*			
 void ejecutar_fs_truncate(){}
@@ -483,9 +637,9 @@ void ejecutar_fs_write(){
     destruir_buffer(buffer);
 
     char* nombreArchivo = instruccion->parametro2;
-    uint32_t registroDireccion = instruccion->parametro3;
-    uint32_t registroTamanio = instruccion->parametro4;
-	uint32_t registroPunteroArchivo = instruccion->parametro5;
+    uint32_t registroDireccion = atoi(instruccion->parametro3);
+    uint32_t registroTamanio = atoi(instruccion->parametro4);
+	uint32_t registroPunteroArchivo = atoi(instruccion->parametro5);
 
     char* nombreArchivoPath = malloc(strlen(nombreArchivo) + strlen(path_filesystem) + 1);
     sprintf(nombreArchivoPath, "%s/%s", path_filesystem, nombreArchivo);
@@ -521,35 +675,34 @@ void ejecutar_fs_read(){}
 //-------------------------------------------------------------------------------------
 
 
-metadata_t* crear_metadata(char* nombreArchivo, char* path_filesystem) {
+t_config* crear_metadata(char* nombreArchivo, char* path_filesystem) {
     char *metadataDirPath = malloc(strlen(path_filesystem) + strlen("metadata") + 1);
     sprintf(metadataDirPath, "%smetadata", path_filesystem);
     mkdir(metadataDirPath, 0755);  // Crear el directorio con permisos adecuados
 	log_info(logger_io, "Se creo la carpeta con path %s", metadataDirPath);
 
     // Crear la ruta completa del archivo de metadata
-    char *nombreMetadata = malloc(strlen(metadataDirPath) + strlen("/") + strlen(nombreArchivo) + 1);
-    sprintf(nombreMetadata, "%s/%s", metadataDirPath, nombreArchivo);
-	log_info(logger_io, "Ruta del archivo de metadata: %s", nombreMetadata);
-
+    char *path_metadata = malloc(strlen(metadataDirPath) + strlen("/") + strlen(nombreArchivo) + 1);
+    sprintf(path_metadata, "%s/%s", metadataDirPath, nombreArchivo);
+	log_info(logger_io, "Ruta del archivo de metadata: %s", path_metadata);
 
     // Crear el archivo metadata
-	FILE *file = fopen(nombreMetadata, "w");
+	FILE *file = fopen(path_metadata, "w");
     if (file == NULL) {
-        log_error(logger_io, "No se pudo crear el archivo de metadata: %s", nombreMetadata);
-        free(nombreMetadata);
+        log_error(logger_io, "No se pudo crear el archivo de metadata: %s", path_metadata);
+        free(path_metadata);
         free(metadataDirPath);
-        return;
+        return NULL;
     }
     fclose(file);
 	
     // Crear el config en arhvio metadata creado antes
-    metadata = config_create(nombreMetadata);
+    metadata = config_create(path_metadata);
     if (metadata == NULL) {
-        log_error(logger_io, "No se pudo crear el metadata del archivo: %s", nombreMetadata);
-        free(nombreMetadata);
+        log_error(logger_io, "No se pudo crear el metadata del archivo: %s", path_metadata);
+        free(path_metadata);
         free(metadataDirPath);
-        return;
+        return NULL;
     }
 
 	//Inicializacion de datos del config
@@ -557,19 +710,10 @@ metadata_t* crear_metadata(char* nombreArchivo, char* path_filesystem) {
 	config_set_value(metadata, "TAMANIO_ARCHIVO" , "0");
 	config_save(metadata); // entedemos que guarda los cambios
 
-	// crear el archivo_t
-	// nuevo archivo t;
-	// archivo->nombre = nombreArchivo;
-	// 
-
-	metadata_t* metadata_a_crear = malloc(sizeof(metadata_t));
-	metadata_a_crear->archivo = file;
-	metadata_a_crear->metadata_archivo = metadata;
-
-	free(nombreMetadata);
+	free(path_metadata);
 	free(metadataDirPath);
 
-    return metadata_a_crear;
+    return metadata;
 }
 
 char* obtener_lista_archivos_abiertos(t_list* lista){
@@ -620,7 +764,7 @@ char* obtener_lista_archivos_abiertos(t_list* lista){
         fclose(file);
     }
 } */
-
+/*
 void agregar_bloque(uint32_t bloque_inicial) {
     uint32_t nuevo_bloque = obtener_nro_bloque_libre();
     
@@ -638,6 +782,7 @@ void agregar_bloque(uint32_t bloque_inicial) {
     modificar_BitMap(nuevo_bloque, 1); // Marcar el nuevo bloque como ocupado en el bitmap
 }
 
+*/
 
 /*
 void cambiar_tamanio_archivo(uint32_t bloque_inicial, uint32_t nuevo_tamanio) {
@@ -697,32 +842,23 @@ void sacar_bloque_archivo(uint32_t bloqueInicial) {
 
 
 
-uint32_t obtener_nro_bloque_libre(){
-    for(uint32_t nroBloque = 0; nroBloque < block_count; nroBloque++){
-        uint8_t bloqueOcupado = leer_de_bitmap(nroBloque);
-        if(!bloqueOcupado)
-            return nroBloque;
-    }
-	
-	return -1;
-}
 
 //-------------------------------------------------------------------------------------
-// Escribimos en el archivo bloques.dat y pisamos con "valor" en el nro de bloque correspondiente
 
+// Escribimos en el archivo bloques.dat y pisamos con "valor" en el nro de bloque correspondiente
 void modificar_BitMap(uint32_t nroBloque, uint8_t valor){
     FILE *file = fopen("bitmap.dat", "rb+");
     if (file == NULL) {
-        perror("Error abriendo bitmap.dat");
+        log_error(logger_io , "Error abriendo bitmap.dat");
         return;
     }
     if (fseek(file, nroBloque, SEEK_SET) != 0) {
-        perror("Error buscando en bitmap.dat");
+        log_error(logger_io , "Error buscando en bitmap.dat");
         fclose(file);
         return;
     }
     if (fwrite(&valor, sizeof(uint8_t), 1, file) != 1) {
-        perror("Error escribiendo en bitmap.dat");
+        log_error(logger_io, "Error escribiendo en bitmap.dat");
     }
     fclose(file);
 }

@@ -33,6 +33,10 @@ void atender_kernel_dialfs();
 void leer_y_enviar_a_memoria();
 void leer_y_mostrar_resultado();
 
+void levantar_archivo_bloques();
+void levantar_archivo_bitarray();
+int verificar_espacio_suficiente();
+
 void ejecutar_std_in();
 void ejecutar_std_out();
 
@@ -42,9 +46,12 @@ void ejecutar_fs_truncate();
 void ejecutar_fs_write();				
 void ejecutar_fs_read();
 
+void asignar_bloque(archivo_t*);
+int obtener_indice_bloque_libre();
+archivo_t* crear_archivo(char*, char*, t_config*);
 void crear_archivo_bloques();
 void crear_archivo_bitmap();
-void crear_metadata(char*, char*);
+t_config* crear_metadata(char*, char*);
 void agregar_bloque(uint32_t );
 void sacar_bloque_archivo(uint32_t );
 void cambiar_tamanio_archivo(uint32_t , uint32_t );
@@ -52,5 +59,7 @@ uint32_t obtener_nro_bloque_libre();
 void modificar_BitMap(uint32_t , uint8_t);
 uint8_t leer_de_bitmap(uint32_t );
 char* obtener_lista_archivos_abiertos(t_list* );
+
+void eliminar_archivo_de_lista(t_list*, char*, bool*);
 
 #endif
