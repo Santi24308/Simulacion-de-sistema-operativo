@@ -636,9 +636,36 @@ Esta instrucción solicita al Kernel que mediante la interfaz seleccionada,
  y se escriban en el archivo a partir del valor del Registro Puntero Archivo.
 */
 
+/*
+char* 00 30 12
+bloques.dat
+ptr archivoA  3
+archivoA->metadata->bloqueInicial
+[      _{   | 00 30 12   /             /             }_                                      ]
+
+void* bloques   bloques+(bloqueInicial*tamañoBloque)+ptrArchivo
+
+copias en el archivo usuario 00 30 12
 
 
+*/
 
+
+archivo_t* obtener_archivo_con_nombre(char* nombre){
+	bool encontrado = false;
+	int i = 0;
+	archivo_t* archivo = NULL;
+
+	while (!encontrado && i < list_size(lista_global_archivos_abiertos)){
+		archivo = list_get(lista_global_archivos_abiertos, i);
+		if (strcmp(archivo->nombre_archivo, nombre) == 0){
+			encontrado = true;
+		}
+		i++;
+	}
+
+	return archivo;
+}
 
 void ejecutar_fs_write(){
     t_buffer* buffer = recibir_buffer(socket_kernel);
@@ -651,9 +678,25 @@ void ejecutar_fs_write(){
     uint32_t registroTamanio = atoi(instruccion->parametro4);
 	uint32_t registroPunteroArchivo = atoi(instruccion->parametro5);
 
+	// se le pide a memoria lo que hay en la direccion fisica
+	enviar_codigo(socket_memoria, IO_FS_WRITE);
+	buffer = crear_buffer();
+	buffer_write_uint32(buffer, pid);
+	buffer_write_uint32(buffer, registroDireccion);
+	buffer_write_uint32(buffer, registroTamanio);
+	enviar_buffer(buffer, socket_memoria);
+	destruir_buffer(buffer);
+
+	// esperamos el string
+	buffer = recibir_buffer(socket_memoria);
+	char* contenido_a_escribir = buffer_read_string(buffer);
+	destruir_buffer(buffer);
+
     char* nombreArchivoPath = malloc(strlen(nombreArchivo) + strlen(path_filesystem) + 1);
     sprintf(nombreArchivoPath, "%s/%s", path_filesystem, nombreArchivo);
 
+	// se copia en el archivo de usuario
+ 
     FILE* archivo = fopen(nombreArchivoPath, "r+");
     if (archivo == NULL) {
         perror("Error abriendo archivo para escritura");
@@ -661,17 +704,27 @@ void ejecutar_fs_write(){
         return;
     }
 
-    fseek(archivo, registroTamanio, SEEK_SET);
+    fseek(archivo, registroPunteroArchivo, SEEK_SET);
 
-    if (fwrite(buffer->stream, registroPunteroArchivo, 1, archivo) != 1) {
+    if (fwrite(contenido_a_escribir, registroTamanio, 1, archivo) != 1) {
         perror("Error escribiendo en archivo");
         fclose(archivo);
         free(nombreArchivoPath);
         return;
     }
-
     fclose(archivo);
 
+	// resta escribir en bloques.dat
+
+	archivo_t* archivo_buscado = obtener_archivo_con_nombre(nombreArchivo);
+	int bloque_inicial_archivo = config_get_int_value(archivo_buscado->metadata, "BLOQUE_INICIAL");
+	memcpy(bloquesmap+bloque_inicial_archivo*block_size+registroPunteroArchivo, contenido_a_escribir, registroTamanio);
+	msync(bloquesmap, tamanio_archivo_bloques, MS_SYNC);
+
+	// actualizamos el tamaño del archivo
+	int tamanio_anterior = config_get_int_value(archivo_buscado->metadata, "TAMANIO_ARCHIVO");
+	config_set_value(archivo_buscado->metadata, "TAMANIO_ARCHIVO", string_itoa(tamanio_anterior+registroTamanio));
+	config_save(archivo_buscado->metadata);
 
     log_info(logger_io,"DialFS - Escribir Archivo: PID: %d - Escribir Archivo: %s - Tamaño a Escribir: %d - Puntero Archivo: %d", pid, nombreArchivo, registroTamanio, registroPunteroArchivo);
     

@@ -305,10 +305,10 @@ void atender_io(void *socket_io)
 		codigoInstruccion codigo = recibir_codigo(socket_interfaz_io);
 		switch (codigo){
 		case IO_STDIN_READ:
-			ejecutar_io_stdin(socket_interfaz_io);
+			escribir_a_partir_de_direccion(socket_interfaz_io);
 			break;
 		case IO_STDOUT_WRITE:
-			ejecutar_io_stdout(socket_interfaz_io);
+			leer_a_partir_de_direccion(socket_interfaz_io);
 			break;
 		case IO_GEN_SLEEP:
 			break;
@@ -319,8 +319,10 @@ void atender_io(void *socket_io)
 		case IO_FS_TRUNCATE:
 			break;
 		case IO_FS_WRITE:
+			leer_a_partir_de_direccion(socket_interfaz_io);
 			break;
 		case IO_FS_READ:
+			escribir_a_partir_de_direccion(socket_interfaz_io);
 			break;
 		default:
 			break;
@@ -328,7 +330,7 @@ void atender_io(void *socket_io)
 	}
 }
 
-void ejecutar_io_stdin(int socket_interfaz_io)
+void escribir_a_partir_de_direccion(int socket_interfaz_io)
 {	
 	t_buffer *buffer = recibir_buffer(socket_interfaz_io);
 	uint32_t pid = buffer_read_uint32(buffer);
@@ -423,7 +425,7 @@ int obtener_desplazamiento_pagina(int direccion_fisica)
 	return direccion_fisica - numero_marco * tamanio_paginas;
 }
 
-void ejecutar_io_stdout(int socket_interfaz_io)
+void leer_a_partir_de_direccion(int socket_interfaz_io)
 {
 	t_buffer *buffer = recibir_buffer(socket_interfaz_io);
 	uint32_t pid = buffer_read_uint32(buffer);
