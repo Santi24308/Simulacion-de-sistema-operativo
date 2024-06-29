@@ -60,6 +60,8 @@ void modificar_BitMap(uint32_t , uint8_t);
 uint8_t leer_de_bitmap(uint32_t );
 char* obtener_lista_archivos_abiertos(t_list* );
 
+bool hay_espacio_suficiente();
+
 void eliminar_archivo_de_lista(t_list*, char*, bool*);
 
 #endif

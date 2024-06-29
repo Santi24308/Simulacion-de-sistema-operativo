@@ -85,7 +85,6 @@ void atender_kernel_stdin(){
 		switch (cod){
 			case IO_STDIN_READ:
 					ejecutar_std_in();
-					//leer_y_enviar_a_memoria();
 				break;
 			default:
 				break;
@@ -99,7 +98,6 @@ void atender_kernel_stdout(){
 		switch (cod){
 			case IO_STDOUT_WRITE:
 				ejecutar_std_out();
-				//leer_y_mostrar_resultado();
 				break;
 			default:
 				break;
@@ -113,24 +111,33 @@ void inicializar_fs(){
     block_count = config_get_int_value(config_io,"BLOCK_COUNT");
     path_filesystem = config_get_string_value(config_io,"PATH_BASE_DIALFS");
 
-    //crear_archivo_bloques();
-    //crear_archivo_bitmap();
 	levantar_archivo_bitarray();
 	levantar_archivo_bloques();
 	lista_global_archivos_abiertos = list_create();
 
-	bitmap = mmap(NULL, tamanio_archivo_bitarray, PROT_READ | PROT_WRITE, MAP_SHARED, fd_bitarray, 0);
+	bitmap = malloc(sizeof(t_bitarray));
+	bitmap->size = tamanio_archivo_bitarray;
+	bitmap->mode = MSB_FIRST;
+	bitmap->bitarray = mmap(NULL, tamanio_archivo_bitarray, PROT_READ | PROT_WRITE, MAP_SHARED, fd_bitarray, 0);
+	if (bitmap == -1) {
+		log_info(logger_io, "error al crear el bitmap");
+	}
 	bloquesmap = mmap(NULL, tamanio_archivo_bloques, PROT_READ | PROT_WRITE, MAP_SHARED, fd_bloques, 0);
+	if (bloquesmap == -1) {
+		log_info(logger_io, "error al crear bloquesmap");
+	}
 }
 
 void atender_kernel_dialfs(){
 	inicializar_fs();
 	
+	test();
+
 	while(1){
 		codigoInstruccion cod = recibir_codigo(socket_kernel);
 		switch (cod){
 			case IO_FS_CREATE:
-				usleep(1000);//ver de config?
+				usleep(1000);
 				ejecutar_fs_create();
 				break;
 			case IO_FS_DELETE:
@@ -155,6 +162,15 @@ void atender_kernel_dialfs(){
 	}
 }
 
+void test(){
+	char cadena[10] = "hola";
+
+	bitarray_set_bit(bitmap, 2);
+	msync(bitmap->bitarray, bitmap->size, MS_SYNC);
+
+	memcpy(bloquesmap+2*block_size, &cadena, 5);
+	msync(bloquesmap, tamanio_archivo_bloques, MS_SYNC);
+}
 
 void atender(){
 	if (strcmp(tipo, "GENERICA")==0)
@@ -305,28 +321,19 @@ void levantar_config(){
 }
 
 void terminar_programa(){
+	munmap(bitmap, tamanio_archivo_bitarray);
+    munmap(bloquesmap, tamanio_archivo_bloques);
+
+	close(fd_bitarray);
+	close(fd_bloques);
+
 	terminar_conexiones(2, socket_memoria, socket_kernel);
     if(logger_io) log_destroy(logger_io);
     if(config_io) config_destroy(config_io);
 }
 	
 /////////////////     DIALFS     /////////////////
-/*
-void crear_archivo_bloques(){
-    char *archivo_bloques = malloc(strlen("bloques.dat") + strlen(path_filesystem) + 1);
-    sprintf(archivo_bloques, "%sbloques.dat", path_filesystem);
-// Función para inicializar y escribir el archivo bloques.dat
 
-    FILE *file = fopen(archivo_bloques, "r");
-    if (file == NULL) {
-         file = fopen(archivo_bloques, "wb");  // Abrir el archivo en modo escritura binaria
-           if (file == NULL) {
-            log_error(logger_io,"Error al abrir el archivo bloques.dat");
-            return;
-        }
-    }
-    fclose(file);
-} */
 
 void crear_archivo_bloques() {
     path_archivo_bloques = malloc(strlen("bloques.dat") + strlen(path_filesystem) + 1);
@@ -357,65 +364,56 @@ void crear_archivo_bloques() {
 
     close(fd);
 }
-/*
-void crear_archivo_bitmap(){
-
-    path_archivo_bitarray = malloc(strlen("bitmap.dat") + strlen(path_filesystem) + 1);
-    sprintf(path_archivo_bitarray, "%sbitmap.dat", path_filesystem);
-
-    FILE* archivo_bitmap = fopen(path_archivo_bitarray, "r");
-    if (archivo_bitmap == NULL) {
-        archivo_bitmap = fopen(path_archivo_bitarray, "wb");  // Abrir el archivo en modo escritura binaria
-        if (archivo_bitmap == NULL) {
-               log_error(logger_io ,"Error al abrir el archivo bitmap.dat");
-            return;
-        }
-		tamanio_archivo_bitarray = block_count; // usado en mmap para mayor legibilidad
-        int tamanioEnBits = floor(block_count / 8);
-
-        char* bitmap = malloc(block_count); //que pasa si no es multiplo de 8? se asume que siempre sera multiplo de 8
-
-        memset(bitmap, 0 , tamanioEnBits);
-        t_bitarray* bitarray = bitarray_create(bitmap,block_count); 
-        fwrite(bitarray->bitarray,floor(bitarray->size / 8), 1, archivo_bitmap);
-    }
-
-    fclose(archivo_bitmap); 
-}
-*/
 
 void levantar_archivo_bitarray(){
 	path_archivo_bitarray = malloc(strlen("bitmap.dat") + strlen(path_filesystem) + 1);
     sprintf(path_archivo_bitarray, "%sbitmap.dat", path_filesystem);
 
-	FILE* archivo_bitmap = fopen(path_archivo_bitarray, "r");
-	if (!archivo_bitmap) {
+	FILE* archivo_bitarray = fopen(path_archivo_bitarray, "r");
+	if (!archivo_bitarray) {
 		// hay que crearlo
+		archivo_bitarray = fopen(path_archivo_bitarray, "w");
+		
+		tamanio_archivo_bitarray = block_count / 8; // usado en mmap para mayor legibilidad
+
+		int cantidad_bits_en_bytes = block_count / 8;
+		int resto = block_count % 8;
+
+		if(resto != 0) {
+			log_error(logger_io,"La cantidad de bloques debe ser multiplo de 8");
+			return;
+		}
+		
+		char* bitmap = malloc(cantidad_bits_en_bytes); 
+
+        memset(bitmap, 0 , cantidad_bits_en_bytes);
+
+		t_bitarray* bitarray = bitarray_create_with_mode(bitmap, cantidad_bits_en_bytes, MSB_FIRST);
+		fwrite(bitarray->bitarray,bitarray->size, 1, archivo_bitarray);
+		// fwrite(bitarray->bitarray,floor(bitarray->size / 8), 1, archivo_bitmap); ->2da idea por si rompe 
+		fclose(archivo_bitarray);
+
 		fd_bitarray = open(path_archivo_bitarray, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
 		if (fd_bitarray == -1){
 			log_info(logger_io, "Error al levantar fd del bitarray");
 			free(path_archivo_bitarray);
 			return;
 		}
-		if (ftruncate(fd_bitarray, block_count) == -1) {
+		if (ftruncate(fd_bitarray, cantidad_bits_en_bytes) == -1) {
             log_error(logger_io, "Error al establecer el tamaño del archivo bitmap.dat");
             close(fd_bitarray);
             free(path_archivo_bitarray);
             return;
         }
-		tamanio_archivo_bitarray = block_count; // usado en mmap para mayor legibilidad
-
-		char* bitmap = malloc(block_count); //que pasa si no es multiplo de 8? se asume que siempre sera multiplo de 8
-        memset(bitmap, 0 , block_count);
-
-		t_bitarray* bitarray = bitarray_create_with_mode(bitmap, block_count, LSB_FIRST);
-		fwrite(bitarray->bitarray,floor(bitarray->size), 1, archivo_bitmap);
 	} else {
-		fclose(archivo_bitmap);
+		fclose(archivo_bitarray);
 		fd_bitarray = open(path_archivo_bitarray, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
-	}
 
-	// hay que dejar el archivo abierto
+		//verifico el tamanio del archivo (en caso de levantar el modulo y ya exista)
+		struct stat sbA;
+		fstat(fd_bitarray, &sbA);
+		tamanio_archivo_bitarray = sbA.st_size;
+	}	
 }
 
 void levantar_archivo_bloques(){
@@ -446,6 +444,10 @@ void levantar_archivo_bloques(){
 	} else {
 		fclose(archivo_bloques);
 		fd_bloques = open(path_archivo_bloques, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+		//verifico el tamanio del archivo (en caso de levantar el modulo y ya exista)
+		struct stat sbA;
+		fstat(fd_bloques, &sbA);
+		tamanio_archivo_bloques = sbA.st_size;
 	}
 }
 
@@ -459,8 +461,7 @@ void ejecutar_fs_create(){
 	
 	char* nombreArchivo = instruccion -> parametro2;
 
-	int verificacion = verificar_espacio_suficiente();
-	if (verificacion != 0 ){
+	if (!hay_espacio_suficiente()){
 		log_error(logger_io, "No hay espacio suficiente para crear: %s" , nombreArchivo);
 		return;
 	}
@@ -521,8 +522,17 @@ int obtener_indice_bloque_libre(){
 }
 
 
-int verificar_espacio_suficiente(){
-	return (obtener_indice_bloque_libre() < 1)? -1 : 0;
+bool hay_espacio_suficiente(){
+	bool hay_espacio = false;
+	int i = 0;
+	while (i < bitarray_get_max_bit(bitmap)){
+		if (!bitarray_test_bit(bitmap, i))
+			hay_espacio = true;
+
+		i++;
+	}
+
+	return hay_espacio;
 }
 
 
