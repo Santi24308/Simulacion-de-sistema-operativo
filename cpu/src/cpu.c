@@ -415,6 +415,7 @@ char* obtener_nombre_motivo_desalojo(cod_desalojo cod){
 
 void ejecutar_instruccion(t_instruccion* instruccion_a_ejecutar){
     uint32_t parametro2 = 0;
+    uint32_t valor = 0;
     switch(instruccion_a_ejecutar->codigo){
         case SET:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
@@ -468,13 +469,13 @@ void ejecutar_instruccion(t_instruccion* instruccion_a_ejecutar){
         case IO_STDIN_READ:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             cde_ejecutando->motivo_desalojo = LLAMADA_IO;
-            actualizar_dirLogica_a_dirFisica(instruccion_a_ejecutar);
+            actualizar_dirLogica_a_dirFisica(&instruccion_a_ejecutar->parametro2, &instruccion_a_ejecutar->parametro3);
             realizar_desalojo = 1;
             break;
         case IO_STDOUT_WRITE: 
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2, instruccion_a_ejecutar->parametro3);
             cde_ejecutando->motivo_desalojo = LLAMADA_IO;
-            actualizar_dirLogica_a_dirFisica(instruccion_a_ejecutar);
+            actualizar_dirLogica_a_dirFisica(&instruccion_a_ejecutar->parametro2, &instruccion_a_ejecutar->parametro3);
             realizar_desalojo = 1;
             break;
         case IO_FS_CREATE:
@@ -490,16 +491,27 @@ void ejecutar_instruccion(t_instruccion* instruccion_a_ejecutar){
         case IO_FS_TRUNCATE: 
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2, instruccion_a_ejecutar->parametro3);
             cde_ejecutando->motivo_desalojo = LLAMADA_IO;
+            valor = buscar_valor_registro(instruccion_a_ejecutar->parametro3);
+            free(instruccion_a_ejecutar->parametro3);
+            instruccion_a_ejecutar->parametro3 = uint32_to_string(valor);
             realizar_desalojo = 1;
             break;
         case IO_FS_WRITE: 
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s %s %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2, instruccion_a_ejecutar->parametro3, instruccion_a_ejecutar->parametro4, instruccion_a_ejecutar->parametro5);
             cde_ejecutando->motivo_desalojo = LLAMADA_IO;
+            actualizar_dirLogica_a_dirFisica(&instruccion_a_ejecutar->parametro3, &instruccion_a_ejecutar->parametro4);
+            valor = buscar_valor_registro(instruccion_a_ejecutar->parametro5);
+            free(instruccion_a_ejecutar->parametro5);
+            instruccion_a_ejecutar->parametro5 = uint32_to_string(valor);
             realizar_desalojo = 1;
             break;
         case IO_FS_READ: 
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s %s %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2, instruccion_a_ejecutar->parametro3, instruccion_a_ejecutar->parametro4, instruccion_a_ejecutar->parametro5);
             cde_ejecutando->motivo_desalojo = LLAMADA_IO;
+            actualizar_dirLogica_a_dirFisica(&instruccion_a_ejecutar->parametro3, &instruccion_a_ejecutar->parametro4);
+            valor = buscar_valor_registro(instruccion_a_ejecutar->parametro5);
+            free(instruccion_a_ejecutar->parametro5);
+            instruccion_a_ejecutar->parametro5 = uint32_to_string(valor);
             realizar_desalojo = 1;
             break;
         case EXIT:
@@ -513,17 +525,19 @@ void ejecutar_instruccion(t_instruccion* instruccion_a_ejecutar){
     }
 }
 
-void actualizar_dirLogica_a_dirFisica(t_instruccion* instruccion_a_ejecutar){
+void actualizar_dirLogica_a_dirFisica(char** parametro_direccion, char** parametro_tamanio){
     uint32_t dir_fisica = UINT32_MAX;
-    bool pagina_en_tlb = se_encuentra_en_tlb(buscar_valor_registro(instruccion_a_ejecutar->parametro2), &dir_fisica); 
+    bool pagina_en_tlb = se_encuentra_en_tlb(buscar_valor_registro(*parametro_direccion), &dir_fisica); 
     if (!pagina_en_tlb)
-        dir_fisica = calcular_direccion_fisica(buscar_valor_registro(instruccion_a_ejecutar->parametro2), cde_ejecutando);
+        dir_fisica = calcular_direccion_fisica(buscar_valor_registro(*parametro_direccion), cde_ejecutando);
 
-    instruccion_a_ejecutar->parametro2 = uint32_to_string(dir_fisica);
+    free(*parametro_direccion);
+    *parametro_direccion = uint32_to_string(dir_fisica);
 
     // actualizo el parametro de tamanio tambien
-    uint32_t tamanio = buscar_valor_registro(instruccion_a_ejecutar->parametro3);
-    instruccion_a_ejecutar->parametro3 = uint32_to_string(tamanio);
+    uint32_t tamanio = buscar_valor_registro(*parametro_tamanio);
+    free(*parametro_tamanio);
+    *parametro_tamanio = uint32_to_string(tamanio);
 }
 
 char* uint32_to_string(uint32_t number) {

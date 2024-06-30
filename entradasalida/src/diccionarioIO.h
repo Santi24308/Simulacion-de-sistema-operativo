@@ -22,7 +22,6 @@ t_list* lista_global_archivos_abiertos;
 
 typedef struct {  // no hace falta que tenga el FILE ya que no los vamos a mantener abiertos
 	char* nombre_archivo; // se usa de ID
-    char* path;
     t_config* metadata;
 }archivo_t;
 

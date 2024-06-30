@@ -52,17 +52,17 @@ archivo_t* obtener_archivo_con_nombre(char* );
 
 void asignar_bloque(archivo_t*);
 int obtener_indice_bloque_libre();
-archivo_t* crear_archivo(char*, char*, t_config*);
+archivo_t* crear_archivo(char* nombre, t_config* metadata);
 void crear_archivo_bloques();
-void crear_archivo_bitmap();
 t_config* crear_metadata(char*, char*);
 void agregar_bloque(uint32_t );
 void sacar_bloque_archivo(uint32_t );
 void cambiar_tamanio_archivo(uint32_t , uint32_t );
-uint32_t obtener_nro_bloque_libre();
 void modificar_BitMap(uint32_t , uint8_t);
 uint8_t leer_de_bitmap(uint32_t );
 char* obtener_lista_archivos_abiertos(t_list* );
+
+void agregar_al_final(archivo_t*, uint32_t);
 
 bool hay_espacio_suficiente();
 

@@ -52,6 +52,14 @@ void inicializar_modulo(){
 	string_append(&tipo, config_get_string_value(config_io, "TIPO_INTERFAZ"));
 }
 
+void avisar_finalizacion_a_kernel(){
+	enviar_codigo(socket_kernel, LIBRE);
+	t_buffer* buffer = crear_buffer();	
+	buffer_write_string(buffer, nombreIO);
+	enviar_buffer(buffer, socket_kernel);
+	destruir_buffer(buffer);
+}
+
 void atender_kernel_generica(){
 	while(1){
 		codigoInstruccion cod = recibir_codigo(socket_kernel);
@@ -65,11 +73,7 @@ void atender_kernel_generica(){
 				int cantidad_recibida = leerEnteroParametroInstruccion(2, instruccion_recibida);
 				usleep(tiempo_unidad_trabajo * cantidad_recibida * 1000);
 				log_info(logger_io, "PID: %d - Operacion: %s", pid, obtener_nombre_instruccion(instruccion_recibida));
-				enviar_codigo(socket_kernel, LIBRE);
-				buffer = crear_buffer();
-				buffer_write_string(buffer, nombreIO);
-				enviar_buffer(buffer, socket_kernel);
-				destruir_buffer(buffer);
+				avisar_finalizacion_a_kernel();
 				break;
 			case NULO: // lo usamos para testear que siga conectada desde kernel 
 				break;
@@ -85,6 +89,7 @@ void atender_kernel_stdin(){
 		switch (cod){
 			case IO_STDIN_READ:
 					ejecutar_std_in();
+					avisar_finalizacion_a_kernel();
 				break;
 			default:
 				break;
@@ -98,6 +103,7 @@ void atender_kernel_stdout(){
 		switch (cod){
 			case IO_STDOUT_WRITE:
 				ejecutar_std_out();
+				avisar_finalizacion_a_kernel();
 				break;
 			default:
 				break;
@@ -139,22 +145,27 @@ void atender_kernel_dialfs(){
 			case IO_FS_CREATE:
 				usleep(1000);
 				ejecutar_fs_create();
+				avisar_finalizacion_a_kernel();
 				break;
 			case IO_FS_DELETE:
 				usleep(1000);
 				ejecutar_fs_delete();
+				avisar_finalizacion_a_kernel();
 				break;
 			case IO_FS_TRUNCATE:
 				usleep(1000);
 				ejecutar_fs_truncate();
+				avisar_finalizacion_a_kernel();
 				break;
 			case IO_FS_WRITE:
 				usleep(1000);
 				ejecutar_fs_write();
+				avisar_finalizacion_a_kernel();
 				break;
 			case IO_FS_READ:
 				usleep(1000);
 				ejecutar_fs_read();
+				avisar_finalizacion_a_kernel();
 				break;
 			default:
 				break;
@@ -223,12 +234,6 @@ void ejecutar_std_in(){
 	if (cod != OK){
 		// contemplar error
 	}
-
-	enviar_codigo(socket_kernel, LIBRE);
-	buffer = crear_buffer();
-	buffer_write_string(buffer, nombreIO);
-	enviar_buffer(buffer, socket_kernel);
-	destruir_buffer(buffer);
 }
 
 void ejecutar_std_out(){
@@ -250,12 +255,6 @@ void ejecutar_std_out(){
 	destruir_buffer(buffer);
 
 	printf("\t\nEl string que llego es: %s\n", valor_a_mostrar);
-
-	enviar_codigo(socket_kernel, LIBRE);
-	buffer = crear_buffer();	
-	buffer_write_string(buffer, nombreIO);
-	enviar_buffer(buffer, socket_kernel);
-	destruir_buffer(buffer);
 }
 
 void conectar_memoria(){
@@ -465,14 +464,10 @@ void ejecutar_fs_create(){
 		log_error(logger_io, "No hay espacio suficiente para crear: %s" , nombreArchivo);
 		return;
 	}
-
-	char *nombreArchivoPath = malloc(strlen(nombreArchivo) + strlen(path_filesystem) + 1);
-	sprintf(nombreArchivoPath, "%s%s", path_filesystem, nombreArchivo);
 	
-	FILE *archivo_file = fopen(nombreArchivoPath , "w"); 	 
 	t_config* metadata = crear_metadata(nombreArchivo, path_filesystem);	
 
-	archivo_t* archivoAgregar = crear_archivo(nombreArchivo , nombreArchivoPath , metadata);
+	archivo_t* archivoAgregar = crear_archivo(nombreArchivo, metadata);
 
 	log_info(logger_io, "DialFS - Crear Archivo: PID: %d - Crear Archivo: %s", pid, nombreArchivo);
 	
@@ -481,11 +476,8 @@ void ejecutar_fs_create(){
 	char* lista_de_archivos_abiertos = obtener_lista_archivos_abiertos(lista_global_archivos_abiertos);
 	log_info(logger_io, "DialFS - Agregado a lista %s el archivo:  %s", lista_de_archivos_abiertos, nombreArchivo);
 
-	fclose(archivo_file); // necesario para despues reabrir con open
-
 	asignar_bloque(archivoAgregar);
 
-	free(nombreArchivoPath);
 	free(nombreArchivo);
 }
 
@@ -498,6 +490,7 @@ void asignar_bloque(archivo_t* archivo){
 	}
 
 	config_set_value(archivo->metadata, "BLOQUE_INICIAL" , string_itoa(indice));
+	config_save(archivo->metadata);
 	// el tamaño sigue siendo cero la primera vez
 }
 
@@ -509,8 +502,8 @@ int obtener_indice_bloque_libre(){
 		if (!bitarray_test_bit(bitmap, i)) {
 			encontrado = true;
 			bitarray_set_bit(bitmap, i);  // seteamos como ocupado
-			if (msync(bitmap, tamanio_archivo_bitarray, MS_SYNC) == -1)
-            	perror("msync fileA");
+			if (msync(bitmap->bitarray, bitmap->size, MS_SYNC) == -1)
+            	perror("Error en la sincronizacion");
 		} else
 			i++;
 	}
@@ -534,14 +527,11 @@ bool hay_espacio_suficiente(){
 }
 
 
-archivo_t* crear_archivo(char* nombre, char* path, t_config* metadata){
+archivo_t* crear_archivo(char* nombre, t_config* metadata){
 	archivo_t* archivo_creado = malloc(sizeof(archivo_t));
 
 	archivo_creado->nombre_archivo = string_new();
 	string_append(&archivo_creado->nombre_archivo, nombre);
-
-	archivo_creado->path = string_new();
-	string_append(&archivo_creado->path, path);
 
 	archivo_creado->metadata = metadata;
 
@@ -565,12 +555,69 @@ void ejecutar_fs_truncate(){
 	}
 	
 	int tamanio_archivo = config_get_int_value(archivo_buscado->metadata, "TAMANIO_ARCHIVO");
+	
+
+	if (tamanio_archivo == 0) {
+		agregar_al_final(archivo_buscado, tamanio_solicitado);
+	}
 
 	if (tamanio_archivo < tamanio_solicitado)
 		reducir_tamanio(archivo_buscado, tamanio_solicitado);
 	else	
 		ampliar_tamanio(archivo_buscado, tamanio_solicitado);
 
+}
+
+bool hay_bloques_contiguos(uint32_t cantidad, int* a_partir_de_indice){
+
+	// (FALTA)
+	// se compacta primero 
+	// y se sincronizan los map
+	// (FALTA)
+
+	int limite_array = bitarray_get_max_bit(bitmap);
+	int i = 1;
+	int bloques_contiguos_disponibles = 0;
+	bool bit_en_uno = false; // este se usa para el caso en donde me tope con un bit 1 y tenga que frenar el conteo
+	*a_partir_de_indice = -1;
+
+	while (bloques_contiguos_disponibles != cantidad && (limite_array - i >= 0) && !bit_en_uno) {
+		if (!bitarray_test_bit(bitmap, limite_array-i)){
+			bloques_contiguos_disponibles++;
+		} else {
+			bit_en_uno = true; // en este caso ya no hay mas contiguos
+			*a_partir_de_indice = (limite_array-i) + 1; // esto sirve para guardar desde que indice se puede asignar
+		}
+		i++;
+	} 
+
+	return (bloques_contiguos_disponibles == cantidad);
+}
+
+void agregar_al_final(archivo_t* archivo, uint32_t tamanio_solicitado){
+	int bloques_a_asignar = ceil(tamanio_solicitado / block_size);
+	int indice = -1;
+	int i = 0;
+
+	if (hay_bloques_contiguos(bloques_a_asignar, &indice)) {
+		while (i < bloques_a_asignar){
+			bitarray_set_bit(bitmap, indice);
+			memset(bloquesmap+indice*block_size, 0, block_size);
+
+			indice++;
+			i++;
+		}
+		msync(bitmap, bitmap->size, MS_SYNC);
+		msync(bloquesmap, tamanio_archivo_bloques, MS_SYNC);
+	} else {
+		log_error(logger_io, "No hay espacio para extender el archivo");
+		exit(EXIT_FAILURE);
+	}
+
+	if (indice != -1){
+		config_set_value(archivo->metadata, "TAMANIO_ARCHIVO", string_itoa(tamanio_solicitado));
+		config_save(archivo->metadata);
+	}
 }
 
 void ampliar_tamanio(archivo_t* archivo, uint32_t tamanio_solicitado){
@@ -582,12 +629,14 @@ void ampliar_tamanio(archivo_t* archivo, uint32_t tamanio_solicitado){
 
 	int tamanio_archivo = config_get_int_value(archivo->metadata, "TAMANIO_ARCHIVO");
 	int bloques_asignados_antes = ceil(tamanio_archivo / block_size);
-	int bloques_a_asginar = ceil(tamanio_solicitado / block_size) - bloques_asignados_antes;
+	int bloques_a_asignar = ceil(tamanio_solicitado / block_size) - bloques_asignados_antes;
+	if (bloques_a_asignar == bloques_asignados_antes)
+		return;
 	int i = 0;
 	// si tenia 4 bloques asignados, los bits 0 1 2 y 3 estaban en 1 (ocupados) 
 	// a partir de la posicion 4 quiero setear en 1 hasta cumplir lo pedido
 	int bit_inicial = bloques_asignados_antes;
-	while (i < bloques_a_asginar){
+	while (i < bloques_a_asignar){
 		bitarray_set_bit(bitmap, bit_inicial);
 
 		// limpio el espacio asignado, no se si es sumamente necesario
@@ -604,14 +653,16 @@ void ampliar_tamanio(archivo_t* archivo, uint32_t tamanio_solicitado){
 }
 
 void reducir_tamanio(archivo_t* archivo, uint32_t tamanio_solicitado){
-	int bloques_a_asginar = ceil(tamanio_solicitado / block_size);
+	int bloques_a_asignar = ceil(tamanio_solicitado / block_size);
 	int tamanio_archivo = config_get_int_value(archivo->metadata, "TAMANIO_ARCHIVO");
 	int bloques_asignados_antes = ceil(tamanio_archivo / block_size);
+	if (bloques_a_asignar == bloques_asignados_antes)
+		return;
 	int bloque_inicial = config_get_int_value(archivo->metadata, "BLOQUE_INICIAL");
 	int i = bloque_inicial;
 
 	while (i < bloques_asignados_antes) {
-		if (i >= bloques_a_asginar) {
+		if (i >= bloques_a_asignar) {
 			bitarray_clean_bit(bitmap, i);
 		}
 		i ++;
@@ -668,9 +719,6 @@ void liberar_archivo(archivo_t* archivo) {
         if (archivo->nombre_archivo != NULL) {
             free(archivo->nombre_archivo);
         }
-        if (archivo->path != NULL) {
-            free(archivo->path);
-        }
         if (archivo->metadata != NULL) {
         	config_destroy(archivo->metadata);
         }  
@@ -692,36 +740,6 @@ void eliminar_archivo_de_lista(t_list* lista, char* nombreArchivo, bool* encontr
         }
     }
 }
-
-
-
-/*			
-void ejecutar_fs_truncate(){}
-*/
-
-/*
-IO_FS_WRITE 
-(Interfaz, Nombre Archivo, Registro Dirección, Registro Tamaño, Registro Puntero Archivo):
-Esta instrucción solicita al Kernel que mediante la interfaz seleccionada,
- se lea desde Memoria la cantidad de bytes indicadas por el Registro Tamaño 
- a partir de la dirección lógica que se encuentra en el Registro Dirección 
- y se escriban en el archivo a partir del valor del Registro Puntero Archivo.
-*/
-
-/*
-char* 00 30 12
-bloques.dat
-ptr archivoA  3
-archivoA->metadata->bloqueInicial
-[      _{   | 00 30 12   /             /             }_                                      ]
-
-void* bloques   bloques+(bloqueInicial*tamañoBloque)+ptrArchivo
-
-copias en el archivo usuario 00 30 12
-
-
-*/
-
 
 archivo_t* obtener_archivo_con_nombre(char* nombre){
 	bool encontrado = false;
@@ -764,8 +782,12 @@ void ejecutar_fs_write(){
 	char* contenido_a_escribir = buffer_read_string(buffer);
 	destruir_buffer(buffer);
 
-    char* nombreArchivoPath = malloc(strlen(nombreArchivo) + strlen(path_filesystem) + 1);
-    sprintf(nombreArchivoPath, "%s/%s", path_filesystem, nombreArchivo);
+	log_info(logger_io, "Me llego de memoria la cadena: %s", contenido_a_escribir);
+
+	char* nombreArchivoPath = string_new();
+	string_append(&nombreArchivoPath, path_filesystem);
+	string_append(&nombreArchivoPath, "/");
+	string_append(&nombreArchivoPath, nombreArchivo);
 
 	// se escribe en bloques.dat
 
@@ -789,7 +811,6 @@ void ejecutar_fs_write(){
     free(nombreArchivoPath);
     free(nombreArchivo);
 }
-
 
 void ejecutar_fs_read(){
 	t_buffer* buffer = recibir_buffer(socket_kernel);
@@ -816,6 +837,8 @@ void ejecutar_fs_read(){
 	memcpy(cadena_a_escribir_en_memoria, bloquesmap+bloque_inicial_archivo*block_size+registroPunteroArchivo, registroTamanio);
 	cadena_a_escribir_en_memoria[registroTamanio] = '\0';
 
+	log_info(logger_io, "La cadena a escribir en memoria es: %s", cadena_a_escribir_en_memoria);
+
 	// le enviamos a memoria todo lo necesario para que escriba
 
 	enviar_codigo(socket_memoria, IO_FS_READ);
@@ -836,9 +859,6 @@ void ejecutar_fs_read(){
 	free(cadena_a_escribir_en_memoria);
 	destruir_instruccion(instruccion);
 }
-
-//-------------------------------------------------------------------------------------
-
 
 t_config* crear_metadata(char* nombreArchivo, char* path_filesystem) {
     char *metadataDirPath = malloc(strlen(path_filesystem) + strlen("metadata") + 1);
@@ -894,166 +914,4 @@ char* obtener_lista_archivos_abiertos(t_list* lista){
     }
     string_append(&aux,"]");
     return aux;
-}
-
-
-
-
-/*void agregar_bloque(FILE* archivo , int cantidad_bloques) {   
-
-    if (cantidad_bloques == 1) {
-        uint32_t nro_bloque = obtener_nro_bloque_libre();
-
-        // NUEVO: Declaración de variable que falta
-        t_bloque* primerBloqueLibre = NULL;
-
-        // Seek al bloque libre obtenido
-        fseek(archivo, nro_bloque * block_size, SEEK_SET);
-
-        // Modificar el bitmap para marcar el bloque como ocupado
-        modificar_BitMap(nro_bloque, 1);
-
-        // Abrir el archivo de bloques (asumo que ya está abierto fuera de esta función)
-        FILE *file = fopen("bloques.dat", "rb+");
-        if (file == NULL) {
-            log_error(logger_io, "Error abriendo bloques.dat");
-            return;
-        }
-
-        // Escribir el número del nuevo bloque en el archivo de bloques
-        fseek(file, nro_bloque * block_size, SEEK_SET);
-        uint32_t nuevoBloque = nro_bloque;
-        fwrite(&nuevoBloque, block_size, 1, file);
-
-        // Cerrar el archivo de bloques
-        fclose(file);
-    }
-} */
-/*
-void agregar_bloque(uint32_t bloque_inicial) {
-    uint32_t nuevo_bloque = obtener_nro_bloque_libre();
-    
-    FILE *file = fopen("bloques.dat", "rb+");
-    if (file == NULL) {
-        perror("Error abriendo bloques.dat");
-        return;
-    }
-
-    fseek(file, nuevo_bloque * sizeof(uint32_t), SEEK_SET);
-    fwrite(&bloque_inicial, sizeof(uint32_t), 1, file); // Conectar el nuevo bloque al último bloque del archivo
-
-    fclose(file);
-
-    modificar_BitMap(nuevo_bloque, 1); // Marcar el nuevo bloque como ocupado en el bitmap
-}
-
-*/
-
-/*
-void cambiar_tamanio_archivo(uint32_t bloque_inicial, uint32_t nuevo_tamanio) {
-    uint32_t tamanio_anterior = obtener_tamanio_archivo(bloque_inicial); // Función para obtener el tamaño actual del archivo
-
-    if (nuevo_tamanio > tamanio_anterior) {
-        // Agregar bloques adicionales si el nuevo tamaño es mayor
-        int bloques_a_agregar = (nuevo_tamanio - tamanio_anterior + block_size - 1) / block_size;
-        for (int i = 0; i < bloques_a_agregar; i++) {
-            agregar_bloque(bloque_inicial);
-        }
-    } else if (nuevo_tamanio < tamanio_anterior) {
-        // Sacar bloques si el nuevo tamaño es menor
-        int bloques_a_quitar = (tamanio_anterior - nuevo_tamanio + block_size - 1) / block_size;
-        for (int i = 0; i < bloques_a_quitar; i++) {
-            sacar_bloque_archivo(bloque_inicial);
-        }
-    }
-}*/
-
-
-void sacar_bloque_archivo(uint32_t bloqueInicial) {
-    FILE *file = fopen("bloques.dat", "rb+");
-    if (file == NULL) {
-        perror("Error abriendo bloques.dat");
-        return;
-    }
-
-    // Encontrar el último bloque del archivo
-    uint32_t bloqueActual = bloqueInicial;
-    uint32_t bloqueAnterior = UINT32_MAX;
-    uint32_t siguienteBloque;
-
-    while (1) {
-        fseek(file, bloqueActual * sizeof(uint32_t), SEEK_SET);
-        fread(&siguienteBloque, sizeof(uint32_t), 1, file);
-        if (siguienteBloque == UINT32_MAX) {
-            break;
-        }
-        bloqueAnterior = bloqueActual;
-        bloqueActual = siguienteBloque;
-    }
-
-    // Marcar el último bloque como libre
-    modificar_BitMap(bloqueActual, 0);
-
-    // Actualizar el penúltimo bloque para marcar el final del archivo
-    if (bloqueAnterior != UINT32_MAX) {
-        fseek(file, bloqueAnterior * sizeof(uint32_t), SEEK_SET);
-        uint32_t finArchivo = UINT32_MAX;
-        fwrite(&finArchivo, sizeof(uint32_t), 1, file);
-    }
-
-    // Cerrar el archivo
-    fclose(file);
-}
-
-
-
-
-//-------------------------------------------------------------------------------------
-
-// Escribimos en el archivo bloques.dat y pisamos con "valor" en el nro de bloque correspondiente
-void modificar_BitMap(uint32_t nroBloque, uint8_t valor){
-    FILE *file = fopen("bitmap.dat", "rb+");
-    if (file == NULL) {
-        log_error(logger_io , "Error abriendo bitmap.dat");
-        return;
-    }
-    if (fseek(file, nroBloque, SEEK_SET) != 0) {
-        log_error(logger_io , "Error buscando en bitmap.dat");
-        fclose(file);
-        return;
-    }
-    if (fwrite(&valor, sizeof(uint8_t), 1, file) != 1) {
-        log_error(logger_io, "Error escribiendo en bitmap.dat");
-    }
-    fclose(file);
-}
-//-------------------------------------------------------------------------
-// Leemos del archivo bloques.dat y chequeamos si el bit esta usado o no
-
-uint8_t leer_de_bitmap(uint32_t nroBloque) {
-    FILE *file = fopen("bitmap.dat", "rb");
-    if (file == NULL) {
-        perror("Error abriendo bitmap.dat");
-        return UINT8_MAX;
-    }
-
-    // Mover el puntero del archivo a la posición correspondiente
-    if (fseek(file, nroBloque, SEEK_SET) != 0) {
-        perror("Error buscando en bitmap.dat");
-        fclose(file);
-        return UINT8_MAX;
-    }
-
-    // Leer el valor en la posición correspondiente
-    uint8_t valor;
-    if (fread(&valor, sizeof(uint8_t), 1, file) != 1) {
-        perror("Error leyendo de bitmap.dat");
-        fclose(file);
-        return UINT8_MAX;
-    }
-
-    // Cerrar el archivo
-    fclose(file);
-
-    return valor;
 }
