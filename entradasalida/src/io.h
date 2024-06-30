@@ -46,6 +46,10 @@ void ejecutar_fs_truncate();
 void ejecutar_fs_write();				
 void ejecutar_fs_read();
 
+void reducir_tamanio(archivo_t* , uint32_t);
+void ampliar_tamanio(archivo_t* , uint32_t);
+archivo_t* obtener_archivo_con_nombre(char* );
+
 void asignar_bloque(archivo_t*);
 int obtener_indice_bloque_libre();
 archivo_t* crear_archivo(char*, char*, t_config*);

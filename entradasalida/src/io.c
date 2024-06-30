@@ -119,11 +119,11 @@ void inicializar_fs(){
 	bitmap->size = tamanio_archivo_bitarray;
 	bitmap->mode = MSB_FIRST;
 	bitmap->bitarray = mmap(NULL, tamanio_archivo_bitarray, PROT_READ | PROT_WRITE, MAP_SHARED, fd_bitarray, 0);
-	if (bitmap == -1) {
+	if (bitmap == MAP_FAILED) {
 		log_info(logger_io, "error al crear el bitmap");
 	}
 	bloquesmap = mmap(NULL, tamanio_archivo_bloques, PROT_READ | PROT_WRITE, MAP_SHARED, fd_bloques, 0);
-	if (bloquesmap == -1) {
+	if (bloquesmap == MAP_FAILED) {
 		log_info(logger_io, "error al crear bloquesmap");
 	}
 }
@@ -131,7 +131,7 @@ void inicializar_fs(){
 void atender_kernel_dialfs(){
 	inicializar_fs();
 	
-	test();
+	//test();
 
 	while(1){
 		codigoInstruccion cod = recibir_codigo(socket_kernel);
@@ -146,7 +146,7 @@ void atender_kernel_dialfs(){
 				break;
 			case IO_FS_TRUNCATE:
 				usleep(1000);
-				//ejecutar_fs_truncate();
+				ejecutar_fs_truncate();
 				break;
 			case IO_FS_WRITE:
 				usleep(1000);
@@ -154,7 +154,7 @@ void atender_kernel_dialfs(){
 				break;
 			case IO_FS_READ:
 				usleep(1000);
-				//ejecutar_fs_read();
+				ejecutar_fs_read();
 				break;
 			default:
 				break;
@@ -490,16 +490,14 @@ void ejecutar_fs_create(){
 }
 
 void asignar_bloque(archivo_t* archivo){
+	// la funcion de obtener el indice ya actualiza el bitmap
 	int indice = obtener_indice_bloque_libre();
 	if (indice == -1){
 		log_info(logger_io, "Error al asignar bloque a archivo %s", archivo->nombre_archivo);
 		return;
 	}
 
-	char valor[5];
-	sprintf(valor, "%d", indice);
-
-	config_set_value(archivo->metadata, "BLOQUE_INICIAL" , valor);
+	config_set_value(archivo->metadata, "BLOQUE_INICIAL" , string_itoa(indice));
 	// el tamaño sigue siendo cero la primera vez
 }
 
@@ -548,6 +546,80 @@ archivo_t* crear_archivo(char* nombre, char* path, t_config* metadata){
 	archivo_creado->metadata = metadata;
 
 	return archivo_creado;
+}
+
+void ejecutar_fs_truncate(){
+	t_buffer* buffer =  recibir_buffer(socket_kernel);	
+	int pid = buffer_read_uint32(buffer);
+    t_instruccion* instruccion = buffer_read_instruccion(buffer);
+   	destruir_buffer(buffer);
+	// por el warning
+	pid = pid;
+
+	uint32_t tamanio_solicitado = atoi(instruccion->parametro3);
+
+	archivo_t* archivo_buscado = obtener_archivo_con_nombre(instruccion->parametro2);
+	if (!archivo_buscado){
+		log_error(logger_io, "El archivo solicitado para escribir no existe, terminando.");
+		exit(EXIT_FAILURE);
+	}
+	
+	int tamanio_archivo = config_get_int_value(archivo_buscado->metadata, "TAMANIO_ARCHIVO");
+
+	if (tamanio_archivo < tamanio_solicitado)
+		reducir_tamanio(archivo_buscado, tamanio_solicitado);
+	else	
+		ampliar_tamanio(archivo_buscado, tamanio_solicitado);
+
+}
+
+void ampliar_tamanio(archivo_t* archivo, uint32_t tamanio_solicitado){
+
+	/*
+		FALTA TODO EL CASO QUE NECESITA COMPACTAR PORQUE NO
+		HAY BLOQUES CONTIGUOS SUFICIENTES
+	*/
+
+	int tamanio_archivo = config_get_int_value(archivo->metadata, "TAMANIO_ARCHIVO");
+	int bloques_asignados_antes = ceil(tamanio_archivo / block_size);
+	int bloques_a_asginar = ceil(tamanio_solicitado / block_size) - bloques_asignados_antes;
+	int i = 0;
+	// si tenia 4 bloques asignados, los bits 0 1 2 y 3 estaban en 1 (ocupados) 
+	// a partir de la posicion 4 quiero setear en 1 hasta cumplir lo pedido
+	int bit_inicial = bloques_asignados_antes;
+	while (i < bloques_a_asginar){
+		bitarray_set_bit(bitmap, bit_inicial);
+
+		// limpio el espacio asignado, no se si es sumamente necesario
+		// pero es prolijo y evita el uso de datos basura
+		memset(bloquesmap+(bit_inicial+i) * block_size, 0, block_size);
+		i ++;
+	}
+
+	msync(bitmap->bitarray, bitmap->size, MS_SYNC);
+	msync(bloquesmap, tamanio_archivo_bloques, MS_SYNC);
+
+	config_set_value(archivo->metadata, "TAMANIO_ARCHIVO", string_itoa(tamanio_solicitado));
+	config_save(archivo->metadata);
+}
+
+void reducir_tamanio(archivo_t* archivo, uint32_t tamanio_solicitado){
+	int bloques_a_asginar = ceil(tamanio_solicitado / block_size);
+	int tamanio_archivo = config_get_int_value(archivo->metadata, "TAMANIO_ARCHIVO");
+	int bloques_asignados_antes = ceil(tamanio_archivo / block_size);
+	int bloque_inicial = config_get_int_value(archivo->metadata, "BLOQUE_INICIAL");
+	int i = bloque_inicial;
+
+	while (i < bloques_asignados_antes) {
+		if (i >= bloques_a_asginar) {
+			bitarray_clean_bit(bitmap, i);
+		}
+		i ++;
+	}
+	msync(bitmap->bitarray, bitmap->size, MS_SYNC);
+
+	config_set_value(archivo->metadata, "TAMANIO_ARCHIVO", string_itoa(tamanio_solicitado));
+	config_save(archivo->metadata);
 }
 
 void ejecutar_fs_delete(){
@@ -695,28 +767,14 @@ void ejecutar_fs_write(){
     char* nombreArchivoPath = malloc(strlen(nombreArchivo) + strlen(path_filesystem) + 1);
     sprintf(nombreArchivoPath, "%s/%s", path_filesystem, nombreArchivo);
 
-	// se copia en el archivo de usuario
- 
-    FILE* archivo = fopen(nombreArchivoPath, "r+");
-    if (archivo == NULL) {
-        perror("Error abriendo archivo para escritura");
-        free(nombreArchivoPath);
-        return;
-    }
-
-    fseek(archivo, registroPunteroArchivo, SEEK_SET);
-
-    if (fwrite(contenido_a_escribir, registroTamanio, 1, archivo) != 1) {
-        perror("Error escribiendo en archivo");
-        fclose(archivo);
-        free(nombreArchivoPath);
-        return;
-    }
-    fclose(archivo);
-
-	// resta escribir en bloques.dat
+	// se escribe en bloques.dat
 
 	archivo_t* archivo_buscado = obtener_archivo_con_nombre(nombreArchivo);
+	if (!archivo_buscado){
+		log_error(logger_io, "El archivo solicitado para escribir no existe, terminando.");
+		exit(EXIT_FAILURE);
+	}
+
 	int bloque_inicial_archivo = config_get_int_value(archivo_buscado->metadata, "BLOQUE_INICIAL");
 	memcpy(bloquesmap+bloque_inicial_archivo*block_size+registroPunteroArchivo, contenido_a_escribir, registroTamanio);
 	msync(bloquesmap, tamanio_archivo_bloques, MS_SYNC);
@@ -732,9 +790,53 @@ void ejecutar_fs_write(){
     free(nombreArchivo);
 }
 
-/*
-void ejecutar_fs_read(){}
-*/
+
+void ejecutar_fs_read(){
+	t_buffer* buffer = recibir_buffer(socket_kernel);
+    int pid = buffer_read_uint32(buffer);
+	t_instruccion* instruccion = buffer_read_instruccion(buffer);
+    destruir_buffer(buffer);
+
+    char* nombreArchivo = instruccion->parametro2;
+    uint32_t registroDireccion = atoi(instruccion->parametro3);
+    uint32_t registroTamanio = atoi(instruccion->parametro4);
+	uint32_t registroPunteroArchivo = atoi(instruccion->parametro5);
+
+	archivo_t* archivo_buscado = obtener_archivo_con_nombre(nombreArchivo);
+	if (!archivo_buscado){
+		log_error(logger_io, "El archivo solicitado para escribir no existe, terminando.");
+		exit(EXIT_FAILURE);
+	}
+
+	int bloque_inicial_archivo = config_get_int_value(archivo_buscado->metadata, "BLOQUE_INICIAL");
+
+	char* cadena_a_escribir_en_memoria = malloc(registroTamanio*sizeof(char)+1);
+	memset(cadena_a_escribir_en_memoria, 0, registroTamanio);
+
+	memcpy(cadena_a_escribir_en_memoria, bloquesmap+bloque_inicial_archivo*block_size+registroPunteroArchivo, registroTamanio);
+	cadena_a_escribir_en_memoria[registroTamanio] = '\0';
+
+	// le enviamos a memoria todo lo necesario para que escriba
+
+	enviar_codigo(socket_memoria, IO_FS_READ);
+	buffer = crear_buffer();
+	buffer_write_uint32(buffer, pid);
+	buffer_write_uint32(buffer, registroDireccion);
+	buffer_write_uint32(buffer, registroTamanio);
+	buffer_write_string(buffer, cadena_a_escribir_en_memoria);
+	enviar_buffer(buffer, socket_memoria);
+	destruir_buffer(buffer);
+
+	mensajeMemoria cod = recibir_codigo(socket_memoria);
+	if (cod != OK) {
+		log_error(logger_io, "Error al escribir en memoria la cadena: %s", cadena_a_escribir_en_memoria);
+		exit(EXIT_FAILURE);
+	}
+
+	free(cadena_a_escribir_en_memoria);
+	destruir_instruccion(instruccion);
+}
+
 //-------------------------------------------------------------------------------------
 
 
