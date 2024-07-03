@@ -62,7 +62,6 @@ typedef struct {
     void* bloque; 
 }t_bloque;
 
-
 /*
 typedef struct{  
 
@@ -85,6 +84,7 @@ t_log* logger_io;
 t_config* config_io;
 pthread_t hilo_kernel;
 
+// declaracion de semaforos
 sem_t sema_memoria;
 sem_t sema_kernel;
 sem_t terminar_io;
