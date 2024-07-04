@@ -556,8 +556,8 @@ void ejecutar_fs_truncate(){
 	
 	int tamanio_archivo = config_get_int_value(archivo_buscado->metadata, "TAMANIO_ARCHIVO");
 	
-
 	if (tamanio_archivo == 0) {
+		// caso particular de que el tamaño es 0 pero el bloque inicial no es 0
 		agregar_al_final(archivo_buscado, tamanio_solicitado);
 	}
 
@@ -568,25 +568,18 @@ void ejecutar_fs_truncate(){
 
 }
 
-bool hay_bloques_contiguos(uint32_t cantidad, int* a_partir_de_indice){
-
-	// (FALTA)
-	// se compacta primero 
-	// y se sincronizan los map
-	// (FALTA)
+bool hay_bloques_contiguos_al_archivo(uint32_t cantidad, int a_partir_de_indice){
 
 	int limite_array = bitarray_get_max_bit(bitmap);
-	int i = 1;
 	int bloques_contiguos_disponibles = 0;
 	bool bit_en_uno = false; // este se usa para el caso en donde me tope con un bit 1 y tenga que frenar el conteo
-	*a_partir_de_indice = -1;
+	int i = a_partir_de_indice;
 
-	while (bloques_contiguos_disponibles != cantidad && (limite_array - i >= 0) && !bit_en_uno) {
-		if (!bitarray_test_bit(bitmap, limite_array-i)){
+	while (i < limite_array && bloques_contiguos_disponibles != cantidad && !bit_en_uno) {
+		if (!bitarray_test_bit(bitmap, i)){
 			bloques_contiguos_disponibles++;
 		} else {
 			bit_en_uno = true; // en este caso ya no hay mas contiguos
-			*a_partir_de_indice = (limite_array-i) + 1; // esto sirve para guardar desde que indice se puede asignar
 		}
 		i++;
 	} 
@@ -594,64 +587,48 @@ bool hay_bloques_contiguos(uint32_t cantidad, int* a_partir_de_indice){
 	return (bloques_contiguos_disponibles == cantidad);
 }
 
-void agregar_al_final(archivo_t* archivo, uint32_t tamanio_solicitado){
-	int bloques_a_asignar = ceil(tamanio_solicitado / block_size);
-	int indice = -1;
+// incluyendo libres dispersos
+bool hay_bloques_necesarios(uint32_t cantidad){
+
+	int limite_array = bitarray_get_max_bit(bitmap);
+	int bloques_disponibles = 0;
+	
 	int i = 0;
 
-	if (hay_bloques_contiguos(bloques_a_asignar, &indice)) {
-		while (i < bloques_a_asignar){
-			bitarray_set_bit(bitmap, indice);
-			memset(bloquesmap+indice*block_size, 0, block_size);
+	while (i < limite_array) {
+		if (!bitarray_test_bit(bitmap, i)){
+			bloques_disponibles++;
+		} 
+		i++;
+	} 
 
-			indice++;
-			i++;
-		}
-		msync(bitmap, bitmap->size, MS_SYNC);
-		msync(bloquesmap, tamanio_archivo_bloques, MS_SYNC);
-	} else {
-		log_error(logger_io, "No hay espacio para extender el archivo");
-		exit(EXIT_FAILURE);
-	}
-
-	if (indice != -1){
-		config_set_value(archivo->metadata, "TAMANIO_ARCHIVO", string_itoa(tamanio_solicitado));
-		config_save(archivo->metadata);
-	}
+	return (bloques_disponibles >= cantidad);
 }
 
+
+
+
+// ---------------- funcion main -----------------------------
+
+// desmapeamos bloquesDatViejo de mmap y nos quedamos solo con el void*
+
+// abrimos bloques.dat con el flag para pisarlo
+
+// creamos un puntero al archivo en cuestion
+
+// pasamos la lista de archivos con - elemento archivo - removido a recrear_bloques_dat
+
+// hacemos la expansion del archivo en cuestion
+
+// tiene que estar todo actualizado, variables globales, el remapeo con mmap, etc
+
+
+// --------------------------------------------------------------------------------------------------------------------------------------------------
 void ampliar_tamanio(archivo_t* archivo, uint32_t tamanio_solicitado){
-
-	/*
-		FALTA TODO EL CASO QUE NECESITA COMPACTAR PORQUE NO
-		HAY BLOQUES CONTIGUOS SUFICIENTES
-	*/
-
-	int tamanio_archivo = config_get_int_value(archivo->metadata, "TAMANIO_ARCHIVO");
-	int bloques_asignados_antes = ceil(tamanio_archivo / block_size);
-	int bloques_a_asignar = ceil(tamanio_solicitado / block_size) - bloques_asignados_antes;
-	if (bloques_a_asignar == bloques_asignados_antes)
-		return;
-	int i = 0;
-	// si tenia 4 bloques asignados, los bits 0 1 2 y 3 estaban en 1 (ocupados) 
-	// a partir de la posicion 4 quiero setear en 1 hasta cumplir lo pedido
-	int bit_inicial = bloques_asignados_antes;
-	while (i < bloques_a_asignar){
-		bitarray_set_bit(bitmap, bit_inicial);
-
-		// limpio el espacio asignado, no se si es sumamente necesario
-		// pero es prolijo y evita el uso de datos basura
-		memset(bloquesmap+(bit_inicial+i) * block_size, 0, block_size);
-		i ++;
-	}
-
-	msync(bitmap->bitarray, bitmap->size, MS_SYNC);
-	msync(bloquesmap, tamanio_archivo_bloques, MS_SYNC);
-
-	config_set_value(archivo->metadata, "TAMANIO_ARCHIVO", string_itoa(tamanio_solicitado));
-	config_save(archivo->metadata);
 }
 
+
+// --------------------------------------------------------------------------------------------------------------------------------------------------
 void reducir_tamanio(archivo_t* archivo, uint32_t tamanio_solicitado){
 	int bloques_a_asignar = ceil(tamanio_solicitado / block_size);
 	int tamanio_archivo = config_get_int_value(archivo->metadata, "TAMANIO_ARCHIVO");
@@ -659,20 +636,25 @@ void reducir_tamanio(archivo_t* archivo, uint32_t tamanio_solicitado){
 	if (bloques_a_asignar == bloques_asignados_antes)
 		return;
 	int bloque_inicial = config_get_int_value(archivo->metadata, "BLOQUE_INICIAL");
-	int i = bloque_inicial;
+	int cantidad_bloques_asignados = 0;
+	int j = 0;
 
-	while (i < bloques_asignados_antes) {
-		if (i >= bloques_a_asignar) {
-			bitarray_clean_bit(bitmap, i);
+	while (j < bloques_asignados_antes) {
+		if (cantidad_bloques_asignados >= bloques_a_asignar) {
+			bitarray_clean_bit(bitmap, bloque_inicial + cantidad_bloques_asignados);
 		}
-		i ++;
+		cantidad_bloques_asignados++;
+		j++;
 	}
+	
 	msync(bitmap->bitarray, bitmap->size, MS_SYNC);
 
 	config_set_value(archivo->metadata, "TAMANIO_ARCHIVO", string_itoa(tamanio_solicitado));
 	config_save(archivo->metadata);
 }
 
+
+// --------------------------------------------------------------------------------------------------------------------------------------------------
 void ejecutar_fs_delete(){
 	t_buffer* buffer =  recibir_buffer(socket_kernel);	
 	int pid = buffer_read_uint32(buffer);
