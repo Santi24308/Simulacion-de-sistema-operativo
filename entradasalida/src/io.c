@@ -605,6 +605,18 @@ bool hay_bloques_necesarios(uint32_t cantidad){
 	return (bloques_disponibles >= cantidad);
 }
 
+// --------------------------------------------------------------------------------------------------------------------------------------------------
+// como seria el analisis para una solicitud de expansion
+// 1. ver si tiene bloques libres contiguos que satisfagan, si los tiene no se compacta
+// 2. ver si existe la cantidad de bloques requeridos (seguramente dispersos)
+// 2.1 si estan se compacta y asigna lo pedido
+// 2.2 si no estan se cancela la operacion porque no hay espacio
+
+
+// recrear_bloques_dat una funcion para copiar cada archivo existente (discriminando al archivo en cuestion) en oldDat al nuevo bloquesDat
+// a priori recibe la lista de archivos abiertos con el archivo en cuestion excluido
+// a medida que vamos copiando al nuevo archivo actualizamos el metadata de todos
+// la lista va a seguir siendo la global
 
 
 
