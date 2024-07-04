@@ -625,6 +625,37 @@ bool hay_bloques_necesarios(uint32_t cantidad){
 
 // --------------------------------------------------------------------------------------------------------------------------------------------------
 void ampliar_tamanio(archivo_t* archivo, uint32_t tamanio_solicitado){
+	int tamanio_archivo = config_get_int_value(archivo->metadata, "TAMANIO_ARCHIVO");
+	int bloques_asignados_antes = ceil(tamanio_archivo / block_size);
+	// si tenia 4 bloques asignados, los bits 0 1 2 y 3 estaban en 1 (ocupados) 
+	// a partir de la posicion 4 quiero buscar libres
+	int bloques_a_asignar = ceil(tamanio_solicitado / block_size) - bloques_asignados_antes;
+	if (bloques_a_asignar == bloques_asignados_antes)
+		return;
+
+	if (hay_bloques_contiguos_al_archivo(bloques_a_asignar, bloques_asignados_antes)){
+		int i = 0;
+		int bit_inicial = bloques_asignados_antes;
+		while (i < bloques_a_asignar){
+			bitarray_set_bit(bitmap, bit_inicial);
+
+			// limpio el espacio asignado, no se si es sumamente necesario
+			// pero es prolijo y evita el uso de datos basura
+			memset(bloquesmap+(bit_inicial+i) * block_size, 0, block_size);
+			i ++;
+		}
+	} else if (hay_bloques_necesarios(bloques_a_asignar)){
+		// se compacta y se asigna
+	} else {
+		log_error(logger_io, "No hay espacio suficiente para ampliar el archivo de %d bloques a %d bloques", bloques_asignados_antes, bloques_a_asignar);
+		return;
+	}
+
+	msync(bitmap->bitarray, bitmap->size, MS_SYNC);
+	msync(bloquesmap, tamanio_archivo_bloques, MS_SYNC);
+
+	config_set_value(archivo->metadata, "TAMANIO_ARCHIVO", string_itoa(tamanio_solicitado));
+	config_save(archivo->metadata);
 }
 
 
