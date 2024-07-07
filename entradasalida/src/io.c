@@ -333,37 +333,6 @@ void terminar_programa(){
 	
 /////////////////     DIALFS     /////////////////
 
-
-void crear_archivo_bloques() {
-    path_archivo_bloques = malloc(strlen("bloques.dat") + strlen(path_filesystem) + 1);
-	if(!path_archivo_bloques) {
-		log_error(logger_io, "error maloc bloques.dat");
-		return;
-	}
-	
-    sprintf(path_archivo_bloques, "%sbloques.dat", path_filesystem);
-	
-    int fd = open(path_archivo_bloques, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
-    if (fd == -1) {
-        log_error(logger_io, "Error al abrir/crear el archivo bloques.dat");
-        free(path_archivo_bloques);
-        return;
-    }
-	
-    // Si el archivo es nuevo y no tiene tamaño, inicializarlo con el tamaño deseado
-    if (tamanio_archivo_bloques == 0) {
-        tamanio_archivo_bloques = block_count * block_size;
-        if (ftruncate(fd, tamanio_archivo_bloques) == -1) {
-            log_error(logger_io, "Error al establecer el tamaño del archivo bloques.dat");
-            close(fd);
-            free(path_archivo_bloques);
-            return;
-        }
-    }
-
-    close(fd);
-}
-
 void levantar_archivo_bitarray(){
 	path_archivo_bitarray = malloc(strlen("bitmap.dat") + strlen(path_filesystem) + 1);
     sprintf(path_archivo_bitarray, "%sbitmap.dat", path_filesystem);
@@ -556,7 +525,9 @@ void ejecutar_fs_truncate(){
 	
 	int tamanio_archivo = config_get_int_value(archivo_buscado->metadata, "TAMANIO_ARCHIVO");
 
-	if (tamanio_archivo < tamanio_solicitado)
+
+
+	if (tamanio_solicitado < tamanio_archivo)
 		reducir_tamanio(archivo_buscado, tamanio_solicitado);
 	else	
 		ampliar_tamanio(archivo_buscado, tamanio_solicitado);
@@ -617,6 +588,7 @@ void copiar_un_archivo_al_nuevo_bloquesdat(archivo_t* archivo, FILE* bloquesdat,
 
 	// el bloque inicial nuevo va a ser exactamente el ultimo_indice_disponible
 	config_set_value(archivo->metadata, "BLOQUE_INICIAL", string_itoa(*ultimo_indice_disponible));
+	config_save(archivo->metadata);
 
 	int bloques_copiados = 0;
 	int indice_bloque = bloque_inicial;
@@ -626,7 +598,7 @@ void copiar_un_archivo_al_nuevo_bloquesdat(archivo_t* archivo, FILE* bloquesdat,
 		memcpy(bloque_a_copiar, bloquesmap + indice_bloque * block_size, block_size);
 
 		fwrite(bloque_a_copiar, block_size, 1, bloquesdat);
-		*ultimo_indice_disponible ++;
+		*ultimo_indice_disponible = *ultimo_indice_disponible + 1;
 
 		indice_bloque ++;
 		bloques_copiados ++;
@@ -657,12 +629,17 @@ int recrear_bloques_dat(FILE* archivo_compactado){
 void compactar_y_asignar(archivo_t* archivo, uint32_t tamanio_solicitado){
 	int bloques_a_asignar = ceil(tamanio_solicitado/ block_size);
 	// desmapeamos bloquesDatViejo de mmap (munmap) y nos quedamos solo con el void*
+	void* bloquesmap_backup = malloc(block_count*block_size);
+	memcpy(bloquesmap_backup, bloquesmap, block_count*block_size);
+
 	if (munmap(bloquesmap, tamanio_archivo_bloques) == -1) {
         perror("munmap");
         close(fd_bloques);
         exit(EXIT_FAILURE);
     }
     close(fd_bloques);
+
+	bloquesmap = bloquesmap_backup;
 
 	// chequear que munmap no altere el void* bloquesmap
 	// abrimos bloques.dat con el flag para pisarlo
@@ -682,27 +659,25 @@ void compactar_y_asignar(archivo_t* archivo, uint32_t tamanio_solicitado){
 	// ahora la lista no contiene al señalado
 	int ultimo_indice_disponible = recrear_bloques_dat(archivo_compactado);
 
-	/*
-	
-	hay que agregar al final el archivo
-	
-	
-	
-	*/
+	// copiamos lo que tenia primero
+	copiar_un_archivo_al_nuevo_bloquesdat(archivo, archivo_compactado, &ultimo_indice_disponible);
+	config_set_value(archivo->metadata, "TAMANIO_ARCHIVO", string_itoa(tamanio_solicitado));
+	config_save(archivo->metadata);
 
+	list_add(lista_global_archivos_abiertos, archivo);
 
 	// a este punto estan todos los demas archivos compactados
 	
 	int ultimo_bit_ocupado = (ultimo_indice_disponible -1) + bloques_a_asignar;
 	// poner todo el bitmap en 1 hasta el ultimo bloque que use el archivo en cuestion y sincronizar
 	int j = 0;
-	while (j < bitarray_get_max_bit(bitmap->bitarray)) {
-		bitarray_clean_bit(bitmap->bitarray, j);
+	while (j < bitarray_get_max_bit(bitmap)) {
+		bitarray_clean_bit(bitmap, j);
 		j++;
 	}
 	j = 0;
 	while (j < ultimo_bit_ocupado) {
-		bitarray_set_bit(bitmap->bitarray, j);
+		bitarray_set_bit(bitmap, j);
 		j++;
 	} 
 
@@ -723,34 +698,26 @@ void compactar_y_asignar(archivo_t* archivo, uint32_t tamanio_solicitado){
 
 	msync(bloquesmap, tamanio_archivo_bloques, MS_SYNC);
 }
-
-
-
-
-// creamos un puntero al archivo en cuestion
-
-// pasamos la lista de archivos con - elemento archivo - removido a recrear_bloques_dat
-
-// hacemos la expansion del archivo en cuestion
-
-// tiene que estar todo actualizado, variables globales, el remapeo con mmap, etc
-
-
 // --------------------------------------------------------------------------------------------------------------------------------------------------
 void ampliar_tamanio(archivo_t* archivo, uint32_t tamanio_solicitado){
+	int bloque_inicial = config_get_int_value(archivo->metadata, "BLOQUE_INICIAL");
 	int tamanio_archivo = config_get_int_value(archivo->metadata, "TAMANIO_ARCHIVO");
-	int bloques_asignados_antes = ceil(tamanio_archivo / block_size);
+	// para cubrir el caso en que un archivo tenga asignado un bloque pero el tamaño sea 0
+	int bloques_asignados_antes = 1;
+	if (tamanio_archivo != 0)
+		bloques_asignados_antes = ceil(tamanio_archivo / block_size);
+
 	// si tenia 4 bloques asignados, los bits 0 1 2 y 3 estaban en 1 (ocupados) 
 	// a partir de la posicion 4 quiero buscar libres
 	int bloques_a_asignar = ceil(tamanio_solicitado / block_size) - bloques_asignados_antes;
-	if (bloques_a_asignar == bloques_asignados_antes)
+	if (bloques_a_asignar == 0)
 		return;
 
 	if (hay_bloques_contiguos_al_archivo(bloques_a_asignar, bloques_asignados_antes)){
 		int i = 0;
-		int bit_inicial = bloques_asignados_antes;
+		int bit_inicial = bloque_inicial + bloques_asignados_antes;
 		while (i < bloques_a_asignar){
-			bitarray_set_bit(bitmap, bit_inicial);
+			bitarray_set_bit(bitmap, bit_inicial+i);
 
 			// limpio el espacio asignado, no se si es sumamente necesario
 			// pero es prolijo y evita el uso de datos basura
@@ -822,7 +789,6 @@ void ejecutar_fs_delete(){
 
 	log_info (logger_io ,"DialFS - Inicio Compactación: PID: %d - Inicio Compactación." , pid );
 
-	//void hacer_compactacion();
 	
 	log_info(logger_io , "DialFS - Fin Compactación: PID: %d - Fin Compactación. " , pid);
 } 
@@ -910,11 +876,6 @@ void ejecutar_fs_write(){
 
 	log_info(logger_io, "Me llego de memoria la cadena: %s", contenido_a_escribir);
 
-	char* nombreArchivoPath = string_new();
-	string_append(&nombreArchivoPath, path_filesystem);
-	string_append(&nombreArchivoPath, "/");
-	string_append(&nombreArchivoPath, nombreArchivo);
-
 	// se escribe en bloques.dat
 
 	archivo_t* archivo_buscado = obtener_archivo_con_nombre(nombreArchivo);
@@ -927,14 +888,8 @@ void ejecutar_fs_write(){
 	memcpy(bloquesmap+bloque_inicial_archivo*block_size+registroPunteroArchivo, contenido_a_escribir, registroTamanio);
 	msync(bloquesmap, tamanio_archivo_bloques, MS_SYNC);
 
-	// actualizamos el tamaño del archivo
-	int tamanio_anterior = config_get_int_value(archivo_buscado->metadata, "TAMANIO_ARCHIVO");
-	config_set_value(archivo_buscado->metadata, "TAMANIO_ARCHIVO", string_itoa(tamanio_anterior+registroTamanio));
-	config_save(archivo_buscado->metadata);
-
     log_info(logger_io,"DialFS - Escribir Archivo: PID: %d - Escribir Archivo: %s - Tamaño a Escribir: %d - Puntero Archivo: %d", pid, nombreArchivo, registroTamanio, registroPunteroArchivo);
     
-    free(nombreArchivoPath);
     free(nombreArchivo);
 }
 
