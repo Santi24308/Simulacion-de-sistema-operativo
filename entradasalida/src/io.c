@@ -555,11 +555,6 @@ void ejecutar_fs_truncate(){
 	}
 	
 	int tamanio_archivo = config_get_int_value(archivo_buscado->metadata, "TAMANIO_ARCHIVO");
-	
-	if (tamanio_archivo == 0) {
-		// caso particular de que el tamaño es 0 pero el bloque inicial no es 0
-		agregar_al_final(archivo_buscado, tamanio_solicitado);
-	}
 
 	if (tamanio_archivo < tamanio_solicitado)
 		reducir_tamanio(archivo_buscado, tamanio_solicitado);
@@ -605,26 +600,81 @@ bool hay_bloques_necesarios(uint32_t cantidad){
 	return (bloques_disponibles >= cantidad);
 }
 
-// --------------------------------------------------------------------------------------------------------------------------------------------------
-// como seria el analisis para una solicitud de expansion
-// 1. ver si tiene bloques libres contiguos que satisfagan, si los tiene no se compacta
-// 2. ver si existe la cantidad de bloques requeridos (seguramente dispersos)
-// 2.1 si estan se compacta y asigna lo pedido
-// 2.2 si no estan se cancela la operacion porque no hay espacio
+//copiar_un_archivo_nuevo_a_bloques
 
 
-// recrear_bloques_dat una funcion para copiar cada archivo existente (discriminando al archivo en cuestion) en oldDat al nuevo bloquesDat
-// a priori recibe la lista de archivos abiertos con el archivo en cuestion excluido
-// a medida que vamos copiando al nuevo archivo actualizamos el metadata de todos
-// la lista va a seguir siendo la global
+void compactar_y_asignar(archivo_t* archivo, uint32_t tamanio_solicitado){
+	int bloques_a_asignar = ceil(tamanio_solicitado/ block_size);
+	// desmapeamos bloquesDatViejo de mmap (munmap) y nos quedamos solo con el void*
+	if (munmap(bloquesmap, tamanio_archivo_bloques) == -1) {
+        perror("munmap");
+        close(fd_bloques);
+        exit(EXIT_FAILURE);
+    }
+    close(fd_bloques);
+
+	// chequear que munmap no altere el void* bloquesmap
+	// abrimos bloques.dat con el flag para pisarlo
+	FILE* archivo_compactado = fopen(path_archivo_bloques, "w");
+	
+	// sacamos al archivo en cuestion (no eliminamos)
+	int i = 0;
+	bool encontrado = false;
+	while (i < list_size(lista_global_archivos_abiertos) && !encontrado){
+		archivo_t* archivo_aux = list_get(lista_global_archivos_abiertos, i);
+		if (strcmp(archivo_aux->nombre_archivo, archivo->nombre_archivo) == 0 ){
+			encontrado = true;
+			list_remove(lista_global_archivos_abiertos, i);
+		} 
+	}
+
+	// ahora la lista no contiene al señalado
+	int ultimo_indice_disponible = recrear_bloques_dat(archivo_compactado);
+
+	/*
+	
+	hay que agregar al final el archivo
+	
+	
+	
+	*/
+
+
+	// a este punto estan todos los demas archivos compactados
+	
+	int ultimo_bit_ocupado = (ultimo_indice_disponible -1) + bloques_a_asignar;
+	// poner todo el bitmap en 1 hasta el ultimo bloque que use el archivo en cuestion y sincronizar
+	int j = 0;
+	while (j < bitarray_get_max_bit(bitmap->bitarray)) {
+		bitarray_clean_bit(bitmap->bitarray, j);
+		j++;
+	}
+	j = 0;
+	while (j < ultimo_bit_ocupado) {
+		bitarray_set_bit(bitmap->bitarray, j);
+		j++;
+	} 
+
+	msync(bitmap->bitarray, bitmap->size, MS_SYNC);
+
+	// actualizado bitmap
+
+	fclose(archivo_compactado);
+	// abrimos el fd para mmap
+	fd_bloques = open(path_archivo_bloques, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+	// liberamos el anterior void*
+	free(bloquesmap);
+	// crear un nuevo bloquesmap con el retorno de mmap aplicado al nuevo bloquesdat
+	bloquesmap = mmap(NULL, tamanio_archivo_bloques, PROT_READ | PROT_WRITE, MAP_SHARED, fd_bloques, 0);
+	if (bloquesmap == MAP_FAILED) {
+		log_info(logger_io, "error al crear bloquesmap");
+	}
+
+	msync(bloquesmap, tamanio_archivo_bloques, MS_SYNC);
+}
 
 
 
-// ---------------- funcion main -----------------------------
-
-// desmapeamos bloquesDatViejo de mmap y nos quedamos solo con el void*
-
-// abrimos bloques.dat con el flag para pisarlo
 
 // creamos un puntero al archivo en cuestion
 
@@ -657,7 +707,7 @@ void ampliar_tamanio(archivo_t* archivo, uint32_t tamanio_solicitado){
 			i ++;
 		}
 	} else if (hay_bloques_necesarios(bloques_a_asignar)){
-		// se compacta y se asigna
+		compactar_y_asignar(archivo, bloques_a_asignar);
 	} else {
 		log_error(logger_io, "No hay espacio suficiente para ampliar el archivo de %d bloques a %d bloques", bloques_asignados_antes, bloques_a_asignar);
 		return;
