@@ -600,7 +600,58 @@ bool hay_bloques_necesarios(uint32_t cantidad){
 	return (bloques_disponibles >= cantidad);
 }
 
-//copiar_un_archivo_nuevo_a_bloques
+// --------------------------------------------------------------------------------------------------------------------------------------------------
+// como seria el analisis para una solicitud de expansion
+// 1. ver si tiene bloques libres contiguos que satisfagan, si los tiene no se compacta
+// 2. ver si existe la cantidad de bloques requeridos (seguramente dispersos)
+// 2.1 si estan se compacta y asigna lo pedido
+// 2.2 si no estan se cancela la operacion porque no hay espacio
+
+void copiar_un_archivo_al_nuevo_bloquesdat(archivo_t* archivo, FILE* bloquesdat, int* ultimo_indice_disponible){
+	int tamanio_archivo = config_get_int_value(archivo->metadata, "TAMANIO_ARCHIVO");
+	int bloque_inicial = config_get_int_value(archivo->metadata, "BLOQUE_INICIAL");
+	
+	int bloques_asignados_antes = 1;
+	if (tamanio_archivo != 0)
+		bloques_asignados_antes = ceil(tamanio_archivo / block_size);
+
+	// el bloque inicial nuevo va a ser exactamente el ultimo_indice_disponible
+	config_set_value(archivo->metadata, "BLOQUE_INICIAL", string_itoa(*ultimo_indice_disponible));
+
+	int bloques_copiados = 0;
+	int indice_bloque = bloque_inicial;
+	void* bloque_a_copiar = malloc(block_size);
+
+	while (bloques_copiados < bloques_asignados_antes){
+		memcpy(bloque_a_copiar, bloquesmap + indice_bloque * block_size, block_size);
+
+		fwrite(bloque_a_copiar, block_size, 1, bloquesdat);
+		*ultimo_indice_disponible ++;
+
+		indice_bloque ++;
+		bloques_copiados ++;
+	}
+
+	free(bloque_a_copiar);
+}
+
+int recrear_bloques_dat(FILE* archivo_compactado){	
+	int i = 0;
+	int ultimo_indice_disponible = 0;
+	
+	while (i < list_size(lista_global_archivos_abiertos)){
+		archivo_t* archivo = list_get(lista_global_archivos_abiertos, i);
+		copiar_un_archivo_al_nuevo_bloquesdat(archivo, archivo_compactado, &ultimo_indice_disponible);
+	}
+
+	return ultimo_indice_disponible;
+}
+
+// recrear_bloques_dat una funcion para copiar cada archivo existente (discriminando al archivo en cuestion) en oldDat al nuevo bloquesDat
+// a priori recibe la lista de archivos abiertos con el archivo en cuestion excluido
+// a medida que vamos copiando al nuevo archivo actualizamos el metadata de todos
+// la lista va a seguir siendo la global
+
 
 
 void compactar_y_asignar(archivo_t* archivo, uint32_t tamanio_solicitado){
