@@ -90,7 +90,7 @@ uint8_t buffer_read_uint8(t_buffer *buffer);
 
 // STRING
 void buffer_write_string(t_buffer* buffer, char* string_a_escribir);
-char* buffer_read_string(t_buffer* buffer, uint32_t* tam);
+char* buffer_read_string(t_buffer* buffer);
 
 //REGISTROS
 void buffer_write_registros(t_buffer* buffer, t_registro* cde);
@@ -104,6 +104,5 @@ void destruir_cde(t_cde* cde);
 // INSTRUCCIONES
 t_instruccion* buffer_read_instruccion(t_buffer* buffer);
 void buffer_write_instruccion(t_buffer* buffer, t_instruccion* instruccion);
-void destruir_instruccion(t_instruccion* instruccion);
 
 #endif /* SRC_UTILS_SERIALIZACION_H_ */

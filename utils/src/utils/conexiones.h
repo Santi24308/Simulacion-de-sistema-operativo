@@ -8,6 +8,7 @@
 #include<unistd.h>
 #include<netdb.h>
 #include<commons/log.h>
+#include<commons/memory.h>
 #include<commons/collections/list.h>
 #include<string.h>
 #include<readline/readline.h>
@@ -19,7 +20,11 @@
 
 // AGREGAR LOS PROTOCOLOS
 
-// prototipo de protocolo entre memoria e IO
+// mensajes que da memoria tanto a cpu como IO
+typedef enum{
+	OK
+}mensajeMemoria;
+
 typedef enum{	
 	IO_STDIN_ESCRIBIR,
 	IO_STDOUT_LEER

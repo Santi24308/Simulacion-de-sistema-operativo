@@ -101,8 +101,7 @@ uint8_t buffer_read_uint8(t_buffer* buffer){
 // STRING
 
 void buffer_write_string(t_buffer* buffer, char* cadena){
-	
-	uint32_t tam = strlen(cadena) + 1;
+	uint32_t tam = string_length(cadena);
 
 	buffer_write_uint32(buffer,tam);
 
@@ -112,56 +111,113 @@ void buffer_write_string(t_buffer* buffer, char* cadena){
 	buffer->size += tam;
 }
 
-char* buffer_read_string(t_buffer* buffer, uint32_t* tam){
-	(*tam) = buffer_read_uint32(buffer);
-	char* cadena = malloc(tam);
+char* buffer_read_string(t_buffer* buffer){
+	uint32_t tam = buffer_read_uint32(buffer);
+	char* cadena = malloc(tam + 1);
 
-	memcpy(cadena, buffer->stream + buffer->offset, (*tam));
-	buffer->offset += (*tam);
+	memcpy(cadena, buffer->stream + buffer->offset, tam);
+	buffer->offset += tam;
+
+	cadena[tam] = '\0';
 
 	return cadena;
 }
 
 // CONTEXTO DE EJECUCION
+void buffer_write_registros(t_buffer* buffer, t_registro* registros){
+	buffer_write_uint8(buffer, registros->AX);
+	buffer_write_uint8(buffer, registros->BX);
+	buffer_write_uint8(buffer, registros->CX);
+	buffer_write_uint8(buffer, registros->DX);
+	buffer_write_uint32(buffer, registros->EAX);
+	buffer_write_uint32(buffer, registros->EBX);
+	buffer_write_uint32(buffer, registros->ECX);
+	buffer_write_uint32(buffer, registros->EDX);
+	buffer_write_uint32(buffer, registros->PC);
+	buffer_write_uint32(buffer, registros->DI);
+	buffer_write_uint32(buffer, registros->SI);
+}
+
+t_registro* buffer_read_registros(t_buffer* buffer){
+	t_registro* registro = malloc(sizeof(t_registro));
+
+	registro->AX =buffer_read_uint8(buffer);
+	registro->BX = buffer_read_uint8(buffer);
+	registro->CX = buffer_read_uint8(buffer);
+	registro->DX = buffer_read_uint8(buffer);
+	registro->EAX = buffer_read_uint32(buffer);
+	registro->EBX = buffer_read_uint32(buffer);
+	registro->ECX = buffer_read_uint32(buffer);
+	registro->EDX = buffer_read_uint32(buffer);
+	registro->PC = buffer_read_uint32(buffer);
+	registro->DI = buffer_read_uint32(buffer);
+	registro->SI = buffer_read_uint32(buffer);
+
+	return registro;
+}
+
 void buffer_write_cde(t_buffer* buffer, t_cde* cde_recibido){
-	buffer->stream = realloc(buffer->stream, buffer->size + sizeof(t_cde));
-	memcpy(buffer->stream + buffer->size, cde_recibido, sizeof(t_cde));
-	buffer->size += sizeof(t_cde);
+	buffer_write_uint32(buffer, cde_recibido->pid);
+	buffer_write_uint32(buffer, cde_recibido->motivo_desalojo);
+	buffer_write_uint32(buffer, cde_recibido->motivo_finalizacion);
 
-	buffer->stream = realloc(buffer->stream, buffer->size + sizeof(t_registro));
-	memcpy(buffer->stream + buffer->size, cde_recibido->registros, sizeof(t_registro));
-	buffer->size += sizeof(t_cde);
+	buffer_write_registros(buffer, cde_recibido->registros);
 
-	// copiamos instruccion
 	buffer_write_uint8(buffer, cde_recibido->ultima_instruccion->codigo);
-	buffer_write_string(buffer, cde_recibido->ultima_instruccion->parametro1);
-	buffer_write_string(buffer, cde_recibido->ultima_instruccion->parametro2);
-	buffer_write_string(buffer, cde_recibido->ultima_instruccion->parametro3);
-	buffer_write_string(buffer, cde_recibido->ultima_instruccion->parametro4);
-	buffer_write_string(buffer, cde_recibido->ultima_instruccion->parametro5);
+
+	// copiamos cada parametro de la instruccion ya que la copia de estructura solo copia
+	// punteros pero no su contenido
+	if (cde_recibido->ultima_instruccion->parametro1)
+		buffer_write_string(buffer, cde_recibido->ultima_instruccion->parametro1);
+	if (cde_recibido->ultima_instruccion->parametro2)
+		buffer_write_string(buffer, cde_recibido->ultima_instruccion->parametro2);
+	if (cde_recibido->ultima_instruccion->parametro3)
+		buffer_write_string(buffer, cde_recibido->ultima_instruccion->parametro3);
+	if (cde_recibido->ultima_instruccion->parametro4)
+		buffer_write_string(buffer, cde_recibido->ultima_instruccion->parametro4);
+	if (cde_recibido->ultima_instruccion->parametro5)
+		buffer_write_string(buffer, cde_recibido->ultima_instruccion->parametro5);
+	// en la lectura se va a consultar si existe el puntero de la estructura, entonces
+	// si existe el puntero (!= NULL) quiere decir que se encuentra escrito en el buffer
+	// de manera ordenada de 1 a 5
 }
 
 t_cde* buffer_read_cde(t_buffer* buffer){
 	t_cde* cde = calloc(1, sizeof(t_cde));
-	t_registro* registros_creados = calloc(1, sizeof(t_registro));
 	t_instruccion* ultima_instruccion_creada = calloc(1, sizeof(t_instruccion));
 	
-	memcpy(cde, buffer->stream + buffer->offset, sizeof(t_cde));
-	buffer->offset += sizeof(t_cde);
+	cde->pid = buffer_read_uint32(buffer);
+	cde->motivo_desalojo = buffer_read_uint32(buffer);
+	cde->motivo_finalizacion = buffer_read_uint32(buffer);
 
-	memcpy(registros_creados, buffer->stream + buffer->offset, sizeof(t_registro));
-	buffer->offset += sizeof(t_registro);
+	cde->registros = buffer_read_registros(buffer);
 
-	uint32_t tam;
-	// leemos instruccion
 	ultima_instruccion_creada->codigo = buffer_read_uint8(buffer);
-	ultima_instruccion_creada->parametro1 = buffer_read_string(buffer, &tam);
-	ultima_instruccion_creada->parametro2 = buffer_read_string(buffer, &tam);
-	ultima_instruccion_creada->parametro3 = buffer_read_string(buffer, &tam);
-	ultima_instruccion_creada->parametro4 = buffer_read_string(buffer, &tam);
-	ultima_instruccion_creada->parametro5 = buffer_read_string(buffer, &tam);
 
-	cde->registros = registros_creados;
+	int cantidad_parametros = cantidad_parametros_instruccion(ultima_instruccion_creada->codigo);
+	// hasta aca solo lei punteros, tengo que restaurar sus datos
+	// t_registro no tiene punteros por lo que no hay nada que restaurar
+	// el objetivo es t_instruccion
+
+	// leemos cada parametro de la instruccion si es que existe apoyandonos en los punteros
+	// que copiamos al copiar TODA la estructura
+
+	if(cantidad_parametros >= 1)
+		ultima_instruccion_creada->parametro1 = buffer_read_string(buffer);
+	
+	if(cantidad_parametros >= 2)
+		ultima_instruccion_creada->parametro2 = buffer_read_string(buffer);
+	
+	if(cantidad_parametros >= 3)
+		ultima_instruccion_creada->parametro3 = buffer_read_string(buffer);
+
+	if(cantidad_parametros >= 4)
+		ultima_instruccion_creada->parametro4 = buffer_read_string(buffer);
+
+	if(cantidad_parametros == 5)
+		ultima_instruccion_creada->parametro5 = buffer_read_string(buffer);
+
+	// por ultimo corregimos los punteros del cde
 	cde->ultima_instruccion = ultima_instruccion_creada;
 
 	return cde;
@@ -169,6 +225,7 @@ t_cde* buffer_read_cde(t_buffer* buffer){
 
 void destruir_cde(t_cde* cde){
     free(cde->registros);
+	destruir_instruccion(cde->ultima_instruccion);
     free(cde);
 }
 
@@ -177,28 +234,18 @@ void buffer_write_instruccion(t_buffer* buffer, t_instruccion* instruccion){
 	buffer_write_uint8(buffer, instruccion->codigo);
 	if (instruccion->parametro1 != NULL)
 		buffer_write_string(buffer, instruccion->parametro1);
-	else
-		buffer_write_string(buffer, "");
-	
+
 	if (instruccion->parametro2 != NULL)
 		buffer_write_string(buffer, instruccion->parametro2);
-	else
-		buffer_write_string(buffer, "");
-	
+
 	if (instruccion->parametro3 != NULL)
 		buffer_write_string(buffer, instruccion->parametro3);
-	else
-		buffer_write_string(buffer, "");
 
 	if (instruccion->parametro4 != NULL)
 		buffer_write_string(buffer, instruccion->parametro4);
-	else
-		buffer_write_string(buffer, "");
 
 	if (instruccion->parametro5 != NULL)
 		buffer_write_string(buffer, instruccion->parametro5);
-	else
-		buffer_write_string(buffer, "");
 }
 
 t_instruccion* buffer_read_instruccion(t_buffer* buffer){
@@ -209,74 +256,28 @@ t_instruccion* buffer_read_instruccion(t_buffer* buffer){
 	instr->parametro4 = NULL;
 	instr->parametro5 = NULL;
 
-	uint32_t tam;
-
 	instr->codigo = buffer_read_uint8(buffer);
 	
-	instr->parametro1 = buffer_read_string(buffer, &tam);
-	instr->parametro2 = buffer_read_string(buffer, &tam);
-	instr->parametro3 = buffer_read_string(buffer, &tam);
-	instr->parametro4 = buffer_read_string(buffer, &tam);
-	instr->parametro5 = buffer_read_string(buffer, &tam);
+	int cantidad_parametros = cantidad_parametros_instruccion(instr->codigo);
+
+	if(cantidad_parametros == 0)
+		return instr;
+	
+	if(cantidad_parametros >= 1)
+		instr->parametro1 = buffer_read_string(buffer);
+	
+	if(cantidad_parametros >= 2)
+		instr->parametro2 = buffer_read_string(buffer);
+	
+	if(cantidad_parametros >= 3)
+		instr->parametro3 = buffer_read_string(buffer);
+
+	if(cantidad_parametros >= 4)
+		instr->parametro4 = buffer_read_string(buffer);
+
+	if(cantidad_parametros == 5)
+		instr->parametro5 = buffer_read_string(buffer);
 
 	return instr;
 }
 
-void destruir_instruccion(t_instruccion* instruccion){
-	free(instruccion->parametro1);
-	free(instruccion->parametro2);
-	free(instruccion->parametro3);
-	free(instruccion->parametro4);
-	free(instruccion->parametro5);
-	free(instruccion);
-}
-
-
-// Registros
-
-void buffer_write_registros(t_buffer* buffer, t_registro* registro_recibido){
-	buffer->stream = realloc(buffer->stream, buffer->size + sizeof(t_registro));
-
-	memcpy(buffer->stream + buffer->size, registro_recibido, sizeof(t_registro));
-	buffer->size += sizeof(t_registro);
-}
-
-t_registro* buffer_read_registros(t_buffer* buffer){
-	t_registro* registro = calloc(1, sizeof(t_registro));
-	
-	memcpy(registro, buffer->stream + buffer->offset, sizeof(t_registro));
-	buffer->offset += sizeof(t_registro);
-	return registro;
-}
-
-void buffer_write_registros_old(t_buffer* buffer, t_registro* registros){
-	buffer_write_uint8(buffer, registros->AX);
-	buffer_write_uint8(buffer, registros->BX);
-	buffer_write_uint8(buffer, registros->CX);
-	buffer_write_uint8(buffer, registros->DX);
-	buffer_write_uint32(buffer, registros->EAX);
-	buffer_write_uint32(buffer, registros->EBX);
-	buffer_write_uint32(buffer, registros->ECX);
-	buffer_write_uint32(buffer, registros->EDX);
-	buffer_write_uint32(buffer, registros->PC);
-	buffer_write_uint32(buffer, registros->SI);
-	buffer_write_uint32(buffer, registros->DI);
-}
-
-t_registro* buffer_read_registros_old(t_buffer* buffer){
-	t_registro* regis = malloc(sizeof(t_registro));
-
-	regis->AX =buffer_read_uint8(buffer);
-	regis->BX = buffer_read_uint8(buffer);
-	regis->CX = buffer_read_uint8(buffer);
-	regis->DX = buffer_read_uint8(buffer);
-	regis->EAX = buffer_read_uint32(buffer);
-	regis->EBX = buffer_read_uint32(buffer);
-	regis->ECX = buffer_read_uint32(buffer);
-	regis->EDX = buffer_read_uint32(buffer);
-	regis->PC = buffer_read_uint32(buffer);
-	regis->SI = buffer_read_uint32(buffer);
-	regis->DX = buffer_read_uint32(buffer);
-
-	return regis;
-}

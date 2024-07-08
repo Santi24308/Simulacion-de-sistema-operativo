@@ -1,7 +1,7 @@
 #include "instrucciones.h"
 
 t_instruccion* crear_instruccion(codigoInstruccion codigo){
-	t_instruccion* instruccion = malloc(sizeof(t_instruccion));
+	t_instruccion* instruccion = calloc(1, sizeof(t_instruccion));
 	if (!instruccion) {
 		perror("No se pudo reservar memoria para instruccion.\n");
 		return NULL;
@@ -28,28 +28,26 @@ uint32_t leerEnteroParametroInstruccion(int indice, t_instruccion* instr){
 																			
 void escribirCharParametroInstruccion(int indice, t_instruccion* instr, char* string){
 
-	int tam = string_length(string) + 1;
-
 	switch(indice){
 		case 1:
-			instr->parametro1 = malloc(tam);
-			strcpy(instr->parametro1, string);
+			instr->parametro1 = string_new();
+			string_append(&instr->parametro1, string);
 			break;
 		case 2:
-			instr->parametro2 = malloc(tam);
-			strcpy(instr->parametro2, string);
+			instr->parametro2 = string_new();
+			string_append(&instr->parametro2, string);
 			break;
 		case 3:
-			instr->parametro3 = malloc(tam);
-			strcpy(instr->parametro3, string);
+			instr->parametro3 = string_new();
+			string_append(&instr->parametro3, string);
 			break;
 		case 4:
-			instr->parametro4 = malloc(tam);
-			strcpy(instr->parametro4, string);
+			instr->parametro4 = string_new();
+			string_append(&instr->parametro4, string);
 			break;
 		case 5:
-			instr->parametro5 = malloc(tam);
-			strcpy(instr->parametro5, string);
+			instr->parametro5 = string_new();
+			string_append(&instr->parametro5, string);
 			break;
 	}
 }
@@ -58,43 +56,36 @@ void escribirCharParametroInstruccion(int indice, t_instruccion* instr, char* st
 char* leerCharParametroInstruccion(int indice, t_instruccion* instr){
 	char* leido;
 
-	int tam = 0;
-
 	switch(indice){
 	case 1:
 		if(!instr->parametro1)
 			return NULL;
-		tam = string_length(instr->parametro1);
-		leido = malloc(tam);
-		strcpy(leido, instr->parametro1);
+		leido = string_new();
+		string_append(&leido, instr->parametro1);
 		break;
 	case 2:
 		if(!instr->parametro2)
 			return NULL;
-		tam = string_length(instr->parametro2);
-		leido = malloc(tam);
-		strcpy(leido, instr->parametro2);
+		leido = string_new();
+		string_append(&leido, instr->parametro2);
 		break;
 	case 3:
 		if(!instr->parametro3)
 			return NULL;
-		tam = string_length(instr->parametro3);
-		leido = malloc(tam);
-		strcpy(leido, instr->parametro3);
+		leido = string_new();
+		string_append(&leido, instr->parametro3);
 		break;
 	case 4:
 		if(!instr->parametro4)
 			return NULL;
-		tam = string_length(instr->parametro4);
-		leido = malloc(tam);
-		strcpy(leido, instr->parametro4);
+		leido = string_new();
+		string_append(&leido, instr->parametro4);
 		break;
 	case 5:
 		if(!instr->parametro5)
 			return NULL;
-		tam = string_length(instr->parametro5);
-		leido = malloc(tam);
-		strcpy(leido, instr->parametro5);
+		leido = string_new();
+		string_append(&leido, instr->parametro5);
 		break;
 	}
 
@@ -211,4 +202,65 @@ codigoInstruccion obtener_codigo_instruccion(char* cod_char){
 	} else {
 		return NULO;
 	}
+}
+
+int cantidad_parametros_instruccion(codigoInstruccion codigo){
+    switch(codigo){
+        case SET:
+            return 2;
+	    case SUM:
+            return 2;
+	    case SUB:
+            return 2;
+	    case JNZ:
+            return 2;
+	    case RESIZE:
+            return 1;
+	    case WAIT:
+            return 1;
+	    case SIGNAL:
+            return 1;
+	    case MOV_IN:
+            return 2;
+	    case MOV_OUT:
+            return 2;
+	    case COPY_STRING:
+            return 1;
+	    case IO_GEN_SLEEP:
+            return 2;
+	    case IO_STDIN_READ:
+            return 3;
+	    case IO_STDOUT_WRITE:
+            return 3;
+	    case IO_FS_CREATE:
+            return 2;
+	    case IO_FS_DELETE:
+            return 2;
+        case IO_FS_TRUNCATE:
+            return 3;
+        case IO_FS_WRITE:
+            return 5;
+	    case IO_FS_READ:
+            return 5;
+	    case EXIT:
+            return 0;
+		default:
+			return 0;
+    }	
+}
+
+void destruir_instruccion(t_instruccion* instruccion){
+	if (!instruccion)
+		return;
+	if (instruccion->parametro1) 
+		free(instruccion->parametro1);
+	if (instruccion->parametro2)
+		free(instruccion->parametro2);
+	if (instruccion->parametro3)
+		free(instruccion->parametro3);
+	if (instruccion->parametro4)
+		free(instruccion->parametro4);
+	if (instruccion->parametro5)
+		free(instruccion->parametro5);
+	free(instruccion);
 }

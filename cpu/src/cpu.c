@@ -239,13 +239,13 @@ void iterator(char* value) {
 
 uint32_t buscar_valor_registro(char* registro) {
 	if (strcmp(registro, "AX") == 0)
-		return registros_cpu->AX;
+		return (uint8_t)registros_cpu->AX;
 	else if (strcmp(registro, "BX") == 0)
-		return registros_cpu->BX;
+		return (uint8_t)registros_cpu->BX;
 	else if (strcmp(registro, "CX") == 0)
-		return registros_cpu->CX;
+		return (uint8_t)registros_cpu->CX;
 	else if (strcmp(registro, "DX") == 0)
-		return registros_cpu->DX;
+		return (uint8_t)registros_cpu->DX;
 	else if (strcmp(registro, "EAX") == 0)
 		return registros_cpu->EAX;
 	else if (strcmp(registro, "EBX") == 0)
@@ -357,8 +357,10 @@ void ejecutar_proceso(){
         instruccion_actualizada = instruccion_a_ejecutar->codigo;
         pthread_mutex_unlock(&mutex_instruccion_actualizada);
 
-        copiar_ultima_instruccion(instruccion_a_ejecutar);
-        ejecutar_instruccion(cde_ejecutando->ultima_instruccion);
+        destruir_instruccion(cde_ejecutando->ultima_instruccion);
+        cde_ejecutando->ultima_instruccion = instruccion_a_ejecutar;
+
+        ejecutar_instruccion(instruccion_a_ejecutar);
 
         registros_cpu->PC += 1;
 	}
@@ -413,32 +415,25 @@ char* obtener_nombre_motivo_desalojo(cod_desalojo cod){
 
 void ejecutar_instruccion(t_instruccion* instruccion_a_ejecutar){
     uint32_t parametro2 = 0;
+    uint32_t valor = 0;
     switch(instruccion_a_ejecutar->codigo){
         case SET:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             parametro2 = leerEnteroParametroInstruccion(2, instruccion_a_ejecutar);
             ejecutar_set(instruccion_a_ejecutar->parametro1, parametro2);
-            if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
-                destruir_instruccion(instruccion_a_ejecutar);
             break;
         case SUM:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             ejecutar_sum(instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
-            if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
-                destruir_instruccion(instruccion_a_ejecutar);
             break;
         case SUB:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             ejecutar_sub(instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
-            if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
-                destruir_instruccion(instruccion_a_ejecutar); 
             break;
         case JNZ:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             parametro2 = leerEnteroParametroInstruccion(2, instruccion_a_ejecutar);
             ejecutar_jnz(instruccion_a_ejecutar->parametro1, parametro2);
-            if (interrupcion == 0 && realizar_desalojo == 0 && interrupcion_consola == 0)
-                destruir_instruccion(instruccion_a_ejecutar); 
             break;
         case IO_GEN_SLEEP:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
@@ -469,17 +464,18 @@ void ejecutar_instruccion(t_instruccion* instruccion_a_ejecutar){
             break;
         case COPY_STRING:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1);
+            ejecutar_copy_string(atoi(instruccion_a_ejecutar->parametro1));
             break;
         case IO_STDIN_READ:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2);
             cde_ejecutando->motivo_desalojo = LLAMADA_IO;
-            actualizar_dirLogica_a_dirFisica(instruccion_a_ejecutar);
+            actualizar_dirLogica_a_dirFisica(&instruccion_a_ejecutar->parametro2, &instruccion_a_ejecutar->parametro3);
             realizar_desalojo = 1;
             break;
         case IO_STDOUT_WRITE: 
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2, instruccion_a_ejecutar->parametro3);
             cde_ejecutando->motivo_desalojo = LLAMADA_IO;
-            actualizar_dirLogica_a_dirFisica(instruccion_a_ejecutar);
+            actualizar_dirLogica_a_dirFisica(&instruccion_a_ejecutar->parametro2, &instruccion_a_ejecutar->parametro3);
             realizar_desalojo = 1;
             break;
         case IO_FS_CREATE:
@@ -495,16 +491,27 @@ void ejecutar_instruccion(t_instruccion* instruccion_a_ejecutar){
         case IO_FS_TRUNCATE: 
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2, instruccion_a_ejecutar->parametro3);
             cde_ejecutando->motivo_desalojo = LLAMADA_IO;
+            valor = buscar_valor_registro(instruccion_a_ejecutar->parametro3);
+            free(instruccion_a_ejecutar->parametro3);
+            instruccion_a_ejecutar->parametro3 = uint32_to_string(valor);
             realizar_desalojo = 1;
             break;
         case IO_FS_WRITE: 
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s %s %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2, instruccion_a_ejecutar->parametro3, instruccion_a_ejecutar->parametro4, instruccion_a_ejecutar->parametro5);
             cde_ejecutando->motivo_desalojo = LLAMADA_IO;
+            actualizar_dirLogica_a_dirFisica(&instruccion_a_ejecutar->parametro3, &instruccion_a_ejecutar->parametro4);
+            valor = buscar_valor_registro(instruccion_a_ejecutar->parametro5);
+            free(instruccion_a_ejecutar->parametro5);
+            instruccion_a_ejecutar->parametro5 = uint32_to_string(valor);
             realizar_desalojo = 1;
             break;
         case IO_FS_READ: 
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s %s %s %s %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1, instruccion_a_ejecutar->parametro2, instruccion_a_ejecutar->parametro3, instruccion_a_ejecutar->parametro4, instruccion_a_ejecutar->parametro5);
             cde_ejecutando->motivo_desalojo = LLAMADA_IO;
+            actualizar_dirLogica_a_dirFisica(&instruccion_a_ejecutar->parametro3, &instruccion_a_ejecutar->parametro4);
+            valor = buscar_valor_registro(instruccion_a_ejecutar->parametro5);
+            free(instruccion_a_ejecutar->parametro5);
+            instruccion_a_ejecutar->parametro5 = uint32_to_string(valor);
             realizar_desalojo = 1;
             break;
         case EXIT:
@@ -518,13 +525,19 @@ void ejecutar_instruccion(t_instruccion* instruccion_a_ejecutar){
     }
 }
 
-void actualizar_dirLogica_a_dirFisica(t_instruccion* instruccion_a_ejecutar){
+void actualizar_dirLogica_a_dirFisica(char** parametro_direccion, char** parametro_tamanio){
     uint32_t dir_fisica = UINT32_MAX;
-    bool pagina_en_tlb = se_encuentra_en_tlb(atoi(instruccion_a_ejecutar->parametro2), &dir_fisica); 
+    bool pagina_en_tlb = se_encuentra_en_tlb(buscar_valor_registro(*parametro_direccion), &dir_fisica); 
     if (!pagina_en_tlb)
-        dir_fisica = calcular_direccion_fisica(atoi(instruccion_a_ejecutar->parametro2), cde_ejecutando);
+        dir_fisica = calcular_direccion_fisica(buscar_valor_registro(*parametro_direccion), cde_ejecutando);
 
-    instruccion_a_ejecutar->parametro2 = uint32_to_string(dir_fisica);
+    free(*parametro_direccion);
+    *parametro_direccion = uint32_to_string(dir_fisica);
+
+    // actualizo el parametro de tamanio tambien
+    uint32_t tamanio = buscar_valor_registro(*parametro_tamanio);
+    free(*parametro_tamanio);
+    *parametro_tamanio = uint32_to_string(tamanio);
 }
 
 char* uint32_to_string(uint32_t number) {
@@ -556,8 +569,6 @@ void desalojar_cde(t_instruccion* instruccion_a_ejecutar){
     pthread_mutex_lock(&mutex_instruccion_actualizada);
     instruccion_actualizada = NULO;
     pthread_mutex_unlock(&mutex_instruccion_actualizada);
-
-    destruir_instruccion(instruccion_a_ejecutar);
 }
 
 void devolver_cde_a_kernel(){
@@ -568,62 +579,33 @@ void devolver_cde_a_kernel(){
     destruir_buffer(buffer);
 }
 
-void copiar_ultima_instruccion(t_instruccion* instruccion){
-    cde_ejecutando->ultima_instruccion->codigo = instruccion->codigo;
-    if(instruccion->parametro1){
-        free(cde_ejecutando->ultima_instruccion->parametro1);
-        cde_ejecutando->ultima_instruccion->parametro1 = string_new();
-        string_append(&cde_ejecutando->ultima_instruccion->parametro1, instruccion->parametro1);
-    }
-    if(instruccion->parametro2){
-        free(cde_ejecutando->ultima_instruccion->parametro2);
-        cde_ejecutando->ultima_instruccion->parametro2 = string_new();
-        string_append(&cde_ejecutando->ultima_instruccion->parametro2, instruccion->parametro2);
-    }
-    if(instruccion->parametro3){
-        free(cde_ejecutando->ultima_instruccion->parametro3);
-        cde_ejecutando->ultima_instruccion->parametro3 = string_new();
-        string_append(&cde_ejecutando->ultima_instruccion->parametro3, instruccion->parametro3);
-    }
-    if(instruccion->parametro4){
-        free(cde_ejecutando->ultima_instruccion->parametro4);
-        cde_ejecutando->ultima_instruccion->parametro4 = string_new();
-        string_append(&cde_ejecutando->ultima_instruccion->parametro4, instruccion->parametro4);
-    }
-    if(instruccion->parametro5){
-        free(cde_ejecutando->ultima_instruccion->parametro5);
-        cde_ejecutando->ultima_instruccion->parametro5 = string_new();
-        string_append(&cde_ejecutando->ultima_instruccion->parametro5, instruccion->parametro5);
-    }
-}
-
 // -------------------------------------------------
 //          INSTRUCCIONES SIN MEMORIA
 // -------------------------------------------------
 
 void ejecutar_set(char* registro, uint32_t valor_recibido){
-    uint32_t valor_registro = buscar_valor_registro(registro);
-
     if (strcmp(registro, "AX") == 0) 
-        registros_cpu->AX = valor_registro;   
+        registros_cpu->AX = valor_recibido;   
     else if(strcmp(registro, "BX") == 0)
-        registros_cpu->BX = valor_registro;
+        registros_cpu->BX = valor_recibido;
     else if(strcmp(registro, "CX") == 0)
-        registros_cpu->CX = valor_registro;
+        registros_cpu->CX = valor_recibido;
     else if(strcmp(registro, "DX") == 0)
-        registros_cpu->DX = valor_registro;
+        registros_cpu->DX = valor_recibido;
 	else if(strcmp(registro, "EAX") == 0)
-        registros_cpu->EAX= valor_registro;
+        registros_cpu->EAX= valor_recibido;
 	else if(strcmp(registro, "EBX") == 0)
-        registros_cpu->EBX = valor_registro;
+        registros_cpu->EBX = valor_recibido;
 	else if(strcmp(registro, "ECX") == 0)
-        registros_cpu->ECX = valor_registro;	
+        registros_cpu->ECX = valor_recibido;	
 	else if(strcmp(registro, "EDX") == 0)
-        registros_cpu->EDX = valor_registro;	
+        registros_cpu->EDX = valor_recibido;	
 	else if(strcmp(registro, "SI") == 0)
-        registros_cpu->SI = valor_registro;		
+        registros_cpu->SI = valor_recibido;		
 	else if(strcmp(registro, "DI") == 0)
-        registros_cpu->DI = valor_registro;	
+        registros_cpu->DI = valor_recibido;	
+    else if(strcmp(registro, "PC") == 0)
+        registros_cpu->PC = valor_recibido;
     else
         log_error(logger_cpu, "No se reconoce el registro %s", registro);
 }
@@ -767,11 +749,16 @@ void leer_de_dir_fisica_los_bytes(uint32_t dir_fisica, uint32_t bytes, uint32_t*
     buffer_write_uint32(buffer, bytes); 
     enviar_buffer(buffer, socket_memoria);
 
+
+    printf("\nValor leido antes de la lectura:\n");
+	mem_hexdump(valor_leido, bytes);
     buffer = recibir_buffer(socket_memoria);
     *valor_leido = buffer_read_uint32(buffer);
+	printf("\nCadena despues de la lectura:\n");
+    mem_hexdump(valor_leido, bytes);
     destruir_buffer(buffer);
 
-    log_info(logger_cpu, "Lectura/Escritura Memoria: “PID: %d - Acción: LEER - Dirección Física: %d - Valor: %d.", cde_ejecutando->pid, dir_fisica, *valor_leido);
+    log_info(logger_cpu, "Lectura/Escritura Memoria: “PID: %d - Acción: LEER - Dirección Física: %d - Valor: %s.", cde_ejecutando->pid, dir_fisica, mem_hexstring(&valor_leido, bytes));
 }
 
 void ejecutar_mov_in_un_byte(char* reg_datos, char* reg_direccion){
@@ -850,16 +837,25 @@ uint32_t leer_y_guardar_de_dos_paginas(uint32_t dir_logica){
 }
 
 uint32_t dato_reconstruido(uint32_t primera, uint32_t segunda, int bytes_primera, int bytes_segunda){
-    uint32_t dato_reconstruido = 0;
 
     void* primera_ptr = &primera;
     void* segunda_ptr = &segunda;
-    void* dato_reconstruido_ptr = &dato_reconstruido;
+    void* dato_reconstruido_ptr = malloc(4);
+    memset(dato_reconstruido_ptr, 0, 4);
+
+    printf("\nDato antes de ser reconstruido:\n");
+	mem_hexdump(dato_reconstruido_ptr, 4);
 
     memcpy(dato_reconstruido_ptr, primera_ptr, (size_t)bytes_primera);
     memcpy(dato_reconstruido_ptr + (size_t)bytes_primera, segunda_ptr, (size_t)bytes_segunda);
 
-    return dato_reconstruido;
+    printf("\nDato despues de ser reconstruido:\n");
+	mem_hexdump(dato_reconstruido_ptr, 4);
+
+    uint32_t valor = *(uint32_t*)dato_reconstruido_ptr;
+
+    free(dato_reconstruido_ptr);
+    return valor;
 }
 
 bool es_reg_de_cuatro_bytes(char* reg_datos){
@@ -876,7 +872,7 @@ bool es_reg_de_cuatro_bytes(char* reg_datos){
 }
 
 // -------- MOV_OUT ---------------------------------
-void ejecutar_mov_out(char* reg_datos, char* reg_direccion){
+void ejecutar_mov_out(char* reg_direccion, char* reg_datos){
     uint32_t dir_logica = buscar_valor_registro(reg_direccion);
     uint32_t valor_a_escribir = buscar_valor_registro(reg_datos);
     bool pagina_dividida = (obtener_desplazamiento_pagina(dir_logica) + 4 > tamanio_pagina);
@@ -904,6 +900,20 @@ void ejecutar_mov_out(char* reg_datos, char* reg_direccion){
     }
 }
 
+// esta funcion se usa solo para limpiar los bytes que a valgrind no le gustan 
+uint32_t truncar_bytes(uint32_t valor, uint32_t bytes_usados) {
+    switch (bytes_usados) {
+        case 1:
+            return valor & 0xFF;         // Máscara para 1 byte (8 bits)
+        case 2:
+            return valor & 0xFFFF;       // Máscara para 2 bytes (16 bits)
+        case 3:
+            return valor & 0xFFFFFF;     // Máscara para 3 bytes (24 bits)
+        default:
+            return valor;
+    }
+}
+
 void escribir_en_dir_fisica_los_bytes(uint32_t dir_fisica, uint32_t bytes, uint32_t valor_a_escribir){
     enviar_codigo(socket_memoria, MOV_OUT_SOLICITUD);
     t_buffer* buffer = crear_buffer();
@@ -913,7 +923,7 @@ void escribir_en_dir_fisica_los_bytes(uint32_t dir_fisica, uint32_t bytes, uint3
     buffer_write_uint32(buffer, bytes); 
     enviar_buffer(buffer, socket_memoria);
 
-    log_info(logger_cpu, "Lectura/Escritura Memoria: “PID: %d - Acción: ESCRIBIR - Dirección Física: %d - Valor: %d.", cde_ejecutando->pid, dir_fisica, valor_a_escribir);
+    log_info(logger_cpu, "Lectura/Escritura Memoria: “PID: %d - Acción: ESCRIBIR - Dirección Física: %d - Valor: %s.", cde_ejecutando->pid, dir_fisica, mem_hexstring(&valor_a_escribir, bytes));
 }
 
 void escribir_y_guardar_en_dos_paginas(uint32_t dir_logica_destino, uint32_t* valor){
@@ -935,7 +945,8 @@ void escribir_y_guardar_en_dos_paginas(uint32_t dir_logica_destino, uint32_t* va
     if (!pagina_en_tlb)
         dir_fisica_destino = calcular_direccion_fisica(dir_logica_destino, cde_ejecutando);
 
-    escribir_en_dir_fisica_los_bytes(dir_fisica_destino, bytes_a_escribir_primera_pag, valor_parte_1);
+    escribir_en_dir_fisica_los_bytes(dir_fisica_destino, bytes_a_escribir_primera_pag, truncar_bytes(valor_parte_1, bytes_a_escribir_primera_pag));
+
 
     // actualizo la dir, me muevo a la siguiente
     uint32_t dir_logica_segunda_pag = dir_logica_destino + bytes_a_escribir_primera_pag;
@@ -945,7 +956,7 @@ void escribir_y_guardar_en_dos_paginas(uint32_t dir_logica_destino, uint32_t* va
     if (!pagina_en_tlb)
         dir_fisica_destino_segunda_pag = calcular_direccion_fisica(dir_logica_segunda_pag, cde_ejecutando);
 
-    escribir_en_dir_fisica_los_bytes(dir_fisica_destino_segunda_pag, bytes_a_escribir_segunda_pag, valor_parte_2);
+    escribir_en_dir_fisica_los_bytes(dir_fisica_destino_segunda_pag, bytes_a_escribir_segunda_pag, truncar_bytes(valor_parte_2, bytes_a_escribir_segunda_pag));
 
     free(valor_parte_1_ptr);
     free(valor_parte_2_ptr);
@@ -961,71 +972,121 @@ void ejecutar_copy_string(int tamanio){
     // voy a ir cargando de a 4 bytes siempre y cuando se pueda, por eso se chequea que, ademas de quedar bytes
     // por usar, queden como minimo 4
     // cuando ya no queden como minimo 4 bytes voy a empezar a leer y escribir de a 1 byte hasta que termine
-    int bytes_usados = 0;
+
+    void* string_leido = formar_string(&dir_logica_string, tamanio);
+
+    escribir_string(&dir_logica_destino, string_leido, tamanio);
+}
+
+void* formar_string(uint32_t* dir_logica_string, int bytes_totales){
+    void* valor_ptr = malloc(bytes_totales);
+    memset(valor_ptr, 0 ,bytes_totales);
+    size_t valor_ptr_offset = 0;
+    uint32_t bytes_leidos = 0;
+    uint32_t dir_fisica_string = 0;
     uint32_t valor_leido = 0;
-    bool valor_dividido = false;
-    bool pagina_dividida = false;
     bool pagina_en_tlb = false;
 
-    while (bytes_usados < tamanio && bytes_usados + 4 < tamanio){
+    while (bytes_leidos + 4 < bytes_totales){
+        // veo si tengo que leer hasta completar una pagina
 
-        // parte de LECTURA
-
-        valor_dividido = (obtener_desplazamiento_pagina(dir_logica_string) + 4 > tamanio_pagina);
-        if (valor_dividido) {
-            valor_leido = leer_y_guardar_de_dos_paginas(dir_logica_string);
-        } else {
-            uint32_t dir_fisica_string = UINT32_MAX;    
-            pagina_en_tlb = se_encuentra_en_tlb(dir_logica_string, &dir_fisica_string); 
+        if (obtener_desplazamiento_pagina(*dir_logica_string) + 4 > tamanio_pagina) {
+            int bytes_restantes = tamanio_pagina - obtener_desplazamiento_pagina(*dir_logica_string);
+            dir_fisica_string = UINT32_MAX;    
+            pagina_en_tlb = se_encuentra_en_tlb(*dir_logica_string, &dir_fisica_string); 
             if (!pagina_en_tlb)
-                dir_fisica_string = calcular_direccion_fisica(dir_logica_string, cde_ejecutando);            
+                dir_fisica_string = calcular_direccion_fisica(*dir_logica_string, cde_ejecutando);
+            
+            valor_leido = 0;
+            leer_de_dir_fisica_los_bytes(dir_fisica_string, bytes_restantes, &valor_leido);
+            memcpy(valor_ptr+valor_ptr_offset, &valor_leido, bytes_restantes);
+            valor_ptr_offset += bytes_restantes;
+            *dir_logica_string += bytes_restantes;
+            bytes_leidos += bytes_restantes;
+        }else {
+            dir_fisica_string = UINT32_MAX;    
+            pagina_en_tlb = se_encuentra_en_tlb(*dir_logica_string, &dir_fisica_string); 
+            if (!pagina_en_tlb)
+                dir_fisica_string = calcular_direccion_fisica(*dir_logica_string, cde_ejecutando);
+            
+            valor_leido = 0;
             leer_de_dir_fisica_los_bytes(dir_fisica_string, 4, &valor_leido);
+            memcpy(valor_ptr+valor_ptr_offset, &valor_leido, 4);
+            valor_ptr_offset += 4;
+            *dir_logica_string += 4;
+            bytes_leidos += 4;
         }
-
-        // parte de ESCRITURA
-
-        pagina_dividida = (obtener_desplazamiento_pagina(dir_logica_destino) + 4 > tamanio_pagina);
-        if (pagina_dividida) {
-            escribir_y_guardar_en_dos_paginas(dir_logica_destino, &valor_leido);
-        } else {
-            uint32_t dir_fisica_destino = UINT32_MAX;    
-            pagina_en_tlb = se_encuentra_en_tlb(dir_logica_destino, &dir_fisica_destino); 
-            if (!pagina_en_tlb)
-                dir_fisica_destino = calcular_direccion_fisica(dir_logica_destino, cde_ejecutando);
-            escribir_en_dir_fisica_los_bytes(dir_fisica_destino, 4, valor_leido);
-        }
-        
-        // consumimos 4 bytes de cada direccion
-        // desplazamos las direcciones (chequear que el concepto este bien)
-        dir_logica_destino += 4;
-        dir_logica_string += 4;
-        
-        bytes_usados += 4;
     }
 
-    // aca entra cuando ya no puedo tomar de a 4 bytes o porque nunca fue igual o mayor a 4 el tamanio a escribir
-    while (bytes_usados < tamanio){
-
-        // LECTURA
-        uint32_t dir_fisica_string = UINT32_MAX;    
-        pagina_en_tlb = se_encuentra_en_tlb(dir_logica_string, &dir_fisica_string); 
+    // si entra aca es porque restan bytes pero menos de 4
+    while (bytes_leidos < bytes_totales){
+        dir_fisica_string = UINT32_MAX;    
+        pagina_en_tlb = se_encuentra_en_tlb(*dir_logica_string, &dir_fisica_string); 
         if (!pagina_en_tlb)
-            dir_fisica_string = calcular_direccion_fisica(dir_logica_string, cde_ejecutando);  
+            dir_fisica_string = calcular_direccion_fisica(*dir_logica_string, cde_ejecutando);
         
+        valor_leido = 0;
         leer_de_dir_fisica_los_bytes(dir_fisica_string, 1, &valor_leido);
-
-        // ESCRITURA
-        uint32_t dir_fisica_destino = UINT32_MAX;    
-        pagina_en_tlb = se_encuentra_en_tlb(dir_logica_destino, &dir_fisica_destino); 
-        if (!pagina_en_tlb)
-            dir_fisica_destino = calcular_direccion_fisica(dir_logica_destino, cde_ejecutando);
-        escribir_en_dir_fisica_los_bytes(dir_fisica_destino, 1, valor_leido);
-
-        dir_logica_destino ++;
-        dir_logica_string ++;
-        
-        bytes_usados ++;
+        memcpy(valor_ptr+valor_ptr_offset, &valor_leido, 1);
+        valor_ptr_offset += 1;
+        *dir_logica_string += 1;
+        bytes_leidos += 1;
     }
+
+    printf("\nString formado:\n");
+	mem_hexdump(valor_ptr, bytes_totales);    
+
+    return valor_ptr;
+}
+
+void escribir_string(uint32_t* dir_logica_destino, void* valor_ptr, int bytes_totales){
+    int bytes_escritos = 0;
+    size_t offset_valor_ptr = 0;
+    uint32_t dir_fisica_destino = 0;
+    bool pagina_en_tlb = false;
+    uint32_t valor_a_copiar = 0;
+
+    while (bytes_escritos < bytes_totales && bytes_escritos + 4 < bytes_totales) {
+        if (obtener_desplazamiento_pagina(*dir_logica_destino) + 4 > tamanio_pagina) {
+            int bytes_restantes = tamanio_pagina - obtener_desplazamiento_pagina(*dir_logica_destino);
+            dir_fisica_destino = UINT32_MAX;    
+            pagina_en_tlb = se_encuentra_en_tlb(*dir_logica_destino, &dir_fisica_destino); 
+            if (!pagina_en_tlb)
+                dir_fisica_destino = calcular_direccion_fisica(*dir_logica_destino, cde_ejecutando);
+            
+            memcpy(&valor_a_copiar, valor_ptr+offset_valor_ptr, bytes_restantes);
+            escribir_en_dir_fisica_los_bytes(dir_fisica_destino, bytes_restantes, valor_a_copiar);
+            offset_valor_ptr += bytes_restantes;
+            *dir_logica_destino += bytes_restantes;
+            bytes_escritos += bytes_restantes;
+        } else {
+            dir_fisica_destino = UINT32_MAX;    
+            pagina_en_tlb = se_encuentra_en_tlb(*dir_logica_destino, &dir_fisica_destino); 
+            if (!pagina_en_tlb)
+                dir_fisica_destino = calcular_direccion_fisica(*dir_logica_destino, cde_ejecutando);
+            
+            memcpy(&valor_a_copiar, valor_ptr+offset_valor_ptr, 4);
+            escribir_en_dir_fisica_los_bytes(dir_fisica_destino, 4, valor_a_copiar);
+            offset_valor_ptr += 4;
+            *dir_logica_destino += 4;
+            bytes_escritos += 4;
+        }
+    }
+
+    while (bytes_escritos < bytes_totales) {
+        dir_fisica_destino = UINT32_MAX;    
+        pagina_en_tlb = se_encuentra_en_tlb(*dir_logica_destino, &dir_fisica_destino); 
+        if (!pagina_en_tlb)
+            dir_fisica_destino = calcular_direccion_fisica(*dir_logica_destino, cde_ejecutando);
+        
+        memcpy(&valor_a_copiar, valor_ptr+offset_valor_ptr, 1);
+        escribir_en_dir_fisica_los_bytes(dir_fisica_destino, 1, valor_a_copiar);
+        offset_valor_ptr += 1;
+        *dir_logica_destino += 1;
+        bytes_escritos += 1;
+    }
+
+    free(valor_ptr);
 }
 
 // -------------------------------------------------
@@ -1033,7 +1094,7 @@ void ejecutar_copy_string(int tamanio){
 // -------------------------------------------------
 
 int obtener_numero_pagina(int direccion_logica){
-	return floor(direccion_logica / tamanio_pagina);
+	return floor((float)direccion_logica / tamanio_pagina);
 }
 
 int obtener_desplazamiento_pagina(int direccion_logica){
