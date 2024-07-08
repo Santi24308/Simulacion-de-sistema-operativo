@@ -461,11 +461,15 @@ void finalizarProceso(uint32_t pid_string){
 }
 
 void terminar_proceso_consola(uint32_t pid){
-    enviar_codigo(socket_memoria, FINALIZAR_PROCESO_SOLICITUD);
-
     t_buffer* buffer = crear_buffer();
     buffer_write_uint32(buffer, pid);
+
+    enviar_codigo(socket_cpu_interrupt, INTERRUPT);
+    enviar_buffer(buffer, socket_cpu_interrupt);
+    
+    enviar_codigo(socket_memoria, FINALIZAR_PROCESO_SOLICITUD);
     enviar_buffer(buffer, socket_memoria);
+
     destruir_buffer(buffer);
 
     mensajeMemoriaKernel rta_memoria = recibir_codigo(socket_memoria);

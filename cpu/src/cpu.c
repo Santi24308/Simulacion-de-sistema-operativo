@@ -604,6 +604,8 @@ void ejecutar_set(char* registro, uint32_t valor_recibido){
         registros_cpu->SI = valor_recibido;		
 	else if(strcmp(registro, "DI") == 0)
         registros_cpu->DI = valor_recibido;	
+    else if(strcmp(registro, "PC") == 0)
+        registros_cpu->PC = valor_recibido;
     else
         log_error(logger_cpu, "No se reconoce el registro %s", registro);
 }

@@ -604,7 +604,11 @@ void liberar_proceso()
 	imprimir_pids();
 	t_buffer *buffer_recibido = recibir_buffer(socket_kernel);
 	uint32_t pid = buffer_read_uint32(buffer_recibido);
+
+	pthread_mutex_lock(&mutex_lista_procesos);
 	buscar_y_eliminar_proceso(pid);
+	pthread_mutex_unlock(&mutex_lista_procesos);
+
 	printf("\nProcesos en el sistema DESPUES de eliminar");
 	imprimir_pids();
 	log_info(logger_memoria, "Destruccion: PID: %d", pid);
@@ -732,7 +736,9 @@ void enviar_instruccion()
 	pthread_mutex_lock(&mutex_lista_procesos);
 	t_proceso *proceso = buscar_proceso(pid);
 	if(proceso == NULL) {
-		perror("No se encontró el proceso");
+		// si el proceso no esta es porque fue eliminado y por tema de sincro con otros modulos se superponen las solicitudes
+		pthread_mutex_unlock(&mutex_lista_procesos);
+		return;
 	}
 	pthread_mutex_unlock(&mutex_lista_procesos);
 
