@@ -139,6 +139,7 @@ void atender_kernel()
 		switch (cod_kernel)
 		{
 		case INICIAR_PROCESO_SOLICITUD:
+			
 			iniciar_proceso();
 			break;
 		case FINALIZAR_PROCESO_SOLICITUD:
@@ -581,7 +582,7 @@ void iniciar_proceso()
 	char *ruta_completa = string_new();
 	string_append(&ruta_completa, config_get_string_value(config_memoria, "PATH_INSTRUCCIONES"));
 	string_append(&ruta_completa, nombre_archivo);
-
+	string_append(&ruta_completa, ".txt");
 	t_list *lista_instrucciones = levantar_instrucciones(ruta_completa);
 	if (!lista_instrucciones)
 		return;
@@ -730,6 +731,9 @@ void enviar_instruccion()
 
 	pthread_mutex_lock(&mutex_lista_procesos);
 	t_proceso *proceso = buscar_proceso(pid);
+	if(proceso == NULL) {
+		perror("No se encontró el proceso");
+	}
 	pthread_mutex_unlock(&mutex_lista_procesos);
 
 	t_instruccion *instruccion = list_get(proceso->lista_instrucciones, pc); // mutex?

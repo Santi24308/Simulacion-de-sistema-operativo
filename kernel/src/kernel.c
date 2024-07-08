@@ -242,7 +242,12 @@ void ejecutar_comando_unico(char** palabras){
 }
 
 void leer_y_ejecutar(char* path){
-    FILE* script = fopen(path,"r");
+    char* ruta_completa = string_new();
+    string_append(&ruta_completa, config_get_string_value(config_kernel, "RUTA_LOCAL"));
+    string_append(&ruta_completa, path);
+    string_append(&ruta_completa, ".txt");
+    printf("\n ruta completa %s", ruta_completa);
+    FILE* script = fopen(ruta_completa,"r");
     if (!script){
         perror("Error al abrir archivo, revisar el path.");
         return;
@@ -255,7 +260,6 @@ void leer_y_ejecutar(char* path){
         ejecutar_comando_unico(linea);
         string_array_destroy(linea); 
     }
-
 }
 
 // esta funcion fixea los casos en donde fgets al leer del archivo lee algo que deberia ser
@@ -413,7 +417,8 @@ void finalizar_pcb(t_pcb* pcb_a_finalizar){
 }
 
 void iniciar_proceso(char* path){
-	t_pcb* pcb_a_new = crear_pcb(path); // creo un nuevo pcb al que le voy a cambiar el estado
+    
+    t_pcb* pcb_a_new = crear_pcb(path); // creo un nuevo pcb al que le voy a cambiar el estado
 
     enviar_codigo(socket_memoria, INICIAR_PROCESO_SOLICITUD); //envio la solicitud a traves del socket
 
