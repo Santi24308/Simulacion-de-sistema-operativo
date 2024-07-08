@@ -644,6 +644,11 @@ void compactar_y_asignar(archivo_t* archivo, uint32_t tamanio_solicitado){
 	// chequear que munmap no altere el void* bloquesmap
 	// abrimos bloques.dat con el flag para pisarlo
 	FILE* archivo_compactado = fopen(path_archivo_bloques, "w");
+	fclose(archivo_compactado);
+	// lo dejamos al tamaño correcto e inicializado
+	int fd_aux = open(path_archivo_bloques, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+	ftruncate(fd_aux, tamanio_archivo_bloques);
+
 	
 	// sacamos al archivo en cuestion (no eliminamos)
 	int i = 0;
@@ -698,6 +703,95 @@ void compactar_y_asignar(archivo_t* archivo, uint32_t tamanio_solicitado){
 
 	msync(bloquesmap, tamanio_archivo_bloques, MS_SYNC);
 }
+
+int recrear_bloquesmap(archivo_t* archivo_a_ampliar, uint32_t tamanio_solicitado){
+	int i = 0;
+	archivo_t* archivo_lista = NULL;
+	int tamanio_archivo = 0;
+	int bloque_inicial = 0;
+	int bloques_asignados_antes = 0;
+
+	int ultimo_indice_disponible = 0;
+	int offset_bloquesmap = 0;
+	int offset_bloquesmap_paralelo = 0;
+
+	while (i < list_size(lista_global_archivos_abiertos)){
+		archivo_lista = list_get(lista_global_archivos_abiertos, i);
+
+		if (strcmp(archivo_lista->nombre_archivo, archivo_a_ampliar->nombre_archivo) != 0){
+			tamanio_archivo = config_get_int_value(archivo_lista->metadata, "TAMANIO_ARCHIVO");
+			bloque_inicial = config_get_int_value(archivo_lista->metadata, "BLOQUE_INICIAL");
+			bloques_asignados_antes = 1;
+			if (tamanio_archivo != 0)
+				bloques_asignados_antes = ceil(tamanio_archivo / block_size);
+
+			config_set_value(archivo_lista->metadata, "BLOQUE_INICIAL", string_itoa(ultimo_indice_disponible));
+			config_save(archivo_lista->metadata);
+
+			offset_bloquesmap += bloque_inicial * block_size;
+			memcpy(bloquesmap_paralelo + offset_bloquesmap_paralelo, bloquesmap + offset_bloquesmap, bloques_asignados_antes * block_size);
+			offset_bloquesmap_paralelo += bloques_asignados_antes * block_size;
+
+			// como siempre se copian contiguos el ultimo indice va a ser la cantidad copiada (por arrancar de 0)
+			ultimo_indice_disponible += offset_bloquesmap_paralelo / block_size;
+		}
+		
+		i++;
+	}
+
+	// copiamos el archivo ampliado ahora
+	tamanio_archivo = config_get_int_value(archivo_a_ampliar->metadata, "TAMANIO_ARCHIVO");
+	bloque_inicial = config_get_int_value(archivo_a_ampliar->metadata, "BLOQUE_INICIAL");
+	bloques_asignados_antes = 1;
+	if (tamanio_archivo != 0)
+		bloques_asignados_antes = ceil(tamanio_archivo / block_size);
+
+	config_set_value(archivo_a_ampliar->metadata, "BLOQUE_INICIAL", string_itoa(ultimo_indice_disponible));
+	config_save(archivo_a_ampliar->metadata);
+
+	offset_bloquesmap += bloque_inicial * block_size;
+	memcpy(bloquesmap_paralelo + offset_bloquesmap_paralelo, bloquesmap + offset_bloquesmap, bloques_asignados_antes * block_size);
+	offset_bloquesmap_paralelo += bloques_asignados_antes * block_size;
+
+	ultimo_indice_disponible += offset_bloquesmap_paralelo / block_size;
+
+	// ya que el indice de bloques es el mismo que el indice de bits lo reutilizamos
+	// el ultimo indice disponible tiene que contar a los nuevos bloques para 
+	// que el bitmap se pueda actualizar
+	int bloques_a_asignar = ceil(tamanio_solicitado / block_size) - bloques_asignados_antes;
+
+	ultimo_indice_disponible += bloques_a_asignar;
+
+	return ultimo_indice_disponible;
+}
+
+void compactar_y_asignar_new(archivo_t* archivo, uint32_t tamanio_solicitado){
+	// la idea es construir un nuevo void* para despues solamente pisar el actual
+	// y usar msync para actualizar, esto no requiere remapeo ni nada
+	bloquesmap_paralelo = malloc(block_count*block_size);
+	memset(bloquesmap_paralelo, 0, block_count*block_size);
+
+	// ahora hay que empezar a llenar el paralelo
+	int indice_ultimo_bit_disponible = recrear_bloquesmap(archivo, tamanio_solicitado);
+
+	// ahora el void* paralelo esta cargado, solo queda pisar los datos del anterior
+	memcpy(bloquesmap, bloquesmap_paralelo, block_count*block_size);
+	msync(bloquesmap, tamanio_archivo_bloques, MS_SYNC);
+
+	// listo el bloquesmap ahora resta actualizar el bitmap
+	// usamos el ultimo bit disponible para poner a todos los bits previos a ese en 1 y el resto en 0
+	printf("\n%d\n", indice_ultimo_bit_disponible);
+	int i = 0;
+	while (i < bitarray_get_max_bit(bitmap)){
+		if (i < indice_ultimo_bit_disponible) 
+			bitarray_set_bit(bitmap, i);
+		else	
+			bitarray_clean_bit(bitmap, i);
+		i++;
+	}
+	msync(bitmap->bitarray, bitmap->size, MS_SYNC);
+}
+
 // --------------------------------------------------------------------------------------------------------------------------------------------------
 void ampliar_tamanio(archivo_t* archivo, uint32_t tamanio_solicitado){
 	int bloque_inicial = config_get_int_value(archivo->metadata, "BLOQUE_INICIAL");
@@ -712,8 +806,8 @@ void ampliar_tamanio(archivo_t* archivo, uint32_t tamanio_solicitado){
 	int bloques_a_asignar = ceil(tamanio_solicitado / block_size) - bloques_asignados_antes;
 	if (bloques_a_asignar == 0)
 		return;
-
-	if (hay_bloques_contiguos_al_archivo(bloques_a_asignar, bloques_asignados_antes)){
+	
+	if (hay_bloques_contiguos_al_archivo(bloques_a_asignar, bloque_inicial + bloques_asignados_antes)){
 		int i = 0;
 		int bit_inicial = bloque_inicial + bloques_asignados_antes;
 		while (i < bloques_a_asignar){
@@ -725,7 +819,7 @@ void ampliar_tamanio(archivo_t* archivo, uint32_t tamanio_solicitado){
 			i ++;
 		}
 	} else if (hay_bloques_necesarios(bloques_a_asignar)){
-		compactar_y_asignar(archivo, bloques_a_asignar);
+		compactar_y_asignar_new(archivo, bloques_a_asignar);
 	} else {
 		log_error(logger_io, "No hay espacio suficiente para ampliar el archivo de %d bloques a %d bloques", bloques_asignados_antes, bloques_a_asignar);
 		return;

@@ -29,6 +29,7 @@ typedef struct {  // no hace falta que tenga el FILE ya que no los vamos a mante
 // ya que segun la info, msync, se encarga de mantener actualizado el mapeo 
 t_bitarray* bitmap;
 void* bloquesmap; 
+void* bloquesmap_paralelo;  // este se usa para cuando compactamos, se recrea el void* compactado y se escribe sobre el original con memcpy
 
 int fd_bitarray;
 int fd_bloques;
