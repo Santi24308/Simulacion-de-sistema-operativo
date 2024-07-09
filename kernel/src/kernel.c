@@ -84,11 +84,45 @@ t_interfaz* crear_interfaz(char* nombre, char* tipo, int socket){
     return interfaz;
 }
 
+void setear_path_local() {
+    char path[1024];
+    ssize_t count = readlink("/proc/self/exe", path, sizeof(path) - 1);
+
+    if (count == -1) {
+        perror("readlink");
+        return;
+    }
+
+    path[count] = '\0'; // Asegura que la cadena esté terminada en nulo
+
+    // Obtiene el directorio del ejecutable
+    char *dir = dirname(path);
+
+    // Retrocede un directorio
+    char *parent_dir = dirname(dir);
+
+    // Reserva memoria para la cadena resultante
+    size_t len = strlen(parent_dir);
+    char *result = malloc(len + 1);
+
+    strcpy(result, parent_dir); // Copia la ruta resultante a la memoria reservada
+
+    // Elimina la última '/' si está presente
+    if (len > 1 && result[len - 1] == '/') {
+        result[len - 1] = '\0';
+    }
+
+    config_set_value(config_kernel, "RUTA_LOCAL", result);
+    config_save(config_kernel);
+}
+
 void inicializar_modulo(){
 	sem_init(&terminar_kernel, 0, 0);
 
 	levantar_logger();
 	levantar_config();
+    setear_path_local();
+
 	algoritmo = config_get_string_value(config_kernel, "ALGORITMO");
 	quantum = config_get_int_value(config_kernel, "QUANTUM");
 	grado_max_multiprogramacion = config_get_int_value(config_kernel, "MULTIPROGRAMACION_MAX");
@@ -241,6 +275,48 @@ void ejecutar_comando_unico(char** palabras){
     }
 }
 
+char* leer_linea_de_archivo(FILE *fp) {
+    if (fp == NULL) {
+        return NULL;
+    }
+
+    size_t size = 128; // Tamaño inicial del buffer
+    size_t len = 0;    // Longitud actual de la cadena
+    char *buffer = malloc(size); // Reserva de memoria para el buffer
+
+    if (!buffer) {
+        return NULL; // Si malloc falla, retorna NULL
+    }
+
+    while (fgets(buffer + len, size - len, fp)) {
+        len += strlen(buffer + len);
+        if (buffer[len - 1] == '\n') {
+            buffer[len - 1] = '\0'; // Reemplaza el salto de línea con un terminador nulo
+            return buffer; // Retorna el buffer
+        }
+
+        size *= 2; // Duplica el tamaño del buffer si no encuentra un salto de línea
+        char *new_buffer = realloc(buffer, size); // Redimensiona el buffer
+
+        if (!new_buffer) {
+            free(buffer);
+            return NULL; // Si realloc falla, libera el buffer original y retorna NULL
+        }
+
+        buffer = new_buffer; // Actualiza el buffer
+    }
+
+    // Caso en el que se alcanza el final del archivo sin un salto de línea final
+    if (len > 0) {
+        buffer[len] = '\0'; // Añade el terminador nulo al final del buffer
+        return buffer; // Retorna la última línea leída
+    }
+
+    free(buffer);
+    return NULL; // Si no se lee nada, retorna NULL
+}
+
+
 void leer_y_ejecutar(char* path){
     char* ruta_completa = string_new();
     string_append(&ruta_completa, config_get_string_value(config_kernel, "RUTA_LOCAL"));
@@ -252,14 +328,27 @@ void leer_y_ejecutar(char* path){
         perror("Error al abrir archivo, revisar el path.");
         return;
     }
-    char leido[200];
+    char* leido = leer_linea_de_archivo(script);
+    int i = 0;
+    while (leido){
+        printf("\nSe lee la instruccion %s", leido);
+        i++;
+        char** linea = string_split(leido, " ");
+        ejecutar_comando_unico(linea);
+        string_array_destroy(linea); 
+        leido = leer_linea_de_archivo(script);
+    }
+    printf("\nSe leyeron %d instrucciones", i);
 
+    fclose(script);
+    /*
     while (fgets(leido, 200, script) != NULL && !feof(script)){
         trim_trailing_whitespace(leido);
         char** linea = string_split(leido, " ");
         ejecutar_comando_unico(linea);
         string_array_destroy(linea); 
     }
+    */
 }
 
 // esta funcion fixea los casos en donde fgets al leer del archivo lee algo que deberia ser

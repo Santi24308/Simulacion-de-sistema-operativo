@@ -22,10 +22,43 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
+void setear_path_local() {
+    char path[1024];
+    ssize_t count = readlink("/proc/self/exe", path, sizeof(path) - 1);
+
+    if (count == -1) {
+        perror("readlink");
+        return;
+    }
+
+    path[count] = '\0'; // Asegura que la cadena esté terminada en nulo
+
+    // Obtiene el directorio del ejecutable
+    char *dir = dirname(path);
+
+    // Retrocede un directorio
+    char *parent_dir = dirname(dir);
+
+    // Reserva memoria para la cadena resultante
+    size_t len = strlen(parent_dir);
+    char *result = malloc(len + 1);
+
+    strcpy(result, parent_dir); // Copia la ruta resultante a la memoria reservada
+
+    // Elimina la última '/' si está presente
+    if (len > 1 && result[len - 1] == '/') {
+        result[len - 1] = '\0';
+    }
+
+    config_set_value(config_memoria, "PATH_INSTRUCCIONES", result);
+    config_save(config_memoria);
+}
+
 void inicializar_modulo()
 {
 	levantar_logger();
 	levantar_config();
+	setear_path_local();
 
 	total_espacio_memoria = config_get_int_value(config_memoria, "TAM_MEMORIA");
 
@@ -637,6 +670,48 @@ t_proceso *crear_proceso(uint32_t pid, t_list *lista_instrucciones)
 	return proceso;
 }
 
+char* leer_linea_de_archivo(FILE *fp) {
+    if (fp == NULL) {
+        return NULL;
+    }
+
+    size_t size = 128; // Tamaño inicial del buffer
+    size_t len = 0;    // Longitud actual de la cadena
+    char *buffer = malloc(size); // Reserva de memoria para el buffer
+
+    if (!buffer) {
+        return NULL; // Si malloc falla, retorna NULL
+    }
+
+    while (fgets(buffer + len, size - len, fp)) {
+        len += strlen(buffer + len);
+        if (buffer[len - 1] == '\n') {
+            buffer[len - 1] = '\0'; // Reemplaza el salto de línea con un terminador nulo
+            return buffer; // Retorna el buffer
+        }
+
+        size *= 2; // Duplica el tamaño del buffer si no encuentra un salto de línea
+        char *new_buffer = realloc(buffer, size); // Redimensiona el buffer
+
+        if (!new_buffer) {
+            free(buffer);
+            return NULL; // Si realloc falla, libera el buffer original y retorna NULL
+        }
+
+        buffer = new_buffer; // Actualiza el buffer
+    }
+
+    // Caso en el que se alcanza el final del archivo sin un salto de línea final
+    if (len > 0) {
+        buffer[len] = '\0'; // Añade el terminador nulo al final del buffer
+        return buffer; // Retorna la última línea leída
+    }
+
+    free(buffer);
+    return NULL; // Si no se lee nada, retorna NULL
+}
+
+
 // para que no haya error el archivo tiene que terminar con un salto de linea
 t_list *levantar_instrucciones(char *path_op)
 {
@@ -650,11 +725,9 @@ t_list *levantar_instrucciones(char *path_op)
 	}
 	t_instruccion *instruccion;
 
-	char leido[200];
+	char* leido = leer_linea_de_archivo(archivo_instrucciones);
 
-	while (fgets(leido, 200, archivo_instrucciones) != NULL && !feof(archivo_instrucciones))
-	{
-		trim_trailing_whitespace(leido);
+	while (leido){
 		char **linea = string_split(leido, " ");
 
 		if (!string_is_empty(linea[0]))
@@ -673,6 +746,7 @@ t_list *levantar_instrucciones(char *path_op)
 		}
 
 		string_array_destroy(linea);
+		leido = leer_linea_de_archivo(archivo_instrucciones);
 	}
 
 	fclose(archivo_instrucciones);

@@ -17,6 +17,7 @@
 #include<utils/serializacion.h>
 #include<utils/instrucciones.h>
 #include <commons/collections/queue.h>
+#include <libgen.h>
 
 // AGREGAR LOS PROTOCOLOS
 
