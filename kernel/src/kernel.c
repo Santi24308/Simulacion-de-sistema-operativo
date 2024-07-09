@@ -557,9 +557,11 @@ void controlar_tiempo_de_ejecucion_VRR(){
 
         // puede pasar que el pcb este recien creado, entonces el flag es cero pero el clock es null...
         if (pcb_actual->flag_fin_q != 1 && pcb_actual->clock) { // el clock a esta altura solo existe si es que le sobro en su previa ejecucion
-            log_warning(logger_kernel, "Entra el proceso %d con tiempo restante %ld ms", pcb_actual->cde->pid, quantum - temporal_gettime(pcb_actual->clock));
-            temporal_resume(pcb_actual->clock);
+           // El proceso aún tiene tiempo de quantum restante
+	   log_warning(logger_kernel, "Entra el proceso %d con tiempo restante %ld ms", pcb_actual->cde->pid, quantum - temporal_gettime(pcb_actual->clock));
+           temporal_resume(pcb_actual->clock);
         } else {
+	    // El proceso es nuevo o necesita un nuevo quantum
             log_warning(logger_kernel, "Entra el proceso %d con tiempo restante %d", pcb_actual->cde->pid, quantum); 
             if (pcb_actual->clock) 
                 temporal_destroy(pcb_actual->clock);
@@ -572,6 +574,7 @@ void controlar_tiempo_de_ejecucion_VRR(){
         reloj_quantum_VRR(pcb_actual);
 
         if (pcb_actual->flag_fin_q) {
+	    // El proceso ha finalizado su quantum
             enviar_codigo(socket_cpu_interrupt, DESALOJO);
 
             t_buffer* buffer = crear_buffer();
