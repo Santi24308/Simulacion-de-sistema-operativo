@@ -1140,9 +1140,37 @@ void colocar_pagina_en_tlb(uint32_t pid, uint32_t nro_pagina, uint32_t marco){
 
     if (queue_size(tlb) < cantidad_entradas_tlb) {
         queue_push(tlb, nueva_pagina);
-    } else 
+        
+        char* lista_tlb_post_nueva_pagina = obtener_elementos_cargados_en_tlb(tlb);
+        log_info(logger_cpu, "Cola TLB Post Nueva Pagina %s: %s", algoritmo_tlb, lista_tlb_post_nueva_pagina);
+        free(lista_tlb_post_nueva_pagina);
+    } else{
         desalojar_y_agregar(nueva_pagina);
+
+        char* lista_tlb_post_desalojo = obtener_elementos_cargados_en_tlb(tlb);
+        log_info(logger_cpu, "Cola TLB Post Desalojo %s: %s", algoritmo_tlb, lista_tlb_post_desalojo);
+        free(lista_tlb_post_desalojo);}
 }
+
+char* obtener_elementos_cargados_en_tlb(t_queue* cola){
+    char* aux = string_new();
+    string_append(&aux,"[");
+    int tlb_aux;
+    char* aux_2;
+    for(int i = 0 ; i < list_size(cola->elements); i++){
+        t_pagina_tlb* tlb = list_get(cola->elements,i);
+        tlb_aux = tlb->nroPagina;
+        aux_2 = string_itoa(tlb_aux);
+        string_append(&aux, aux_2);
+        free(aux_2);
+        if(i != list_size(cola->elements)-1)
+            string_append(&aux,", ");
+    }
+    string_append(&aux,"]");
+    return aux;
+}
+
+ 
 
 void desalojar_y_agregar(t_pagina_tlb* nueva_pagina){
     t_pagina_tlb* pag_a_remover = NULL;
@@ -1200,7 +1228,7 @@ bool se_encuentra_en_tlb(uint32_t dir_logica, uint32_t* dir_fisica){
             log_info(logger_cpu, "PID: %d - OBTENER MARCO - Página: %d - Marco: %d", cde_ejecutando->pid, nro_pag_buscada, pagina->marco);
             *dir_fisica = pagina->marco * tamanio_pagina + desplazamiento;
             encontrado = true;
-        }
+        } 
         i++;
     }
 
