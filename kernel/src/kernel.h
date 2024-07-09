@@ -49,6 +49,7 @@ void evaluar_signal(char*);
 void evaluar_wait(char*);
 
 void signal_recursos_asignados_pcb(t_pcb*, char*);
+void liberar_recursos_pcb(t_pcb*);
 
 void agregar_pcb_a(t_queue*, t_pcb*, pthread_mutex_t*);
 t_pcb* retirar_pcb_de(t_queue*, pthread_mutex_t*);

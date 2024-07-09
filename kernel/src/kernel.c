@@ -461,6 +461,8 @@ void finalizarProceso(uint32_t pid_string){
 }
 
 void terminar_proceso_consola(uint32_t pid){
+    int encontrado;
+    t_pcb* pcb_a_liberar = encontrar_pcb_por_pid(pid, &encontrado);
     t_buffer* buffer = crear_buffer();
     buffer_write_uint32(buffer, pid);
 
@@ -476,6 +478,13 @@ void terminar_proceso_consola(uint32_t pid){
 
     if(rta_memoria == FINALIZAR_PROCESO_OK){
         log_info(logger_kernel, "SE ELIMINO PROCESO PID: %i DE MEMORIA", pid);
+        if(encontrado){
+        liberar_recursos_pcb(pcb_a_liberar);
+        pthread_mutex_lock(&mutex_procesos_globales);
+	    retirar_pcb_de_su_respectivo_estado(pid, &encontrado);
+        list_remove_element(procesos_globales, pcb_a_liberar);   // lo elimina de la global
+	    pthread_mutex_unlock(&mutex_procesos_globales);
+        }
     }
     else{
         log_error(logger_kernel, "Memoria no logró liberar correctamente las estructuras");
