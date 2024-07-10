@@ -1120,7 +1120,10 @@ uint32_t calcular_direccion_fisica(int direccion_logica, t_cde* cde){
     destruir_buffer(buffer);
     log_info(logger_cpu, "PID: %d - OBTENER MARCO - Página: %d - Marco: %d", cde->pid, nro_pagina, nro_marco_recibido);
 
-    colocar_pagina_en_tlb(cde->pid, nro_pagina, nro_marco_recibido);
+	if(cantidad_entradas_tlb > 0){
+    colocar_pagina_en_tlb(cde->pid, nro_pagina, nro_marco_recibido);}
+    	else{
+log_info(logger_cpu ,"la pagina: %d  no se almacena en TLB, porque no existe la TLB" , nro_pagina);}
 
     return nro_marco_recibido * tamanio_pagina + desplazamiento; // retorna la direccion_fisica
 }
