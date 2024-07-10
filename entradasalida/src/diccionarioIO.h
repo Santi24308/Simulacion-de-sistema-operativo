@@ -17,6 +17,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <dirent.h>
 
 t_list* lista_global_archivos_abiertos;
 

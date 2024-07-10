@@ -67,5 +67,8 @@ void agregar_al_final(archivo_t*, uint32_t);
 bool hay_espacio_suficiente();
 
 void eliminar_archivo_de_lista(t_list*, char*, bool*);
+void crear_archivo_desde_path(char* , char* );
+void levantar_archivos(const char *path);
+void levantar_archivos_creados();
 
 #endif

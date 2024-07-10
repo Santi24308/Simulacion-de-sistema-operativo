@@ -116,10 +116,11 @@ void inicializar_fs(){
 	block_size  = config_get_int_value(config_io, "BLOCK_SIZE");
     block_count = config_get_int_value(config_io,"BLOCK_COUNT");
     path_filesystem = config_get_string_value(config_io,"PATH_BASE_DIALFS");
-
+	lista_global_archivos_abiertos = list_create();
 	levantar_archivo_bitarray();
 	levantar_archivo_bloques();
-	lista_global_archivos_abiertos = list_create();
+	levantar_archivos_creados();
+
 
 	bitmap = malloc(sizeof(t_bitarray));
 	bitmap->size = tamanio_archivo_bitarray;
@@ -419,6 +420,85 @@ void levantar_archivo_bloques(){
 	}
 }
 
+
+void levantar_archivos(const char *path) {
+    DIR *dir;
+    struct dirent *entry;
+
+    if ((dir = opendir(path)) == NULL) {
+        perror("opendir() error");
+        return;
+    } else {
+        printf("Contenido del directorio: %s\n", path);
+        while ((entry = readdir(dir)) != NULL) {
+            // Ignorar "." y ".."
+            if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) {
+                char fullpath[1024];
+                snprintf(fullpath, sizeof(fullpath), "%s/%s", path, entry->d_name);
+                printf("%s\n", fullpath);
+				crear_archivo_desde_path(fullpath,entry->d_name);
+            }
+        }
+        closedir(dir);
+    }
+}
+
+void crear_archivo_desde_path(char* path, char* nombre_archivo){
+	char* ruta_completa = string_new();
+	string_append(&ruta_completa, path);
+	string_append(&ruta_completa, "/");
+	string_append(&ruta_completa, nombre_archivo);
+	t_config* config_archivo = config_create(path);
+	archivo_t* archivo = malloc(sizeof(archivo_t));
+	archivo->metadata = config_archivo;
+	archivo->nombre_archivo = string_new();
+	string_append(&archivo->nombre_archivo, nombre_archivo);
+	list_add(lista_global_archivos_abiertos, archivo);
+	log_info(logger_io, "Ruta Obtenida: %s  Nombre Archivo: %s",ruta_completa, nombre_archivo);
+	free(ruta_completa);
+}
+
+void levantar_archivos_creados(){
+    char initial_path[1024];
+    if (getcwd(initial_path, sizeof(initial_path)) == NULL) {
+        perror("getcwd() error");
+        return;
+    }
+	// Cambiar el directorio actual al directorio padre ("..")
+    if (chdir("..") != 0) {
+        perror("chdir() error");
+        return;
+    }
+
+    // Cambiar al directorio "src"
+    if (chdir("src") != 0) {
+        perror("chdir() error");
+        return;
+    }
+
+    // Cambiar al directorio "baseDIALFSmetadata"
+    if (chdir("baseDIALFSmetadata") != 0) {
+        perror("chdir() error");
+        return;
+    }
+	char current_path[1024];
+    if (getcwd(current_path, sizeof(current_path)) == NULL) {
+        perror("getcwd() error");
+        return;
+    }
+
+    // Listar archivos en el directorio actual
+    levantar_archivos(current_path);
+
+    // Volver al directorio inicial
+    if (chdir(initial_path) != 0) {
+        perror("chdir() error");
+        return;
+    }
+    return;
+}
+
+
 void ejecutar_fs_create(){
 	
 	//REPETICION DE LOGICA EN TODAS LAS IOS
@@ -681,12 +761,17 @@ void ampliar_tamanio(archivo_t* archivo, uint32_t tamanio_solicitado){
 	int bloques_asignados_antes = 1;
 	if (tamanio_archivo != 0)
 		bloques_asignados_antes = ceil(tamanio_archivo / block_size);
-
+	
 	// si tenia 4 bloques asignados, los bits 0 1 2 y 3 estaban en 1 (ocupados) 
 	// a partir de la posicion 4 quiero buscar libres
-	int bloques_a_asignar = ceil(tamanio_solicitado / block_size) - bloques_asignados_antes;
-	if (bloques_a_asignar == 0)
+	int algo = ceil(tamanio_solicitado / block_size);
+	
+	int bloques_a_asignar = ceil((float)tamanio_solicitado / (float)block_size) - bloques_asignados_antes;
+	if (bloques_a_asignar == 0){
+		config_set_value(archivo->metadata, "TAMANIO_ARCHIVO", string_itoa(tamanio_solicitado));
+		config_save(archivo->metadata);
 		return;
+	}		
 	
 	if (hay_bloques_contiguos_al_archivo(bloques_a_asignar, bloque_inicial + bloques_asignados_antes)){
 		int i = 0;
