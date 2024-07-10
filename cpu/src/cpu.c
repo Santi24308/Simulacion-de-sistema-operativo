@@ -408,6 +408,8 @@ char* obtener_nombre_motivo_desalojo(cod_desalojo cod){
             return "FINALIZACION_ERROR";
         case RECURSOS:
             return "RECURSOS";
+        case OUT_OF_MEMORY_ERROR:
+            return "OUT_OF_MEMORY";
         default:
             return NULL;  // nunca deberia entrar aca, esta pueso por los warning de retorno
     }
@@ -758,7 +760,7 @@ void leer_de_dir_fisica_los_bytes(uint32_t dir_fisica, uint32_t bytes, uint32_t*
     mem_hexdump(valor_leido, bytes);
     destruir_buffer(buffer);
 
-    log_info(logger_cpu, "Lectura/Escritura Memoria: “PID: %d - Acción: LEER - Dirección Física: %d - Valor: %s.", cde_ejecutando->pid, dir_fisica, mem_hexstring(&valor_leido, bytes));
+    log_info(logger_cpu, "Lectura/Escritura Memoria: “PID: %d - Acción: LEER - Dirección Física: %d - Valor: %d.", cde_ejecutando->pid, dir_fisica, *valor_leido);
 }
 
 void ejecutar_mov_in_un_byte(char* reg_datos, char* reg_direccion){
@@ -923,7 +925,7 @@ void escribir_en_dir_fisica_los_bytes(uint32_t dir_fisica, uint32_t bytes, uint3
     buffer_write_uint32(buffer, bytes); 
     enviar_buffer(buffer, socket_memoria);
 
-    log_info(logger_cpu, "Lectura/Escritura Memoria: “PID: %d - Acción: ESCRIBIR - Dirección Física: %d - Valor: %s.", cde_ejecutando->pid, dir_fisica, mem_hexstring(&valor_a_escribir, bytes));
+    log_info(logger_cpu, "Lectura/Escritura Memoria: “PID: %d - Acción: ESCRIBIR - Dirección Física: %d - Valor: %d.", cde_ejecutando->pid, dir_fisica, valor_a_escribir);
 }
 
 void escribir_y_guardar_en_dos_paginas(uint32_t dir_logica_destino, uint32_t* valor){
@@ -1175,10 +1177,9 @@ char* obtener_elementos_cargados_en_tlb(t_queue* cola){
 void desalojar_y_agregar(t_pagina_tlb* nueva_pagina){
     t_pagina_tlb* pag_a_remover = NULL;
 
-    if (strcmp(algoritmo_tlb, "FIFO")){
-        pag_a_remover = queue_peek(tlb);
+    if (strcmp(algoritmo_tlb, "FIFO") == 0){
+        pag_a_remover = queue_pop(tlb);
         free(pag_a_remover);
-        queue_pop(tlb);
         queue_push(tlb, nueva_pagina);
     } else {  // LRU
         t_list* lista_tlb = tlb->elements;
@@ -1191,11 +1192,17 @@ void desalojar_y_agregar(t_pagina_tlb* nueva_pagina){
     }
 }
 
+// en la implementacion funciona a la inversa, yo quiero que el que tenga menor tiempo, cantidad en segundos, sea reemplazado
+// ejemplo:
+// pagina 1 tiene tiempo de creado a los 200 segs de ejecucion
+// pagina 2 tiene tiempo de creado a los 1200 segs de ejecucion
+// entre las dos la mas reciente es la pagina 2, la otra hace 1000 segs no se accede
+
 void* mayor_tiempo_de_ultimo_acceso(void* A, void* B){
     t_pagina_tlb* paginaA = A;
     t_pagina_tlb* paginaB = B;
 
-    if (obtenerTiempoEnMiliSegundos(paginaA->tiempo_ultimo_acceso) >= obtenerTiempoEnMiliSegundos(paginaB->tiempo_ultimo_acceso))
+    if (obtenerTiempoEnMiliSegundos(paginaA->tiempo_ultimo_acceso) <= obtenerTiempoEnMiliSegundos(paginaB->tiempo_ultimo_acceso))
         return paginaA;
     else 
         return paginaB;
@@ -1224,6 +1231,7 @@ bool se_encuentra_en_tlb(uint32_t dir_logica, uint32_t* dir_fisica){
     while (i < list_size(tlb->elements) && !encontrado) {
         t_pagina_tlb* pagina = list_get(tlb->elements, i);
         if (pagina->nroPagina == nro_pag_buscada && pagina->pid == cde_ejecutando->pid){
+            pagina->tiempo_ultimo_acceso = temporal_get_string_time("%H:%M:%S:%MS");
             log_info(logger_cpu, "PID: %d - TLB HIT - Pagina: %d", cde_ejecutando->pid, nro_pag_buscada);
             log_info(logger_cpu, "PID: %d - OBTENER MARCO - Página: %d - Marco: %d", cde_ejecutando->pid, nro_pag_buscada, pagina->marco);
             *dir_fisica = pagina->marco * tamanio_pagina + desplazamiento;

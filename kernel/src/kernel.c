@@ -776,6 +776,7 @@ void recibir_cde_de_cpu(){
 
         t_buffer* buffer = recibir_buffer(socket_cpu_dispatch);
         t_cde* cde_recibido = buffer_read_cde(buffer);
+        destruir_buffer(buffer);
         // considero este el momento en donde hay que frenar el clock en caso de que no haya vuelto por fin de quantum
         // se hace el chequeo de que la instruccion no sea relacionada a SIGNAL o WAIT porque en ese caso no quiero frenar el reloj
         // ya que en caso de que el recurso no tenga demoras y el quantum no se haya consumido el cde vuelve DIRECTAMENTE a cpu
@@ -795,9 +796,14 @@ void recibir_cde_de_cpu(){
         pcb_en_ejecucion->cde = cde_recibido;
         pthread_mutex_unlock(&mutex_exec);
 
+        if (pcb_en_ejecucion->cde->motivo_desalojo == OUT_OF_MEMORY_ERROR){
+            pcb_en_ejecucion->cde->motivo_finalizacion = OUT_OF_MEMORY;
+            enviar_de_exec_a_finalizado();
+            return;
+        }
+
         evaluar_instruccion(pcb_en_ejecucion->cde->ultima_instruccion);        
 
-        destruir_buffer(buffer);
     }
 }
 
