@@ -1,7 +1,8 @@
 #include "cpu.h"
+int accesos;
 
 int main(int argc, char* argv[]) {
-
+    accesos = 0;
 	if(argc != 2) {
 		printf("ERROR: Tenés que pasar el path del archivo config de CPU\n");
 		return -1;
@@ -917,6 +918,12 @@ uint32_t truncar_bytes(uint32_t valor, uint32_t bytes_usados) {
 }
 
 void escribir_en_dir_fisica_los_bytes(uint32_t dir_fisica, uint32_t bytes, uint32_t valor_a_escribir){
+    if (cde_ejecutando->pid == 2)
+        accesos++;
+    if (accesos == 30) {
+        accesos = accesos;
+    }
+
     enviar_codigo(socket_memoria, MOV_OUT_SOLICITUD);
     t_buffer* buffer = crear_buffer();
     buffer_write_uint32(buffer, cde_ejecutando->pid);
