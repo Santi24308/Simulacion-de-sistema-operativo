@@ -531,10 +531,10 @@ void leer_a_partir_de_direccion(int socket_interfaz_io)
 	// hasta que no se pueda mas
 
 	t_pagina *pagina_siguiente = NULL;
-	uint32_t direccion_fisica_nueva = UINT32_MAX;
+	uint32_t direccion_fisica_nueva = direccion_fisica;
 
 	while (bytes_restantes != 0 && bytes_restantes >= tamanio_paginas){
-		pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica, pid);
+		pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica_nueva, pid);
 		direccion_fisica_nueva = recalcular_direccion_fisica(pagina_siguiente);
 		printf("\nVariable antes de la lectura:\n");
 		mem_hexdump(valor_a_leer, bytes_a_leer);
@@ -550,7 +550,7 @@ void leer_a_partir_de_direccion(int socket_interfaz_io)
 
 	if (bytes_restantes != 0){
 		pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica_nueva, pid);
-		direccion_fisica_nueva = recalcular_direccion_fisica(pagina_siguiente);//error
+		direccion_fisica_nueva = recalcular_direccion_fisica(pagina_siguiente);
 		printf("\nVariable antes de la lectura:\n");
 		mem_hexdump(valor_a_leer, bytes_a_leer);
 		memcpy(valor_a_leer+bytes_usados, memoria_fisica+direccion_fisica_nueva, bytes_restantes);

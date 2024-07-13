@@ -466,19 +466,24 @@ void levantar_archivos_creados(){
     }
 	// Cambiar el directorio actual al directorio padre ("..")
     if (chdir("..") != 0) {
-        perror("chdir() error");
+        perror("chdir(..) error");
         return;
     }
 
     // Cambiar al directorio "src"
     if (chdir("src") != 0) {
-        perror("chdir() error");
+        perror("chdir(src) error");
         return;
     }
 
-    // Cambiar al directorio "baseDIALFSmetadata"
-    if (chdir("baseDIALFSmetadata") != 0) {
-        perror("chdir() error");
+    // Cambiar al directorio "baseDIALFS"
+    if (chdir("baseDIALFS") != 0) {
+        perror("chdir(baseDIALFS) error");
+        return;
+    }
+	// Cambiar al directorio "metadata"
+    if (chdir("metadata") != 0) {
+        perror("chdir(metadata) error");
         return;
     }
 	char current_path[1024];
