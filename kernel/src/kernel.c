@@ -364,17 +364,11 @@ void trim_trailing_whitespace(char *str) {
 void cambiar_grado_multiprogramacion(char* nuevo_grado){
     //para cambiarlo la planificacion debe estar detendida
     int grado_a_asignar = atoi(nuevo_grado);
-    if(planificacion_detenida == 1){
+    
         // se puede cambiar el grado de multiprogramacion
-        
         grado_de_multiprogramacion.__align = grado_a_asignar - grado_max_multiprogramacion + grado_de_multiprogramacion.__align - 1;
         sem_post(&grado_de_multiprogramacion);
         grado_max_multiprogramacion = grado_a_asignar; // el grado_max_multiprog se actualiza para siempre contener el grado maximo de multirpg actual
-    }
-    else{
-        // no se puede realizar el cambio
-        log_warning(logger_kernel, "La planificacion no se detuvo. No se puede cambiar el grado de multiprogramacion");
-    }
 }
 
 t_pcb* crear_pcb(char* path){
@@ -1309,7 +1303,7 @@ void conectar_cpu_interrupt(){
 }
 
 void levantar_logger(){
-	logger_kernel = log_create("kernel_log.log", "KERNEL",true, LOG_LEVEL_INFO);
+	logger_kernel = log_create("kernel_log.log", "KERNEL",false, LOG_LEVEL_INFO);
 	if (!logger_kernel) {
 		perror("Error al iniciar logger de kernel\n");
 		exit(EXIT_FAILURE);
