@@ -846,19 +846,12 @@ void ejecutar_fs_delete(){
 		log_info(logger_io, "El archivo buscado no existe.");
 		return;
 	}
-
-
 	log_info(logger_io , "DialFS - Eliminar Archivo: PID: %d - Eliminar Archivo: %s " , pid, nombreArchivo);
 
-
-	log_info (logger_io ,"DialFS - Inicio Compactación: PID: %d - Inicio Compactación." , pid );
-
-	
-	log_info(logger_io , "DialFS - Fin Compactación: PID: %d - Fin Compactación. " , pid);
 } 
 
 void liberar_espacio_en_disco(int bloque_inicial, int tamanio_archivo){
-	int cantidad_bloques_totales = ceil(tamanio_archivo / block_size);
+	int cantidad_bloques_totales = ceil((float)tamanio_archivo / (float)block_size);
 	int i = 0;
 	while (i < cantidad_bloques_totales){
 		bitarray_clean_bit(bitmap, bloque_inicial + i);

@@ -397,21 +397,23 @@ void escribir_a_partir_de_direccion(int socket_interfaz_io)
 		// termina una pagina
 		bytes_a_copiar = bytes_a_copiar - tamanio_paginas;
 		int cant_paginas_restantes = ceil((float)bytes_a_copiar / tamanio_paginas);
+		uint32_t direccion_fisica_nueva = direccion_fisica;
 		while (cant_paginas_restantes > 1)
 		{
-			t_pagina *pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica, pid);
-			uint32_t direccion_fisica_nueva = recalcular_direccion_fisica(pagina_siguiente);
+			t_pagina *pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica_nueva, pid);
+			direccion_fisica_nueva = recalcular_direccion_fisica(pagina_siguiente);
 			printf("\nMemoria antes de la escritura:\n");
-			mem_hexdump(memoria_fisica, 64);
+			mem_hexdump(memoria_fisica+direccion_fisica_nueva, tamanio_paginas);
 			memcpy(memoria_fisica + direccion_fisica_nueva, valor_a_escribir + bytes_copiados, tamanio_paginas);
 			printf("\nMemoria despues de la escritura:\n");
-			mem_hexdump(memoria_fisica, 64);
+			mem_hexdump(memoria_fisica+direccion_fisica_nueva, tamanio_paginas);
 			bytes_copiados += tamanio_paginas;
 			bytes_a_copiar = bytes_a_copiar - tamanio_paginas;
 			cant_paginas_restantes = ceil((float)bytes_a_copiar / tamanio_paginas);
+			
 		}
-		t_pagina *pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica, pid);
-		uint32_t direccion_fisica_nueva = recalcular_direccion_fisica(pagina_siguiente);
+		t_pagina *pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica_nueva, pid);
+		direccion_fisica_nueva = recalcular_direccion_fisica(pagina_siguiente);
 		printf("\nMemoria antes de la escritura:\n");
 		mem_hexdump(memoria_fisica, 64);
 		memcpy(memoria_fisica + direccion_fisica_nueva, valor_a_escribir + bytes_copiados, bytes_a_copiar);

@@ -843,6 +843,9 @@ void evaluar_instruccion(t_instruccion* ultima_instruccion){
         case IO_FS_READ:
             evaluar_io(ultima_instruccion);
             break;
+        case IO_FS_DELETE:
+            evaluar_io(ultima_instruccion);
+            break;
         case EXIT:
             pcb_en_ejecucion->cde->motivo_finalizacion = SUCCESS;
             enviar_de_exec_a_finalizado();
