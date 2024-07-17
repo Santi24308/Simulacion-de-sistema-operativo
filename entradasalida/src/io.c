@@ -13,8 +13,6 @@ int main(int argc, char* argv[]) {
 	conectar();
 	sem_wait(&terminar_io);
 
-    terminar_programa();
-
     return 0;
 }
 
@@ -64,8 +62,7 @@ void atender_kernel_generica(){
 	while(1){
 		codigoInstruccion cod = recibir_codigo(socket_kernel);
 		if (cod == UINT8_MAX){
-			terminar_programa();
-			exit(0);
+			return;
 		}
 		switch (cod){
 			case IO_GEN_SLEEP:
@@ -91,8 +88,7 @@ void atender_kernel_stdin(){
 	while(1){
 		codigoInstruccion cod = recibir_codigo(socket_kernel);
 		if (cod == UINT8_MAX){
-			terminar_programa();
-			exit(0);
+			return;
 		}
 		switch (cod){
 			case IO_STDIN_READ:
@@ -109,8 +105,7 @@ void atender_kernel_stdout(){
 	while(1){
 		codigoInstruccion cod = recibir_codigo(socket_kernel);
 		if (cod == UINT8_MAX){
-			terminar_programa();
-			exit(0);
+			return;
 		}
 		switch (cod){
 			case IO_STDOUT_WRITE:
@@ -155,8 +150,7 @@ void atender_kernel_dialfs(){
 	while(1){
 		codigoInstruccion cod = recibir_codigo(socket_kernel);
 		if (cod == UINT8_MAX){
-			terminar_programa();
-			exit(0);
+			return;
 		}
 		switch (cod){
 			case IO_FS_CREATE:

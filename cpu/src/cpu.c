@@ -9,14 +9,11 @@ int main(int argc, char* argv[]) {
 	}
 
 	config_path = argv[1];
-    sistema_funcionando = true;
-    
+
 	inicializar_modulo();
 	conectar();
 
     sem_wait(&terminar_cpu);
-
-    terminar_programa();
 
     return 0;
 }
@@ -143,12 +140,10 @@ void conectar_kernel_interrupt(){
 }
 
 void atender_kernel_dispatch(){
-	while(sistema_funcionando){
+	while(1){
 		mensajeKernelCpu op_code = recibir_codigo(socket_kernel_dispatch);
         if (op_code == UINT8_MAX){
-            sistema_funcionando = false;
-            terminar_programa();
-            exit(0);
+            return;
         }
 
 		t_buffer* buffer = recibir_buffer(socket_kernel_dispatch);
@@ -176,11 +171,9 @@ void atender_kernel_dispatch(){
 }
 
 void atender_kernel_interrupt(){
-    while(sistema_funcionando){
+    while(1){
         mensajeKernelCpu op_code = recibir_codigo(socket_kernel_interrupt);
         if (op_code == UINT8_MAX){
-            sem_post(&terminar_cpu);
-            sistema_funcionando = false;
             return;
         }
 

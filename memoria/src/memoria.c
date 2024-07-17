@@ -18,8 +18,6 @@ int main(int argc, char *argv[])
 
 	sem_wait(&terminar_memoria);
 
-	terminar_programa();
-
 	return 0;
 }
 
