@@ -1,6 +1,44 @@
 #include "kernel.h"
 
+void handle_sigint(int sig) {
+    printf("\nPrograma finalizado por SIGINT\n");
+    
+    if (conexiones_realizadas){
+        if (socket_cpu_dispatch != -1)
+            enviar_codigo(socket_cpu_dispatch, UINT8_MAX);
+        
+        if (socket_cpu_interrupt != -1)
+            enviar_codigo(socket_memoria, UINT8_MAX);
+    }
+
+    if (modulo_inicializado){
+        int i = 0;
+        while (i < list_size(interfacesIO)){
+            t_interfaz* interfazIO = list_get(interfacesIO, i);
+            enviar_codigo(interfazIO->socket, UINT8_MAX);
+        }
+
+        pthread_cancel(hilo_esperar_IOs);
+        pthread_cancel(hilo_io);
+        pthread_cancel(hilo_consola);
+        pthread_cancel(hilo_memoria);
+        pthread_cancel(hilo_plani_corto);
+        pthread_cancel(hilo_plani_largo_exit);
+        pthread_cancel(hilo_recepcion_cde);
+        pthread_cancel(hilo_plani_largo_new);
+
+        terminar_programa();
+    }
+
+    exit(0); // Salir del programa inmediatamente
+}
+
 int main(int argc, char* argv[]) {
+
+    signal(SIGINT, handle_sigint);
+    // estas dos variables son exclusivamente para el control de la salida del programa por ctrlC
+    conexiones_realizadas = false;
+    modulo_inicializado = false;
 
 	if(argc != 2) {
 		printf("ERROR: Tenés que pasar el path del archivo config de Kernel\n");
@@ -13,7 +51,7 @@ int main(int argc, char* argv[]) {
 	conectar();
 
     //iniciar_proceso("instruccionesP1.txt");
-    consola();
+    conectar_consola();
 
     sem_wait(&terminar_kernel);
 
@@ -38,7 +76,7 @@ void conectar(){
 
     pthread_create(&hilo_esperar_IOs, NULL, (void*) esperarIOs, NULL);
     pthread_detach(hilo_esperar_IOs);
-
+    conexiones_realizadas = true;
 }
 
 void conectar_io(pthread_t* hilo_io, int* socket_io){
@@ -154,6 +192,7 @@ void inicializar_modulo(){
     levantar_recepcion_cde();
 
     iniciar_quantum();
+    modulo_inicializado = true;
 }
 
 void levantar_planificador_largo_plazo(){
@@ -217,7 +256,6 @@ void consola(){
 		printf("\tDETENER_PLANIFICACION -- Detener planificacion\n");
 		printf("\tMULTIPROGRAMACION [VALOR] -- Modificar multiprogramación\n");
 		printf("\tPROCESO_ESTADO -- Listar procesos por estado\n");
-        printf("\x1b[31m""\tFINALIZAR_SISTEMA -- Finalizar todo el sistema, todos los modulos\n""\x1b[0m""\n");
 
         char* entrada = readline("> ");
 
@@ -1318,10 +1356,103 @@ void levantar_config(){
 	}
 }
 
+void destructor_pcb(void* pcb){
+    t_pcb* pcb_a_destruir = pcb;
+    temporal_destroy(pcb_a_destruir->clock);
+    destruir_cde(pcb_a_destruir->cde);
+    list_destroy(pcb_a_destruir->recursos_asignados);
+    list_destroy(pcb_a_destruir->recursos_solicitados);
+    free(pcb_a_destruir);
+}
+
+void destruir_listas(){
+    list_destroy_and_destroy_elements(procesos_globales, destructor_pcb);
+    queue_destroy(procesosNew);
+    queue_destroy(procesosReady);
+    if (strcmp(algoritmo, "VRR") == 0)
+        queue_destroy(procesosReadyPlus);
+    queue_destroy(procesosBloqueados);
+    queue_destroy(procesosFinalizados);
+}
+
+void destruir_recursos(){
+    int i = 0;
+    while (i < list_size(recursos)){
+        t_recurso* recurso = list_get(recursos, i);
+        free(recurso->nombre);
+        list_destroy(recurso->procesos_bloqueados);
+        sem_destroy(&recurso->sem_recurso);
+        free(recurso);
+    }
+    list_destroy(recursos);
+}
+
+void destruir_semaforos(){
+    sem_destroy(&terminar_kernel);
+    sem_destroy(&procesos_en_exec);
+    sem_destroy(&cde_recibido);
+    sem_destroy(&cpu_libre);
+    sem_destroy(&procesos_en_new);
+    sem_destroy(&procesos_en_ready);
+    sem_destroy(&procesos_en_blocked);
+    sem_destroy(&procesos_en_exit);
+    sem_destroy(&sem_iniciar_quantum);
+    sem_destroy(&sem_reloj_destruido);
+    sem_destroy(&no_end_kernel);
+    sem_destroy(&grado_de_multiprogramacion);
+    sem_destroy(&clock_VRR);
+    sem_destroy(&sem_liberar_archivos);
+    sem_destroy(&pausar_new_a_ready);
+    sem_destroy(&pausar_ready_a_exec);
+    sem_destroy(&pausar_exec_a_finalizado);
+    sem_destroy(&pausar_exec_a_ready);
+    sem_destroy(&pausar_exec_a_blocked);
+    sem_destroy(&pausar_blocked_a_ready);
+    sem_destroy(&pausar_blocked_a_readyPlus);
+    pthread_mutex_destroy(&mutex_procesos_globales);
+    pthread_mutex_destroy(&mutex_new);
+    pthread_mutex_destroy(&mutex_ready);
+    pthread_mutex_destroy(&mutex_readyPlus);
+    pthread_mutex_destroy(&mutex_block);
+    pthread_mutex_destroy(&mutex_finalizados);
+    pthread_mutex_destroy(&mutex_exec);
+    pthread_mutex_destroy(&mutex_interfaz);
+    pthread_mutex_destroy(&mutex_fin_q_VRR);
+    pthread_mutex_destroy(&mutex_pcb_en_ejecucion);
+    pthread_mutex_destroy(&mutex_frenar_reloj);
+}
+
+void destruir_interfaz(void* inter){
+    t_interfaz* interfaz = inter;
+    if (interfaz->socket != -1)
+        close(interfaz->socket); // cerramos conexion
+    free(interfaz->nombre);
+    free(interfaz->tipo);
+    queue_destroy(interfaz->pcb_esperando);
+    free(interfaz);
+}
+
+void destruir_interfaces(){
+    list_destroy_and_destroy_elements(interfacesIO, destruir_interfaz);
+}
+
 void terminar_programa(){
-	terminar_conexiones(3, socket_memoria, socket_cpu_dispatch, socket_cpu_interrupt);
     if(logger_kernel) log_destroy(logger_kernel);
     if(config_kernel) config_destroy(config_kernel);
+    destruir_recursos();
+    destruir_semaforos();
+    destruir_interfaces(); 
+    destruir_listas();
+
+    if (socket_cpu_dispatch != -1)
+        close(socket_cpu_dispatch);
+    if (socket_cpu_interrupt != -1)
+        close(socket_cpu_interrupt);
+
+    if (socket_memoria != -1)
+        close(socket_memoria);
+    if (socket_servidor != -1)
+		close(socket_servidor);
 }
 
 void iterator(char* value) {

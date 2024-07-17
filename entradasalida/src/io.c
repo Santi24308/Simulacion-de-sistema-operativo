@@ -63,6 +63,10 @@ void avisar_finalizacion_a_kernel(){
 void atender_kernel_generica(){
 	while(1){
 		codigoInstruccion cod = recibir_codigo(socket_kernel);
+		if (cod == UINT8_MAX){
+			terminar_programa();
+			exit(0);
+		}
 		switch (cod){
 			case IO_GEN_SLEEP:
 				t_buffer* buffer = recibir_buffer(socket_kernel);
@@ -86,6 +90,10 @@ void atender_kernel_generica(){
 void atender_kernel_stdin(){
 	while(1){
 		codigoInstruccion cod = recibir_codigo(socket_kernel);
+		if (cod == UINT8_MAX){
+			terminar_programa();
+			exit(0);
+		}
 		switch (cod){
 			case IO_STDIN_READ:
 					ejecutar_std_in();
@@ -100,6 +108,10 @@ void atender_kernel_stdin(){
 void atender_kernel_stdout(){
 	while(1){
 		codigoInstruccion cod = recibir_codigo(socket_kernel);
+		if (cod == UINT8_MAX){
+			terminar_programa();
+			exit(0);
+		}
 		switch (cod){
 			case IO_STDOUT_WRITE:
 				ejecutar_std_out();
@@ -142,6 +154,10 @@ void atender_kernel_dialfs(){
 
 	while(1){
 		codigoInstruccion cod = recibir_codigo(socket_kernel);
+		if (cod == UINT8_MAX){
+			terminar_programa();
+			exit(0);
+		}
 		switch (cod){
 			case IO_FS_CREATE:
 				usleep(unidad_tiempo_trabajo * 1000);
@@ -320,16 +336,40 @@ void levantar_config(){
 	}
 }
 
+void destruir_archivo(void* arch){
+	archivo_t* archivo = arch;
+
+	config_destroy(archivo->metadata);
+	free(archivo->nombre_archivo);
+	free(archivo);
+}
+
 void terminar_programa(){
 	munmap(bitmap, tamanio_archivo_bitarray);
     munmap(bloquesmap, tamanio_archivo_bloques);
+	free(bloquesmap);
+	bitarray_destroy(bitmap);
 
 	close(fd_bitarray);
 	close(fd_bloques);
 
-	terminar_conexiones(2, socket_memoria, socket_kernel);
     if(logger_io) log_destroy(logger_io);
     if(config_io) config_destroy(config_io);
+
+	free(nombreIO);
+	free(tipo);
+	free(config_path);
+
+	sem_destroy(&sema_memoria);
+	sem_destroy(&sema_kernel);
+	sem_destroy(&terminar_io);
+
+	list_destroy_and_destroy_elements(lista_global_archivos_abiertos, destruir_archivo);
+
+	if (socket_kernel != -1)
+		close(socket_kernel);
+	if (socket_memoria != -1)
+		close(socket_memoria);
 }
 	
 /////////////////     DIALFS     /////////////////
@@ -769,7 +809,6 @@ void ampliar_tamanio(archivo_t* archivo, uint32_t tamanio_solicitado){
 	
 	// si tenia 4 bloques asignados, los bits 0 1 2 y 3 estaban en 1 (ocupados) 
 	// a partir de la posicion 4 quiero buscar libres
-	int algo = ceil(tamanio_solicitado / block_size);
 	
 	int bloques_a_asignar = ceil((float)tamanio_solicitado / (float)block_size) - bloques_asignados_antes;
 	if (bloques_a_asignar == 0){

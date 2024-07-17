@@ -73,7 +73,6 @@ typedef struct{
 int crear_conexion(char* ip, char* puerto);
 int iniciar_servidor(char*, t_log*);
 int esperar_cliente(int, t_log*);
-void terminar_conexiones(int num_sockets, ...);
 
 /* BORRAR
 // PROCESOS KERNEL

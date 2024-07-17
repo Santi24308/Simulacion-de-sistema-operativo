@@ -10,6 +10,7 @@ int main(int argc, char *argv[])
 	}
 
 	config_path = argv[1];
+	sistema_funcionando = true;
 
 	inicializar_modulo();
 	inicializar_paginacion();
@@ -166,9 +167,14 @@ void conectar_cpu()
 
 void atender_kernel()
 {
-	while (1)
+	while (sistema_funcionando)
 	{
-		int cod_kernel = recibir_codigo(socket_kernel);
+		mensajeMemoriaKernel cod_kernel = recibir_codigo(socket_kernel);
+		if (cod_kernel == UINT8_MAX){
+			sistema_funcionando = false;
+			terminar_programa();
+			exit(0);
+		}
 		switch (cod_kernel)
 		{
 		case INICIAR_PROCESO_SOLICITUD:
@@ -178,10 +184,6 @@ void atender_kernel()
 		case FINALIZAR_PROCESO_SOLICITUD:
 			liberar_proceso();
 			break;
-		case -1:
-			log_error(logger_memoria, "Se desconecto KERNEL");
-			sem_post(&terminar_memoria);
-			return;
 		default:
 			break;
 		}
@@ -191,9 +193,10 @@ void atender_kernel()
 void atender_cpu()
 {
 	retardo_respuesta = config_get_string_value(config_memoria, "RETARDO_RESPUESTA");
-	while (1)
+	while (sistema_funcionando)
 	{
 		mensajeCpuMem pedido_cpu = recibir_codigo(socket_cpu);
+
 		switch (pedido_cpu)
 		{
 		case PEDIDO_INSTRUCCION:
@@ -827,13 +830,59 @@ void enviar_instruccion()
 	destruir_buffer(buffer_instruccion);
 }
 
-void terminar_programa()
-{
+void destructor_instruccion(void* inst){
+	t_instruccion* instruccion = inst;
+
+	free(instruccion->parametro1);
+	free(instruccion->parametro2);
+	free(instruccion->parametro3);
+	free(instruccion->parametro4);
+	free(instruccion->parametro5);
+	free(instruccion);
+}
+
+void destruir_proceso(void* proceso){
+	t_proceso* proceso_a_destruir = proceso;
+	list_destroy_and_destroy_elements(proceso_a_destruir->lista_instrucciones, destructor_instruccion);
+	list_destroy(proceso_a_destruir->tabla_de_paginas);
+	free(proceso_a_destruir);
+}
+
+void destruir_interfaz(void* inter){
+    t_interfaz* interfaz = inter;
+	if (interfaz->socket != -1)
+    	close(interfaz->socket); // cerramos conexion
+    free(interfaz->id);
+    free(interfaz->tipo);
+    free(interfaz);
+}
+
+void destruir_interfaces(){
+    list_destroy_and_destroy_elements(interfacesIO, destruir_interfaz);
+}
+
+void terminar_programa(){
 	liberarMemoriaPaginacion();
 	if (logger_memoria)
 		log_destroy(logger_memoria);
 	if (config_memoria)
 		config_destroy(config_memoria);
+	
+	list_destroy_and_destroy_elements(lista_procesos, destruir_proceso);
+	list_destroy(tabla_de_marcos);
+	destruir_interfaces();
+
+	pthread_mutex_destroy(&mutex_lista_procesos);
+	pthread_mutex_destroy(&mutex_lista_tablas);
+	sem_destroy(&terminar_memoria);
+
+	if (socket_cpu != -1)
+		close(socket_cpu);
+	if (socket_kernel != -1)
+		close(socket_kernel);
+	if (socket_servidor != -1)
+		close(socket_servidor);
+
 }
 
 void iterator(char *value)

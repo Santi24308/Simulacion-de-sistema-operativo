@@ -9,7 +9,8 @@ int main(int argc, char* argv[]) {
 	}
 
 	config_path = argv[1];
-
+    sistema_funcionando = true;
+    
 	inicializar_modulo();
 	conectar();
 
@@ -142,17 +143,15 @@ void conectar_kernel_interrupt(){
 }
 
 void atender_kernel_dispatch(){
-	while(1){
+	while(sistema_funcionando){
 		mensajeKernelCpu op_code = recibir_codigo(socket_kernel_dispatch);
+        if (op_code == UINT8_MAX){
+            sistema_funcionando = false;
+            terminar_programa();
+            exit(0);
+        }
 
 		t_buffer* buffer = recibir_buffer(socket_kernel_dispatch);
-
-        // en caso de que se desconecte kernel NO se sigue
-        // nos sirve mas que nada para tener una salida segura
-        if (op_code == UINT8_MAX || !buffer) {
-            sem_post(&terminar_cpu);
-            return;
-        }
 
 		switch (op_code){
 			case EJECUTAR_PROCESO:
@@ -177,15 +176,16 @@ void atender_kernel_dispatch(){
 }
 
 void atender_kernel_interrupt(){
-    while(1){
+    while(sistema_funcionando){
         mensajeKernelCpu op_code = recibir_codigo(socket_kernel_interrupt);
-        t_buffer* buffer = recibir_buffer(socket_kernel_interrupt); // recibe pid o lo que necesite
-        // en caso de que se desconecte kernel NO se sigue
-        // nos sirve mas que nada para tener una salida segura
-        if (op_code == UINT8_MAX || !buffer) {
+        if (op_code == UINT8_MAX){
             sem_post(&terminar_cpu);
+            sistema_funcionando = false;
             return;
         }
+
+        t_buffer* buffer = recibir_buffer(socket_kernel_interrupt); // recibe pid o lo que necesite
+        
         uint32_t pid_recibido = buffer_read_uint32(buffer);
         destruir_buffer(buffer);
         
@@ -228,10 +228,42 @@ void conectar_memoria(){
     destruir_buffer(buffer);
 }
 
+void destruir_pagina(void* pag){
+    t_pagina_tlb* pagina = pag;
+    free(pagina->tiempo_ultimo_acceso);
+    free(pagina);
+}
+
+void destruir_tlb(){
+    queue_destroy_and_destroy_elements(tlb, destruir_pagina);
+}
+
 void terminar_programa(){
-	terminar_conexiones(1, socket_memoria);
     if(logger_cpu) log_destroy(logger_cpu);
     if(config_cpu) config_destroy(config_cpu);
+    if(cantidad_entradas_tlb != 0) destruir_tlb();
+    free(registros_cpu);
+
+    sem_destroy(&terminar_cpu);
+    sem_destroy(&sema_memoria);
+    sem_destroy(&sema_ejecucion);
+
+    pthread_mutex_destroy(&mutex_cde_ejecutando);
+    pthread_mutex_destroy(&mutex_desalojar);
+    pthread_mutex_destroy(&mutex_instruccion_actualizada);
+
+    if (socket_memoria != -1)
+        close(socket_memoria);
+    if (socket_kernel_dispatch != -1)
+        close(socket_kernel_dispatch);
+    if (socket_kernel_interrupt != -1)
+        close(socket_kernel_interrupt);
+    if (socket_servidor != -1)
+		close(socket_servidor);
+    if (socket_servidor_dispatch != -1)
+		close(socket_servidor_dispatch);
+    if (socket_servidor_interrupt != -1)
+		close(socket_servidor_interrupt);
 }
 
 void iterator(char* value) {

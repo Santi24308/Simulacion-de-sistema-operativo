@@ -16,6 +16,8 @@
 #include <math.h>
 #include <alloca.h>
 
+bool sistema_funcionando;
+
 typedef struct{
 	uint32_t pid;	
 	t_list* lista_instrucciones;
@@ -66,8 +68,6 @@ pthread_t hilo_cpu;
 pthread_t hilo_io;
 pthread_t hilo_esperar_IOs;
 pthread_t hilo_kernel;
-
-pthread_mutex_t sem_pagina_cargada; 
 
 sem_t terminar_memoria;
 

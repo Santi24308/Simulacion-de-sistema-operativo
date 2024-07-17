@@ -81,6 +81,8 @@ pthread_t hilo_plani_corto;
 pthread_t hilo_plani_largo_new;
 pthread_t hilo_plani_largo_exit;
 pthread_t hilo_recepcion_cde;
+bool conexiones_realizadas;
+bool modulo_inicializado;
 
 uint32_t id_a_asignar;
 

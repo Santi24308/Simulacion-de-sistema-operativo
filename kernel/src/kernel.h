@@ -19,6 +19,7 @@ void inicializar_modulo();
 void consola();
 void conectar();
 void iterator(char*);
+void conectar_consola();
 // CHECKPOINT 2
 void inicializarListas();
 void inicializarSemaforos();

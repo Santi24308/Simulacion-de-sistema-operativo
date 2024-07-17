@@ -16,6 +16,8 @@
 #include <math.h>
 #include <stdbool.h>
 
+bool sistema_funcionando;
+
 typedef struct {
     uint32_t pid;
     uint32_t nroPagina;
