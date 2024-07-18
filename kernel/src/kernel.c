@@ -1293,7 +1293,7 @@ void conectar_cpu_interrupt(){
 }
 
 void levantar_logger(){
-	logger_kernel = log_create("kernel_log.log", "KERNEL",true, LOG_LEVEL_INFO);
+	logger_kernel = log_create("kernel_log.log", "KERNEL",false, LOG_LEVEL_INFO);
 	if (!logger_kernel) {
 		perror("Error al iniciar logger de kernel\n");
 		exit(EXIT_FAILURE);

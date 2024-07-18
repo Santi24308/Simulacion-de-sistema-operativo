@@ -386,9 +386,10 @@ void ejecutar_proceso(){
         destruir_instruccion(cde_ejecutando->ultima_instruccion);
         cde_ejecutando->ultima_instruccion = instruccion_a_ejecutar;
 
+        registros_cpu->PC += 1;
+        
         ejecutar_instruccion(instruccion_a_ejecutar);
 
-        registros_cpu->PC += 1;
 	}
 
 	if(interrupcion){

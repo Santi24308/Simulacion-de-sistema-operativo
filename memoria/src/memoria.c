@@ -272,18 +272,30 @@ void atender_cpu()
 
 			// CASO REDUCCION
 			if (tamanio < tamanio_reservado)
-			{
-				uint32_t diferencia = tamanio_reservado_en_paginas - cantidad_paginas_solicitadas;
+			{	
 				log_info(logger_memoria, "PID: %d -Tamaño actual: %d -Tamaño a Reducir: %d", pid_resize, tamanio_reservado, tamanio);
-				while (diferencia > 0)
+				
+				if(tamanio == 0) 
+				{
+				// Liberar todos los recursos asociados al proceso
+				log_info(logger_memoria, "PID: %d - Tamaño solicitado es 0, liberando todos los recursos.", pid_resize);
+				while (!list_is_empty(proceso->tabla_de_paginas)) {
+				t_pagina *pagina_a_eliminar = list_remove(proceso->tabla_de_paginas, 0);
+				destruir_pagina_y_liberar_marco(pagina_a_eliminar);
+				}
+				log_info(logger_memoria, "PID: %d - Se liberaron todos los recursos.", pid_resize);
+				}
+
+				uint32_t diferencia = tamanio_reservado_en_paginas - cantidad_paginas_solicitadas;
+				while (tamanio != 0 && diferencia > 0)
 				{
 					int indice_pagina_a_eliminar = list_size(proceso->tabla_de_paginas) - 1;
 					t_pagina *pagina_a_eliminar = list_get(proceso->tabla_de_paginas, indice_pagina_a_eliminar);
 					destruir_pagina_y_liberar_marco(pagina_a_eliminar);
 					list_remove_element(proceso->tabla_de_paginas, pagina_a_eliminar);
 					diferencia--;
+					log_info(logger_memoria, "Se destruyeron paginas del proceso PID: %d - Tamaño %d", pid_resize, diferencia);
 				}
-				log_info(logger_memoria, "Se destruyeron paginas del proceso PID: %d - Tamaño %d", pid_resize, diferencia);
 			}
 
 			// CASO AMPLIACION
