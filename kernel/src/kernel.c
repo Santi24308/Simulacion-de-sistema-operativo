@@ -603,11 +603,14 @@ void terminar_proceso(){
 
 void iniciar_quantum(){
     pthread_t clock_rr;
-    if (strcmp(algoritmo, "VRR") == 0)
+    if (strcmp(algoritmo, "VRR") == 0){
         pthread_create(&clock_rr, NULL, (void*) controlar_tiempo_de_ejecucion_VRR, NULL);
-    else 
+        pthread_detach(clock_rr);
+        }
+    else if (strcmp(algoritmo, "RR") == 0){
         pthread_create(&clock_rr, NULL, (void*) controlar_tiempo_de_ejecucion, NULL);
-    pthread_detach(clock_rr);
+        pthread_detach(clock_rr);
+    }
 }
 
 void controlar_tiempo_de_ejecucion(){  
