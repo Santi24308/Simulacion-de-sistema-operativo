@@ -593,7 +593,7 @@ void iniciar_quantum(){
     pthread_t clock_rr;
     if (strcmp(algoritmo, "VRR") == 0)
         pthread_create(&clock_rr, NULL, (void*) controlar_tiempo_de_ejecucion_VRR, NULL);
-    else 
+    else
         pthread_create(&clock_rr, NULL, (void*) controlar_tiempo_de_ejecucion, NULL);
     pthread_detach(clock_rr);
 }
