@@ -26,7 +26,7 @@ void inicializarSemaforos();
 t_pcb* crear_pcb(char*);
 void destruir_pcb(t_pcb*);
 t_pcb* encontrar_pcb_por_pid(uint32_t, int* );
-void retirar_pcb_de_su_respectivo_estado(uint32_t, int* );
+void retirar_pcb_de_su_respectivo_estado(t_pcb* );
 void finalizar_pcb(t_pcb*);
 void iniciar_proceso(char*);
 void terminar_proceso();

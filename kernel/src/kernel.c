@@ -436,11 +436,9 @@ t_pcb* encontrar_pcb_por_pid(uint32_t pid, int* encontrado){
 }
 
 
-void retirar_pcb_de_su_respectivo_estado(uint32_t pid, int* resultado){
-    t_pcb* pcb_a_retirar = encontrar_pcb_por_pid(pid, resultado);
+void retirar_pcb_de_su_respectivo_estado(t_pcb* pcb_a_retirar){
     pcb_a_retirar->cde->motivo_finalizacion = INTERRUMPED_BY_USER;
 
-    if(resultado){
         switch(pcb_a_retirar->estado){
             case NEW:
                 sem_wait(&procesos_en_new);
@@ -465,7 +463,6 @@ void retirar_pcb_de_su_respectivo_estado(uint32_t pid, int* resultado){
                 break;
             case EXEC:
                 enviar_codigo(socket_cpu_interrupt, INTERRUPT);
-                
                 t_buffer* buffer = crear_buffer();
                 buffer_write_uint32(buffer, pcb_a_retirar->cde->pid);
                 enviar_buffer(buffer, socket_cpu_interrupt);
@@ -477,11 +474,7 @@ void retirar_pcb_de_su_respectivo_estado(uint32_t pid, int* resultado){
             default:
                 log_error(logger_kernel, "Entre al default en estado nro: %d", pcb_a_retirar->estado);
                 break;
-        
-        }
     }
-    else
-        log_warning(logger_kernel, "No ejecute el switch");
 }
 
 void finalizar_pcb(t_pcb* pcb_a_finalizar){
@@ -531,34 +524,29 @@ void iniciar_proceso(char* path){
  
 }
 
-void finalizarProceso(uint32_t pid_string){
-    int resultado = 0;
-    retirar_pcb_de_su_respectivo_estado(pid_string, &resultado);    
-    return;
-}
 
 void terminar_proceso_consola(uint32_t pid){
     int encontrado;
     t_pcb* pcb_a_liberar = encontrar_pcb_por_pid(pid, &encontrado);
-    t_buffer* buffer = crear_buffer();
-    buffer_write_uint32(buffer, pid);
 
-    enviar_codigo(socket_cpu_interrupt, INTERRUPT);
-    enviar_buffer(buffer, socket_cpu_interrupt);
-    
-    enviar_codigo(socket_memoria, FINALIZAR_PROCESO_SOLICITUD);
-    enviar_buffer(buffer, socket_memoria);
+    // Cuando pasa de EXEC a FINALIZADO ya se le manda a memoria el mensaje para borrarlo
+    if(pcb_a_liberar->estado != EXEC){
+        enviar_codigo(socket_memoria, FINALIZAR_PROCESO_SOLICITUD);
+        t_buffer* buffer = crear_buffer();
+        buffer_write_uint32(buffer, pid);
+        enviar_buffer(buffer, socket_memoria);
+        destruir_buffer(buffer);
+    }
 
-    destruir_buffer(buffer);
 
     mensajeMemoriaKernel rta_memoria = recibir_codigo(socket_memoria);
 
     if(rta_memoria == FINALIZAR_PROCESO_OK){
         log_info(logger_kernel, "SE ELIMINO PROCESO PID: %i DE MEMORIA", pid);
-        if(encontrado){
+        if(pcb_a_liberar){
         liberar_recursos_pcb(pcb_a_liberar);
         pthread_mutex_lock(&mutex_procesos_globales);
-	    retirar_pcb_de_su_respectivo_estado(pid, &encontrado);
+	    retirar_pcb_de_su_respectivo_estado(pcb_a_liberar);
         list_remove_element(procesos_globales, pcb_a_liberar);   // lo elimina de la global
 	    pthread_mutex_unlock(&mutex_procesos_globales);
         }
@@ -603,11 +591,14 @@ void terminar_proceso(){
 
 void iniciar_quantum(){
     pthread_t clock_rr;
-    if (strcmp(algoritmo, "VRR") == 0)
-        pthread_create(&clock_rr, NULL, (void*) controlar_tiempo_de_ejecucion_VRR, NULL);
-    else 
+    if(strcmp(algoritmo, "VRR") == 0){
+        pthread_create(&clock_rr, NULL, (void*) controlar_tiempo_de_ejecucion_VRR, NULL); 
+        pthread_detach(clock_rr);
+    }
+    else if (strcmp(algoritmo, "RR") == 0){
         pthread_create(&clock_rr, NULL, (void*) controlar_tiempo_de_ejecucion, NULL);
-    pthread_detach(clock_rr);
+        pthread_detach(clock_rr);
+    }    
 }
 
 void controlar_tiempo_de_ejecucion(){  
@@ -772,6 +763,10 @@ void recibir_cde_de_cpu(){
         } else if (strcmp(algoritmo, "VRR") == 0 && !pcb_en_ejecucion->clock && cde_recibido->motivo_desalojo == RECURSOS){
             log_warning(logger_kernel, "Vuelve el proceso %d SIN tiempo restante con motivo %s", pcb_en_ejecucion->cde->pid, obtener_nombre_motivo(cde_recibido->motivo_desalojo));
         }
+        if(pcb_en_ejecucion->cde->motivo_finalizacion == INTERRUMPED_BY_USER){
+            enviar_de_exec_a_finalizado();
+            return;
+        }
 
         pthread_mutex_lock(&mutex_exec);
         // retiramos el cde anterior a ser ejecutado
@@ -846,7 +841,7 @@ void evaluar_instruccion(t_instruccion* ultima_instruccion){
 
 void evaluar_io(t_instruccion* ultima_instruccion){
     if (!interfaz_valida(ultima_instruccion->parametro1)){
-        finalizarProceso(pcb_en_ejecucion->cde->pid);
+        terminar_proceso_consola(pcb_en_ejecucion->cde->pid);
         return;
     }
 
@@ -1626,7 +1621,7 @@ void enviar_de_ready_a_exec(){
 
 		pthread_mutex_lock(&mutex_exec);
 		pcb_en_ejecucion = retirar_pcb_de_ready_segun_algoritmo();
-		pthread_mutex_unlock(&mutex_exec);
+        pthread_mutex_unlock(&mutex_exec);
 
 		log_info(logger_kernel, "PID: %d - Estado anterior: %s - Estado actual: %s", pcb_en_ejecucion->cde->pid, obtener_nombre_estado(READY), obtener_nombre_estado(EXEC)); //OBLIGATORIO
         pcb_en_ejecucion->estado = EXEC;
