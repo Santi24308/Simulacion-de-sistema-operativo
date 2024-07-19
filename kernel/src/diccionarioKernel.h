@@ -143,7 +143,7 @@ sem_t bin_recibir_cde;
 sem_t sem_liberar_archivos;
 
 sem_t clock_VRR;
-
+sem_t clock_VRR_frenado;
 
 sem_t pausar_new_a_ready;
 sem_t pausar_ready_a_exec;

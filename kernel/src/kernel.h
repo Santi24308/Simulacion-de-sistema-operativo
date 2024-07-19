@@ -109,7 +109,7 @@ void actualizar_cde(t_cde*);
 void copiar_ultima_instruccion(t_cde*, t_instruccion*);
 
 void controlar_tiempo_de_ejecucion_VRR();
-void reloj_quantum_VRR(t_pcb*);
+void reloj_quantum_VRR();
 
 
 #endif

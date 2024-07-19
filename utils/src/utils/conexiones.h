@@ -43,7 +43,6 @@ typedef enum{
 
 typedef enum{
     EJECUTAR_PROCESO,
-	ALGORITMO_PLANIFICACION,
 	INTERRUPT,
 	DESALOJO
 } mensajeKernelCpu;

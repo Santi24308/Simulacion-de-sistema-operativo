@@ -150,6 +150,10 @@ void atender_kernel_dispatch(){
 
 		switch (op_code){
 			case EJECUTAR_PROCESO:
+                fin_q = 0;
+                interrupcion = 0;
+                realizar_desalojo = 0;
+
 				t_cde* cde_recibido = buffer_read_cde(buffer);
 				destruir_buffer(buffer);
 
@@ -186,12 +190,12 @@ void atender_kernel_interrupt(){
         if (pid_de_cde_ejecutando == pid_recibido) {
             switch (op_code){
                 case INTERRUPT:
-                    pthread_mutex_lock(&mutex_desalojar);
+                    //pthread_mutex_lock(&mutex_desalojar);
                     interrupcion = 1;
-                    pthread_mutex_unlock(&mutex_desalojar);
+                    //pthread_mutex_unlock(&mutex_desalojar);
                     break;
                 case DESALOJO:
-                    
+                    log_error(logger_cpu, "SE RECIBE INTERRUPCION POR QUANTUM");
                     if(es_bloqueante(instruccion_actualizada)) 
                         break;
                     
@@ -393,28 +397,34 @@ void ejecutar_proceso(){
 	}
 
 	if(interrupcion){
+        /*
         pthread_mutex_lock(&mutex_desalojar);
         fin_q = 0;
 		interrupcion = 0;
         realizar_desalojo = 0;
         pthread_mutex_unlock(&mutex_desalojar);
+        */
         log_warning(logger_cpu, "PID: %d - Volviendo a kernel por instruccion %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar));
         cde_ejecutando->motivo_desalojo = INTERRUPCION;
         desalojar_cde(instruccion_a_ejecutar);
 	} else if (realizar_desalojo){ // salida por fin de quantum
+        /*
         pthread_mutex_lock(&mutex_desalojar);
         fin_q = 0;
 		interrupcion = 0;  
         realizar_desalojo = 0;
         pthread_mutex_unlock(&mutex_desalojar);
+        */
         log_warning(logger_cpu, "PID: %d - Desalojado por %s", cde_ejecutando->pid, obtener_nombre_motivo_desalojo(cde_ejecutando->motivo_desalojo)); 
         desalojar_cde(instruccion_a_ejecutar);
     } else if (fin_q){
+        /*
         pthread_mutex_lock(&mutex_desalojar);
         fin_q = 0;
 		interrupcion = 0;  
         realizar_desalojo = 0;
         pthread_mutex_unlock(&mutex_desalojar);
+        */
         log_warning(logger_cpu, "PID: %d - Desalojado por fin de Quantum", cde_ejecutando->pid); 
         cde_ejecutando->motivo_desalojo = FIN_DE_QUANTUM;
         desalojar_cde(instruccion_a_ejecutar);
