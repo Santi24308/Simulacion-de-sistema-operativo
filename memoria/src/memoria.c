@@ -661,7 +661,6 @@ void liberar_proceso()
 	printf("\nProcesos en el sistema DESPUES de eliminar");
 	imprimir_pids();
 	log_info(logger_memoria, "Destruccion: PID: %d", pid);
-	enviar_codigo(socket_kernel, FINALIZAR_PROCESO_OK);
 }
 
 void imprimir_pids()
