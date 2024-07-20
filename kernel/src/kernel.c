@@ -333,14 +333,6 @@ void leer_y_ejecutar(char* path){
     printf("\nSe leyeron %d instrucciones", i);
 
     fclose(script);
-    /*
-    while (fgets(leido, 200, script) != NULL && !feof(script)){
-        trim_trailing_whitespace(leido);
-        char** linea = string_split(leido, " ");
-        ejecutar_comando_unico(linea);
-        string_array_destroy(linea); 
-    }
-    */
 }
 
 // esta funcion fixea los casos en donde fgets al leer del archivo lee algo que deberia ser
@@ -534,13 +526,6 @@ void terminar_proceso_consola(uint32_t pid){
     retirar_pcb_de_su_respectivo_estado(pcb_a_liberar);
     list_remove_element(procesos_globales, pcb_a_liberar);   // lo elimina de la global
     pthread_mutex_unlock(&mutex_procesos_globales);
-
-    enviar_codigo(socket_memoria, FINALIZAR_PROCESO_SOLICITUD);
-    t_buffer* buffer = crear_buffer();
-    buffer_write_uint32(buffer, pid);
-    enviar_buffer(buffer, socket_memoria);
-    destruir_buffer(buffer);
-    log_info(logger_kernel, "SE ELIMINO PROCESO PID: %i DE MEMORIA", pid);
 }
 
 void terminar_proceso(){
@@ -553,29 +538,13 @@ void terminar_proceso(){
 	    list_remove_element(procesos_globales, pcb); // lo elimina de la global
 	    pthread_mutex_unlock(&mutex_procesos_globales);
     
-        // si se el motivo de finalizacion fue por consola ya se le aviso a memoria de la liberacion
-        if (pcb->cde->motivo_finalizacion != INTERRUMPED_BY_USER){
+        // Solicitar a memoria liberar estructuras
+        enviar_codigo(socket_memoria, FINALIZAR_PROCESO_SOLICITUD);
 
-            // Solicitar a memoria liberar estructuras
-
-            enviar_codigo(socket_memoria, FINALIZAR_PROCESO_SOLICITUD);
-
-            t_buffer* buffer = crear_buffer();
-            buffer_write_uint32(buffer, pcb->cde->pid);
-            enviar_buffer(buffer, socket_memoria);
-            destruir_buffer(buffer);
-
-            mensajeMemoriaKernel rta_memoria = recibir_codigo(socket_memoria);
-
-            if(rta_memoria == FINALIZAR_PROCESO_OK){
-                log_info(logger_kernel, "PID: %d - Destruir PCB", pcb->cde->pid);
-                destruir_pcb(pcb);
-            }
-            else{
-                log_error(logger_kernel, "Memoria no logró liberar correctamente las estructuras");
-                exit(1);
-            }
-        }
+        t_buffer* buffer = crear_buffer();
+        buffer_write_uint32(buffer, pcb->cde->pid);
+        enviar_buffer(buffer, socket_memoria);
+        destruir_buffer(buffer);
     }
 }
 
@@ -597,6 +566,42 @@ void controlar_tiempo_de_ejecucion(){
         uint32_t pid_pcb_pre_clock = pcb_en_ejecucion->cde->pid;
 
         usleep(quantum * 1000);
+
+        if(pcb_en_ejecucion != NULL && pid_pcb_pre_clock == pcb_en_ejecucion->cde->pid){
+            pthread_mutex_lock(&mutex_fin_q_VRR);
+            pcb_en_ejecucion->flag_fin_q = 1;
+            pthread_mutex_unlock(&mutex_fin_q_VRR);
+            enviar_codigo(socket_cpu_interrupt, DESALOJO);
+
+            t_buffer* buffer = crear_buffer();
+            buffer_write_uint32(buffer, pcb_en_ejecucion->cde->pid); 
+            enviar_buffer(buffer, socket_cpu_interrupt);
+            destruir_buffer(buffer);
+        }
+        sem_post(&sem_reloj_destruido);
+    }
+}
+
+void controlar_tiempo(){
+    while (1){
+        sem_wait(&sem_iniciar_quantum);
+
+        uint32_t pid_pcb_pre_clock = pcb_en_ejecucion->cde->pid;
+
+        if (strcmp(algoritmo, "VRR") == 0){
+            if (pcb_en_ejecucion->flag_fin_q == 0){
+                // duermo lo restante y espero a que se acabe para interrumpir en caso de que se siga ejecutando
+                log_warning(logger_kernel, "Vuelve a exec el pid %d con tiempo restante %d", pid_pcb_pre_clock, (quantum - temporal_gettime(pcb_en_ejecucion->clock));
+                usleep((quantum - temporal_gettime(pcb_en_ejecucion->clock)) * 1000);
+            } else {
+                temporal_destroy(pcb_en_ejecucion->clock);
+                pcb_en_ejecucion->clock = temporal_create();
+                usleep(quantum * 1000);
+            }
+        } else {
+            // caso RR siempre va a dormirse una cantidad completa de quantum
+            usleep(quantum * 1000);
+        }
 
         if(pcb_en_ejecucion != NULL && pid_pcb_pre_clock == pcb_en_ejecucion->cde->pid){
             pthread_mutex_lock(&mutex_fin_q_VRR);
@@ -759,29 +764,24 @@ void recibir_cde_de_cpu(){
         } else if (strcmp(algoritmo, "VRR") == 0 && !pcb_en_ejecucion->clock && cde_recibido_de_cpu->motivo_desalojo == RECURSOS){
             log_warning(logger_kernel, "Vuelve el proceso %d SIN tiempo restante con motivo %s", pcb_en_ejecucion->cde->pid, obtener_nombre_motivo(cde_recibido_de_cpu->motivo_desalojo));
         }
-        if(pcb_en_ejecucion->cde->motivo_finalizacion == INTERRUMPED_BY_USER){
-            enviar_de_exec_a_finalizado();
-            break;
-        }
-
-        pthread_mutex_lock(&mutex_exec);
-        // retiramos el cde anterior a ser ejecutado
-        destruir_cde(pcb_en_ejecucion->cde);
-        pcb_en_ejecucion->cde = cde_recibido_de_cpu;
-        pthread_mutex_unlock(&mutex_exec);
-
         // aseguramos que no se altere el pcb_en_ejecucion hasta que no setermine de preparar el clockVRR
         if (strcmp(algoritmo, "VRR") == 0 && cde_recibido_de_cpu->motivo_desalojo != RECURSOS)
             sem_wait(&clock_VRR_frenado);
 
-        if (pcb_en_ejecucion->cde->motivo_desalojo == OUT_OF_MEMORY_ERROR){
+        if(pcb_en_ejecucion->cde->motivo_finalizacion == INTERRUMPED_BY_USER){
+            enviar_de_exec_a_finalizado();
+        } else if (pcb_en_ejecucion->cde->motivo_desalojo == OUT_OF_MEMORY_ERROR){
             pcb_en_ejecucion->cde->motivo_finalizacion = OUT_OF_MEMORY;
             enviar_de_exec_a_finalizado();
-            break;
+        } else {
+            pthread_mutex_lock(&mutex_exec);
+            // retiramos el cde anterior a ser ejecutado
+            destruir_cde(pcb_en_ejecucion->cde);
+            pcb_en_ejecucion->cde = cde_recibido_de_cpu;
+            pthread_mutex_unlock(&mutex_exec);
+
+            evaluar_instruccion(pcb_en_ejecucion->cde->ultima_instruccion);        
         }
-
-        evaluar_instruccion(pcb_en_ejecucion->cde->ultima_instruccion);        
-
     }
 }
 
