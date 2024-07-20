@@ -64,6 +64,7 @@ char* obtener_nombre_motivo_finalizacion(cod_finalizacion);
 bool instruccion_de_recursos(codigoInstruccion);
 void evaluar_io(t_instruccion* );
 
+void controlar_tiempo();
 
 // PLANIFICACION -------------------------------------------------------------------------------------------------------------------
 void iniciar_planificacion();

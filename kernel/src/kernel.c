@@ -551,10 +551,10 @@ void terminar_proceso(){
 void iniciar_quantum(){
     pthread_t clock_rr;
     if (strcmp(algoritmo, "VRR") == 0){
-        pthread_create(&clock_rr, NULL, (void*) controlar_tiempo_de_ejecucion_VRR, NULL);
+        pthread_create(&clock_rr, NULL, (void*) controlar_tiempo, NULL);
         pthread_detach(clock_rr);
     } else if (strcmp(algoritmo, "RR") == 0){
-        pthread_create(&clock_rr, NULL, (void*) controlar_tiempo_de_ejecucion, NULL);
+        pthread_create(&clock_rr, NULL, (void*) controlar_tiempo, NULL);
         pthread_detach(clock_rr);
     }
 }
@@ -589,14 +589,13 @@ void controlar_tiempo(){
         uint32_t pid_pcb_pre_clock = pcb_en_ejecucion->cde->pid;
 
         if (strcmp(algoritmo, "VRR") == 0){
-            if (pcb_en_ejecucion->flag_fin_q == 0){
-                // duermo lo restante y espero a que se acabe para interrumpir en caso de que se siga ejecutando
-                log_warning(logger_kernel, "Vuelve a exec el pid %d con tiempo restante %d", pid_pcb_pre_clock, (quantum - temporal_gettime(pcb_en_ejecucion->clock));
-                usleep((quantum - temporal_gettime(pcb_en_ejecucion->clock)) * 1000);
-            } else {
-                temporal_destroy(pcb_en_ejecucion->clock);
+            if (pcb_en_ejecucion->clock == NULL){
                 pcb_en_ejecucion->clock = temporal_create();
                 usleep(quantum * 1000);
+            }else {
+                // duermo lo restante y espero a que se acabe para interrumpir en caso de que se siga ejecutando
+                log_warning(logger_kernel, "Vuelve a exec el pid %d con tiempo restante %ld", pid_pcb_pre_clock, (quantum - temporal_gettime(pcb_en_ejecucion->clock)));
+                usleep((quantum - temporal_gettime(pcb_en_ejecucion->clock)) * 1000);
             }
         } else {
             // caso RR siempre va a dormirse una cantidad completa de quantum
@@ -604,6 +603,12 @@ void controlar_tiempo(){
         }
 
         if(pcb_en_ejecucion != NULL && pid_pcb_pre_clock == pcb_en_ejecucion->cde->pid){
+            if (strcmp(algoritmo, "VRR") == 0){
+                temporal_stop(pcb_en_ejecucion->clock);
+                temporal_destroy(pcb_en_ejecucion->clock);
+                pcb_en_ejecucion->clock = NULL;
+            }
+
             pthread_mutex_lock(&mutex_fin_q_VRR);
             pcb_en_ejecucion->flag_fin_q = 1;
             pthread_mutex_unlock(&mutex_fin_q_VRR);
@@ -746,6 +751,8 @@ void enviar_cde_a_cpu(){
 
 void recibir_cde_de_cpu(){
     while(1){
+        // SI QUEDA TIEMPO CAMBIAR LA IDEA DE RECURSOS, CPU MANDARIA DOS CODIGOS, CDE O RECURSO_SOL, SI ES CDE ES LA LOGICA YA HECHA
+        // SI ES RECURSO_SOL SOLAMENTE KERNEL LE RESPONDE SI SE LE ASIGNA O NO EL RECURSO, SI HAY QUE BLOQUEARLO SE INTERRUMPE CPU
         sem_wait(&cde_recibido);
         log_warning(logger_kernel, "Recibo el signal para cde_recibido");
 
@@ -757,16 +764,14 @@ void recibir_cde_de_cpu(){
         // se hace el chequeo de que la instruccion no sea relacionada a SIGNAL o WAIT porque en ese caso no quiero frenar el reloj
         // ya que en caso de que el recurso no tenga demoras y el quantum no se haya consumido el cde vuelve DIRECTAMENTE a cpu
         if (strcmp(algoritmo, "VRR") == 0 && pcb_en_ejecucion->clock && cde_recibido_de_cpu->motivo_desalojo != RECURSOS){
-            pthread_mutex_lock(&mutex_frenar_reloj);
-            flag_frenar_reloj = 1;
-            pthread_mutex_unlock(&mutex_frenar_reloj);
+            temporal_stop(pcb_en_ejecucion->clock);
             log_warning(logger_kernel, "Vuelve el proceso %d con tiempo restante %ld ms con motivo %s", pcb_en_ejecucion->cde->pid, quantum - temporal_gettime(pcb_en_ejecucion->clock), obtener_nombre_motivo(cde_recibido_de_cpu->motivo_desalojo));
-        } else if (strcmp(algoritmo, "VRR") == 0 && !pcb_en_ejecucion->clock && cde_recibido_de_cpu->motivo_desalojo == RECURSOS){
+        } else if (strcmp(algoritmo, "VRR") == 0 && cde_recibido_de_cpu->motivo_desalojo == RECURSOS){
             log_warning(logger_kernel, "Vuelve el proceso %d SIN tiempo restante con motivo %s", pcb_en_ejecucion->cde->pid, obtener_nombre_motivo(cde_recibido_de_cpu->motivo_desalojo));
         }
         // aseguramos que no se altere el pcb_en_ejecucion hasta que no setermine de preparar el clockVRR
-        if (strcmp(algoritmo, "VRR") == 0 && cde_recibido_de_cpu->motivo_desalojo != RECURSOS)
-            sem_wait(&clock_VRR_frenado);
+        //if (strcmp(algoritmo, "VRR") == 0 && cde_recibido_de_cpu->motivo_desalojo != RECURSOS)
+          //  sem_wait(&clock_VRR_frenado);
 
         if(pcb_en_ejecucion->cde->motivo_finalizacion == INTERRUMPED_BY_USER){
             enviar_de_exec_a_finalizado();
@@ -875,9 +880,10 @@ void evaluar_signal(char* nombre_recurso_pedido){
         pcb_en_ejecucion->cde->motivo_finalizacion = INVALID_RESOURCE;
         if (strcmp(algoritmo, "VRR") == 0){
             if (!pcb_en_ejecucion->flag_fin_q){
-                pthread_mutex_lock(&mutex_frenar_reloj);
-                flag_frenar_reloj = 1;
-                pthread_mutex_unlock(&mutex_frenar_reloj);
+                temporal_stop(pcb_en_ejecucion->clock);
+                //pthread_mutex_lock(&mutex_frenar_reloj);
+                //flag_frenar_reloj = 1;
+                //pthread_mutex_unlock(&mutex_frenar_reloj);
             }
         }
         enviar_de_exec_a_finalizado(); 
@@ -932,9 +938,10 @@ void evaluar_signal(char* nombre_recurso_pedido){
         pcb_en_ejecucion->cde->motivo_finalizacion = INVALID_RESOURCE;
         if (strcmp(algoritmo, "VRR") == 0){
             if (!pcb_en_ejecucion->flag_fin_q){
-                pthread_mutex_lock(&mutex_frenar_reloj);
-                flag_frenar_reloj = 1;
-                pthread_mutex_unlock(&mutex_frenar_reloj);
+                temporal_stop(pcb_en_ejecucion->clock);
+                //pthread_mutex_lock(&mutex_frenar_reloj);
+                //flag_frenar_reloj = 1;
+                //pthread_mutex_unlock(&mutex_frenar_reloj);
             }
         }
         enviar_de_exec_a_finalizado(); 
@@ -965,9 +972,9 @@ void evaluar_wait(char* nombre_recurso_pedido){
 
             if (strcmp(algoritmo, "VRR") == 0 && !flag_fin_q) {
                 temporal_stop(pcb_en_ejecucion->clock);
-                pthread_mutex_lock(&mutex_frenar_reloj);
-                flag_frenar_reloj = 1;
-                pthread_mutex_unlock(&mutex_frenar_reloj);
+                //pthread_mutex_lock(&mutex_frenar_reloj);
+                //flag_frenar_reloj = 1;
+                //pthread_mutex_unlock(&mutex_frenar_reloj);
             }
 
             sem_t semaforo_recurso = recurso->sem_recurso;
@@ -1004,9 +1011,10 @@ void evaluar_wait(char* nombre_recurso_pedido){
         pcb_en_ejecucion->cde->motivo_finalizacion = INVALID_RESOURCE;
         if (strcmp(algoritmo, "VRR") == 0){
             if (!pcb_en_ejecucion->flag_fin_q){
-                pthread_mutex_lock(&mutex_frenar_reloj);
-                flag_frenar_reloj = 1;
-                pthread_mutex_unlock(&mutex_frenar_reloj);
+                temporal_stop(pcb_en_ejecucion->clock);
+                //pthread_mutex_lock(&mutex_frenar_reloj);
+                //flag_frenar_reloj = 1;
+                //pthread_mutex_unlock(&mutex_frenar_reloj);
             }
         }
 
@@ -1633,11 +1641,15 @@ void enviar_de_ready_a_exec(){
         }
 
         if((strcmp(algoritmo, "VRR") == 0)) {
-            pthread_mutex_lock(&mutex_frenar_reloj);
+            pthread_mutex_lock(&mutex_fin_q_VRR);
             pcb_en_ejecucion->flag_fin_q = 0;
-            flag_frenar_reloj = 0;
-            pthread_mutex_unlock(&mutex_frenar_reloj);
-            sem_wait(&clock_VRR);
+            pthread_mutex_unlock(&mutex_fin_q_VRR);
+            sem_wait(&sem_reloj_destruido);
+            //pthread_mutex_lock(&mutex_frenar_reloj);
+            //pcb_en_ejecucion->flag_fin_q = 0;
+            //flag_frenar_reloj = 0;
+            //pthread_mutex_unlock(&mutex_frenar_reloj);
+            //sem_wait(&clock_VRR);
         }
 
         enviar_cde_a_cpu(); //avisarle al kernel que empiece a correr el proceso en el cpu y le mande las cosas necesarias
