@@ -608,7 +608,7 @@ void controlar_tiempo(){
                 temporal_destroy(pcb_en_ejecucion->clock);
                 pcb_en_ejecucion->clock = NULL;
             }
-
+          
             pthread_mutex_lock(&mutex_fin_q_VRR);
             pcb_en_ejecucion->flag_fin_q = 1;
             pthread_mutex_unlock(&mutex_fin_q_VRR);
