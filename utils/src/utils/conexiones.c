@@ -78,15 +78,3 @@ int esperar_cliente(int socket_servidor, t_log* logger)
 
 	return socket_cliente;
 }
-
-void terminar_conexiones(int num_sockets, ...) {
-  va_list args;
-  va_start(args, num_sockets);
-
-  for (int i = 0; i < num_sockets; i++) {
-    int socket_fd = va_arg(args, int);
-    if (socket_fd != -1) close(socket_fd);
-  }
-
-  va_end(args);
-}

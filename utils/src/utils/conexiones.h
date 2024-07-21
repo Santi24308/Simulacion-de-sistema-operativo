@@ -17,6 +17,7 @@
 #include<utils/serializacion.h>
 #include<utils/instrucciones.h>
 #include <commons/collections/queue.h>
+#include <libgen.h>
 
 // AGREGAR LOS PROTOCOLOS
 
@@ -42,7 +43,6 @@ typedef enum{
 
 typedef enum{
     EJECUTAR_PROCESO,
-	ALGORITMO_PLANIFICACION,
 	INTERRUPT,
 	DESALOJO
 } mensajeKernelCpu;
@@ -72,7 +72,6 @@ typedef struct{
 int crear_conexion(char* ip, char* puerto);
 int iniciar_servidor(char*, t_log*);
 int esperar_cliente(int, t_log*);
-void terminar_conexiones(int num_sockets, ...);
 
 /* BORRAR
 // PROCESOS KERNEL

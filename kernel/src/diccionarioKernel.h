@@ -21,7 +21,8 @@ typedef enum{
 	READY,
 	EXEC,
 	BLOCKED, // aca dice algo de multiples colas con i/o
-	TERMINADO
+	TERMINADO,
+	READY_PLUS
 }t_estados;
 
 //Estructura PCB
@@ -75,12 +76,13 @@ t_config* config_kernel;
 t_pcb* pcb_en_ejecucion;
 pthread_t hilo_esperar_IOs;
 pthread_t hilo_io;
-pthread_t hilo_consola;
 pthread_t hilo_memoria;
 pthread_t hilo_plani_corto;
 pthread_t hilo_plani_largo_new;
 pthread_t hilo_plani_largo_exit;
 pthread_t hilo_recepcion_cde;
+bool conexiones_realizadas;
+bool modulo_inicializado;
 
 uint32_t id_a_asignar;
 
@@ -123,6 +125,8 @@ pthread_mutex_t mutex_fin_q_VRR;
 pthread_mutex_t mutex_pcb_en_ejecucion;
 
 pthread_mutex_t mutex_frenar_reloj;
+pthread_mutex_t mutex_grado_multiprogramacion;
+
 
 
 sem_t procesos_en_new;
@@ -139,7 +143,7 @@ sem_t bin_recibir_cde;
 sem_t sem_liberar_archivos;
 
 sem_t clock_VRR;
-
+sem_t clock_VRR_frenado;
 
 sem_t pausar_new_a_ready;
 sem_t pausar_ready_a_exec;

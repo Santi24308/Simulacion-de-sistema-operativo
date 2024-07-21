@@ -19,13 +19,14 @@ void inicializar_modulo();
 void consola();
 void conectar();
 void iterator(char*);
+void conectar_consola();
 // CHECKPOINT 2
 void inicializarListas();
 void inicializarSemaforos();
 t_pcb* crear_pcb(char*);
 void destruir_pcb(t_pcb*);
 t_pcb* encontrar_pcb_por_pid(uint32_t, int* );
-void retirar_pcb_de_su_respectivo_estado(uint32_t, int* );
+void retirar_pcb_de_su_respectivo_estado(t_pcb* );
 void finalizar_pcb(t_pcb*);
 void iniciar_proceso(char*);
 void terminar_proceso();
@@ -49,6 +50,7 @@ void evaluar_signal(char*);
 void evaluar_wait(char*);
 
 void signal_recursos_asignados_pcb(t_pcb*, char*);
+void liberar_recursos_pcb(t_pcb*);
 
 void agregar_pcb_a(t_queue*, t_pcb*, pthread_mutex_t*);
 t_pcb* retirar_pcb_de(t_queue*, pthread_mutex_t*);
@@ -62,6 +64,7 @@ char* obtener_nombre_motivo_finalizacion(cod_finalizacion);
 bool instruccion_de_recursos(codigoInstruccion);
 void evaluar_io(t_instruccion* );
 
+void controlar_tiempo();
 
 // PLANIFICACION -------------------------------------------------------------------------------------------------------------------
 void iniciar_planificacion();
@@ -107,7 +110,7 @@ void actualizar_cde(t_cde*);
 void copiar_ultima_instruccion(t_cde*, t_instruccion*);
 
 void controlar_tiempo_de_ejecucion_VRR();
-void reloj_quantum_VRR(t_pcb*);
+void reloj_quantum_VRR();
 
 
 #endif

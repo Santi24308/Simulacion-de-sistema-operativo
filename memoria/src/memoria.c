@@ -10,6 +10,7 @@ int main(int argc, char *argv[])
 	}
 
 	config_path = argv[1];
+	sistema_funcionando = true;
 
 	inicializar_modulo();
 	inicializar_paginacion();
@@ -17,15 +18,46 @@ int main(int argc, char *argv[])
 
 	sem_wait(&terminar_memoria);
 
-	terminar_programa();
-
 	return 0;
+}
+
+void setear_path_local() {
+    char path[1024];
+    ssize_t count = readlink("/proc/self/exe", path, sizeof(path) - 1);
+
+    if (count == -1) {
+        perror("readlink");
+        return;
+    }
+
+    path[count] = '\0'; // Asegura que la cadena esté terminada en nulo
+
+    // Obtiene el directorio del ejecutable
+    char *dir = dirname(path);
+
+    // Retrocede un directorio
+    char *parent_dir = dirname(dir);
+
+    // Reserva memoria para la cadena resultante
+    size_t len = strlen(parent_dir);
+    char *result = malloc(len + 1);
+
+    strcpy(result, parent_dir); // Copia la ruta resultante a la memoria reservada
+
+    // Elimina la última '/' si está presente
+    if (len > 1 && result[len - 1] == '/') {
+        result[len - 1] = '\0';
+    }
+
+    config_set_value(config_memoria, "PATH_INSTRUCCIONES", result);
+    config_save(config_memoria);
 }
 
 void inicializar_modulo()
 {
 	levantar_logger();
 	levantar_config();
+	setear_path_local();
 
 	total_espacio_memoria = config_get_int_value(config_memoria, "TAM_MEMORIA");
 
@@ -133,9 +165,14 @@ void conectar_cpu()
 
 void atender_kernel()
 {
-	while (1)
+	while (sistema_funcionando)
 	{
-		int cod_kernel = recibir_codigo(socket_kernel);
+		mensajeMemoriaKernel cod_kernel = recibir_codigo(socket_kernel);
+		if (cod_kernel == UINT8_MAX){
+			sistema_funcionando = false;
+			terminar_programa();
+			exit(0);
+		}
 		switch (cod_kernel)
 		{
 		case INICIAR_PROCESO_SOLICITUD:
@@ -145,10 +182,6 @@ void atender_kernel()
 		case FINALIZAR_PROCESO_SOLICITUD:
 			liberar_proceso();
 			break;
-		case -1:
-			log_error(logger_memoria, "Se desconecto KERNEL");
-			sem_post(&terminar_memoria);
-			return;
 		default:
 			break;
 		}
@@ -158,9 +191,10 @@ void atender_kernel()
 void atender_cpu()
 {
 	retardo_respuesta = config_get_string_value(config_memoria, "RETARDO_RESPUESTA");
-	while (1)
+	while (sistema_funcionando)
 	{
 		mensajeCpuMem pedido_cpu = recibir_codigo(socket_cpu);
+
 		switch (pedido_cpu)
 		{
 		case PEDIDO_INSTRUCCION:
@@ -210,10 +244,10 @@ void atender_cpu()
 			destruir_buffer(buffer_mov_out);
 
 			printf("\nMemoria antes de la escritura:\n");
-			mem_hexdump(memoria_fisica, 64);
+			mem_hexdump(memoria_fisica+dir_fisica_mov_out, 64);
 			memcpy(memoria_fisica+dir_fisica_mov_out, (void *)&valor_a_escribir, bytes_mov_out);
 			printf("\nMemoria despues de la escritura:\n");
-			mem_hexdump(memoria_fisica, 64);
+			mem_hexdump(memoria_fisica+dir_fisica_mov_out, 64);
 
 			log_info(logger_memoria, "PID: %d - Accion: ESCRIBIR - Direccion fisica: %d - Tamaño %d", pid_mov_out, dir_fisica_mov_out, bytes_mov_out);
 
@@ -238,18 +272,30 @@ void atender_cpu()
 
 			// CASO REDUCCION
 			if (tamanio < tamanio_reservado)
-			{
-				uint32_t diferencia = tamanio_reservado_en_paginas - cantidad_paginas_solicitadas;
+			{	
 				log_info(logger_memoria, "PID: %d -Tamaño actual: %d -Tamaño a Reducir: %d", pid_resize, tamanio_reservado, tamanio);
-				while (diferencia > 0)
+				
+				if(tamanio == 0) 
+				{
+				// Liberar todos los recursos asociados al proceso
+				log_info(logger_memoria, "PID: %d - Tamaño solicitado es 0, liberando todos los recursos.", pid_resize);
+				while (!list_is_empty(proceso->tabla_de_paginas)) {
+				t_pagina *pagina_a_eliminar = list_remove(proceso->tabla_de_paginas, 0);
+				destruir_pagina_y_liberar_marco(pagina_a_eliminar);
+				}
+				log_info(logger_memoria, "PID: %d - Se liberaron todos los recursos.", pid_resize);
+				}
+
+				uint32_t diferencia = tamanio_reservado_en_paginas - cantidad_paginas_solicitadas;
+				while (tamanio != 0 && diferencia > 0)
 				{
 					int indice_pagina_a_eliminar = list_size(proceso->tabla_de_paginas) - 1;
 					t_pagina *pagina_a_eliminar = list_get(proceso->tabla_de_paginas, indice_pagina_a_eliminar);
 					destruir_pagina_y_liberar_marco(pagina_a_eliminar);
 					list_remove_element(proceso->tabla_de_paginas, pagina_a_eliminar);
 					diferencia--;
+					log_info(logger_memoria, "Se destruyeron paginas del proceso PID: %d - Tamaño %d", pid_resize, diferencia);
 				}
-				log_info(logger_memoria, "Se destruyeron paginas del proceso PID: %d - Tamaño %d", pid_resize, diferencia);
 			}
 
 			// CASO AMPLIACION
@@ -339,7 +385,7 @@ void escribir_a_partir_de_direccion(int socket_interfaz_io)
 	uint32_t bytes_a_copiar = buffer_read_uint32(buffer);
 	char *valor_a_escribir = buffer_read_string(buffer); 
 	destruir_buffer(buffer);
-
+	uint32_t bytes_copiados = 0;
 	// esto es porque despues hacemos cuenta regresiva con bytes_a_copiar y usamos el original para el log
 	uint32_t bytes_a_copiar_original = bytes_a_copiar;
 
@@ -349,6 +395,7 @@ void escribir_a_partir_de_direccion(int socket_interfaz_io)
 		printf("\nMemoria antes de la escritura:\n");
 		mem_hexdump(memoria_fisica, 64);
 		memcpy(memoria_fisica + direccion_fisica, valor_a_escribir, bytes_a_copiar);
+		bytes_copiados += bytes_a_copiar;
 		printf("\nMemoria despues de la escritura:\n");
 		mem_hexdump(memoria_fisica, 64);
 		enviar_codigo(socket_interfaz_io, OK);
@@ -358,29 +405,31 @@ void escribir_a_partir_de_direccion(int socket_interfaz_io)
 	}
 	else
 	{
-		memcpy(memoria_fisica + direccion_fisica, valor_a_escribir, bytes_disp_frame);
+		memcpy(memoria_fisica + direccion_fisica, valor_a_escribir, tamanio_paginas);
+		bytes_copiados += tamanio_paginas;
 		// termina una pagina
-		bytes_a_copiar = bytes_a_copiar - bytes_disp_frame;
+		bytes_a_copiar = bytes_a_copiar - tamanio_paginas;
 		int cant_paginas_restantes = ceil((float)bytes_a_copiar / tamanio_paginas);
-		int desplazamiento_string = bytes_disp_frame;
+		uint32_t direccion_fisica_nueva = direccion_fisica;
 		while (cant_paginas_restantes > 1)
 		{
-			t_pagina *pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica, pid);
-			uint32_t direccion_fisica_nueva = recalcular_direccion_fisica(pagina_siguiente);
+			t_pagina *pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica_nueva, pid);
+			direccion_fisica_nueva = recalcular_direccion_fisica(pagina_siguiente);
 			printf("\nMemoria antes de la escritura:\n");
-			mem_hexdump(memoria_fisica, 64);
-			memcpy(memoria_fisica + direccion_fisica_nueva, valor_a_escribir + desplazamiento_string, tamanio_paginas);
+			mem_hexdump(memoria_fisica+direccion_fisica_nueva, tamanio_paginas);
+			memcpy(memoria_fisica + direccion_fisica_nueva, valor_a_escribir + bytes_copiados, tamanio_paginas);
 			printf("\nMemoria despues de la escritura:\n");
-			mem_hexdump(memoria_fisica, 64);
-			desplazamiento_string = tamanio_paginas;
+			mem_hexdump(memoria_fisica+direccion_fisica_nueva, tamanio_paginas);
+			bytes_copiados += tamanio_paginas;
 			bytes_a_copiar = bytes_a_copiar - tamanio_paginas;
 			cant_paginas_restantes = ceil((float)bytes_a_copiar / tamanio_paginas);
+			
 		}
-		t_pagina *pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica, pid);
-		uint32_t direccion_fisica_nueva = recalcular_direccion_fisica(pagina_siguiente);
+		t_pagina *pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica_nueva, pid);
+		direccion_fisica_nueva = recalcular_direccion_fisica(pagina_siguiente);
 		printf("\nMemoria antes de la escritura:\n");
 		mem_hexdump(memoria_fisica, 64);
-		memcpy(memoria_fisica + direccion_fisica_nueva, valor_a_escribir + desplazamiento_string, bytes_a_copiar);
+		memcpy(memoria_fisica + direccion_fisica_nueva, valor_a_escribir + bytes_copiados, bytes_a_copiar);
 		printf("\nMemoria despues de la escritura:\n");
 		mem_hexdump(memoria_fisica, 64);
 	}
@@ -497,10 +546,10 @@ void leer_a_partir_de_direccion(int socket_interfaz_io)
 	// hasta que no se pueda mas
 
 	t_pagina *pagina_siguiente = NULL;
-	uint32_t direccion_fisica_nueva = UINT32_MAX;
+	uint32_t direccion_fisica_nueva = direccion_fisica;
 
 	while (bytes_restantes != 0 && bytes_restantes >= tamanio_paginas){
-		pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica, pid);
+		pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica_nueva, pid);
 		direccion_fisica_nueva = recalcular_direccion_fisica(pagina_siguiente);
 		printf("\nVariable antes de la lectura:\n");
 		mem_hexdump(valor_a_leer, bytes_a_leer);
@@ -515,7 +564,7 @@ void leer_a_partir_de_direccion(int socket_interfaz_io)
 	// si sobraron bytes leemos esa cantidad 
 
 	if (bytes_restantes != 0){
-		pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica, pid);
+		pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica_nueva, pid);
 		direccion_fisica_nueva = recalcular_direccion_fisica(pagina_siguiente);
 		printf("\nVariable antes de la lectura:\n");
 		mem_hexdump(valor_a_leer, bytes_a_leer);
@@ -612,7 +661,6 @@ void liberar_proceso()
 	printf("\nProcesos en el sistema DESPUES de eliminar");
 	imprimir_pids();
 	log_info(logger_memoria, "Destruccion: PID: %d", pid);
-	enviar_codigo(socket_kernel, FINALIZAR_PROCESO_OK);
 }
 
 void imprimir_pids()
@@ -637,6 +685,48 @@ t_proceso *crear_proceso(uint32_t pid, t_list *lista_instrucciones)
 	return proceso;
 }
 
+char* leer_linea_de_archivo(FILE *fp) {
+    if (fp == NULL) {
+        return NULL;
+    }
+
+    size_t size = 128; // Tamaño inicial del buffer
+    size_t len = 0;    // Longitud actual de la cadena
+    char *buffer = malloc(size); // Reserva de memoria para el buffer
+
+    if (!buffer) {
+        return NULL; // Si malloc falla, retorna NULL
+    }
+
+    while (fgets(buffer + len, size - len, fp)) {
+        len += strlen(buffer + len);
+        if (buffer[len - 1] == '\n') {
+            buffer[len - 1] = '\0'; // Reemplaza el salto de línea con un terminador nulo
+            return buffer; // Retorna el buffer
+        }
+
+        size *= 2; // Duplica el tamaño del buffer si no encuentra un salto de línea
+        char *new_buffer = realloc(buffer, size); // Redimensiona el buffer
+
+        if (!new_buffer) {
+            free(buffer);
+            return NULL; // Si realloc falla, libera el buffer original y retorna NULL
+        }
+
+        buffer = new_buffer; // Actualiza el buffer
+    }
+
+    // Caso en el que se alcanza el final del archivo sin un salto de línea final
+    if (len > 0) {
+        buffer[len] = '\0'; // Añade el terminador nulo al final del buffer
+        return buffer; // Retorna la última línea leída
+    }
+
+    free(buffer);
+    return NULL; // Si no se lee nada, retorna NULL
+}
+
+
 // para que no haya error el archivo tiene que terminar con un salto de linea
 t_list *levantar_instrucciones(char *path_op)
 {
@@ -650,11 +740,9 @@ t_list *levantar_instrucciones(char *path_op)
 	}
 	t_instruccion *instruccion;
 
-	char leido[200];
+	char* leido = leer_linea_de_archivo(archivo_instrucciones);
 
-	while (fgets(leido, 200, archivo_instrucciones) != NULL && !feof(archivo_instrucciones))
-	{
-		trim_trailing_whitespace(leido);
+	while (leido){
 		char **linea = string_split(leido, " ");
 
 		if (!string_is_empty(linea[0]))
@@ -673,6 +761,7 @@ t_list *levantar_instrucciones(char *path_op)
 		}
 
 		string_array_destroy(linea);
+		leido = leer_linea_de_archivo(archivo_instrucciones);
 	}
 
 	fclose(archivo_instrucciones);
@@ -750,13 +839,59 @@ void enviar_instruccion()
 	destruir_buffer(buffer_instruccion);
 }
 
-void terminar_programa()
-{
+void destructor_instruccion(void* inst){
+	t_instruccion* instruccion = inst;
+
+	free(instruccion->parametro1);
+	free(instruccion->parametro2);
+	free(instruccion->parametro3);
+	free(instruccion->parametro4);
+	free(instruccion->parametro5);
+	free(instruccion);
+}
+
+void destruir_proceso(void* proceso){
+	t_proceso* proceso_a_destruir = proceso;
+	list_destroy_and_destroy_elements(proceso_a_destruir->lista_instrucciones, destructor_instruccion);
+	list_destroy(proceso_a_destruir->tabla_de_paginas);
+	free(proceso_a_destruir);
+}
+
+void destruir_interfaz(void* inter){
+    t_interfaz* interfaz = inter;
+	if (interfaz->socket != -1)
+    	close(interfaz->socket); // cerramos conexion
+    free(interfaz->id);
+    free(interfaz->tipo);
+    free(interfaz);
+}
+
+void destruir_interfaces(){
+    list_destroy_and_destroy_elements(interfacesIO, destruir_interfaz);
+}
+
+void terminar_programa(){
 	liberarMemoriaPaginacion();
 	if (logger_memoria)
 		log_destroy(logger_memoria);
 	if (config_memoria)
 		config_destroy(config_memoria);
+	
+	list_destroy_and_destroy_elements(lista_procesos, destruir_proceso);
+	list_destroy(tabla_de_marcos);
+	destruir_interfaces();
+
+	pthread_mutex_destroy(&mutex_lista_procesos);
+	pthread_mutex_destroy(&mutex_lista_tablas);
+	sem_destroy(&terminar_memoria);
+
+	if (socket_cpu != -1)
+		close(socket_cpu);
+	if (socket_kernel != -1)
+		close(socket_kernel);
+	if (socket_servidor != -1)
+		close(socket_servidor);
+
 }
 
 void iterator(char *value)

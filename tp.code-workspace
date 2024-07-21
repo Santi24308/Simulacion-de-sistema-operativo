@@ -3,6 +3,7 @@
 		"debug.onTaskErrors": "abort",
 		"files.associations": {
 			"*.h": "c",
+			"cmath": "c"
 		},
 		"C_Cpp.errorSquiggles": "disabled",
 	},

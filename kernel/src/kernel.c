@@ -11,13 +11,10 @@ int main(int argc, char* argv[]) {
 
 	inicializar_modulo();
 	conectar();
-
-    //iniciar_proceso("instruccionesP1.txt");
+    
     consola();
 
     sem_wait(&terminar_kernel);
-
-    terminar_programa();
 
     return 0;
 }
@@ -38,7 +35,6 @@ void conectar(){
 
     pthread_create(&hilo_esperar_IOs, NULL, (void*) esperarIOs, NULL);
     pthread_detach(hilo_esperar_IOs);
-
 }
 
 void conectar_io(pthread_t* hilo_io, int* socket_io){
@@ -84,11 +80,45 @@ t_interfaz* crear_interfaz(char* nombre, char* tipo, int socket){
     return interfaz;
 }
 
+void setear_path_local() {
+    char path[1024];
+    ssize_t count = readlink("/proc/self/exe", path, sizeof(path) - 1);
+
+    if (count == -1) {
+        perror("readlink");
+        return;
+    }
+
+    path[count] = '\0'; // Asegura que la cadena esté terminada en nulo
+
+    // Obtiene el directorio del ejecutable
+    char *dir = dirname(path);
+
+    // Retrocede un directorio
+    char *parent_dir = dirname(dir);
+
+    // Reserva memoria para la cadena resultante
+    size_t len = strlen(parent_dir);
+    char *result = malloc(len + 1);
+
+    strcpy(result, parent_dir); // Copia la ruta resultante a la memoria reservada
+
+    // Elimina la última '/' si está presente
+    if (len > 1 && result[len - 1] == '/') {
+        result[len - 1] = '\0';
+    }
+
+    config_set_value(config_kernel, "RUTA_LOCAL", result);
+    config_save(config_kernel);
+}
+
 void inicializar_modulo(){
 	sem_init(&terminar_kernel, 0, 0);
 
 	levantar_logger();
 	levantar_config();
+    setear_path_local();
+
 	algoritmo = config_get_string_value(config_kernel, "ALGORITMO");
 	quantum = config_get_int_value(config_kernel, "QUANTUM");
 	grado_max_multiprogramacion = config_get_int_value(config_kernel, "MULTIPROGRAMACION_MAX");
@@ -183,17 +213,10 @@ void consola(){
 		printf("\tDETENER_PLANIFICACION -- Detener planificacion\n");
 		printf("\tMULTIPROGRAMACION [VALOR] -- Modificar multiprogramación\n");
 		printf("\tPROCESO_ESTADO -- Listar procesos por estado\n");
-        printf("\x1b[31m""\tFINALIZAR_SISTEMA -- Finalizar todo el sistema, todos los modulos\n""\x1b[0m""\n");
 
         char* entrada = readline("> ");
 
         char** palabras = string_split(entrada, " ");
-
-        if(strcmp(palabras[0], "FINALIZAR_SISTEMA") == 0){
-            sem_post(&terminar_kernel);
-            free(entrada);
-            return;
-        }
 
         if (strcmp(palabras[0], "EJECUTAR_SCRIPT") == 0) {
             leer_y_ejecutar(palabras[1]);
@@ -216,6 +239,7 @@ void ejecutar_comando_unico(char** palabras){
         iniciar_proceso(palabras[1]);
     } else if (strcmp(palabras[0], "INICIAR_PLANIFICACION") == 0) {
         if (planificacion_detenida) {
+            log_info(logger_kernel, "Se inicia la planificacion");
             iniciar_planificacion();
         }
     } else if (strcmp(palabras[0], "FINALIZAR_PROCESO") == 0) {
@@ -226,12 +250,14 @@ void ejecutar_comando_unico(char** palabras){
         printf("\nLlego la instruccion FINALIZAR_PROCESO con parametro: %s\n", palabras[1]);
         terminar_proceso_consola(atoi(palabras[1]));
     } else if (strcmp(palabras[0], "DETENER_PLANIFICACION") == 0) {
+        log_info(logger_kernel, "Se detiene la planificacion");
         detener_planificacion();
     } else if (strcmp(palabras[0], "MULTIPROGRAMACION") == 0) {
         if (!palabras[1] || string_is_empty(palabras[1])) {
             printf("ERROR: Falta el valor a asignar para multiprogramación, fue omitido.\n");
             return;
         }
+        log_info(logger_kernel, "Se cambia el grado de multiprogramacion de %d a %d", grado_max_multiprogramacion, atoi(palabras[1]));
         cambiar_grado_multiprogramacion(palabras[1]);
     } else if (strcmp(palabras[0], "PROCESO_ESTADO") == 0) {
         printf("\nLlego la instruccion PROCESO_ESTADO\n");
@@ -240,6 +266,48 @@ void ejecutar_comando_unico(char** palabras){
         printf("ERROR: Comando \"%s\" no reconocido, fue omitido.\n", palabras[0]);
     }
 }
+
+char* leer_linea_de_archivo(FILE *fp) {
+    if (fp == NULL) {
+        return NULL;
+    }
+
+    size_t size = 128; // Tamaño inicial del buffer
+    size_t len = 0;    // Longitud actual de la cadena
+    char *buffer = malloc(size); // Reserva de memoria para el buffer
+
+    if (!buffer) {
+        return NULL; // Si malloc falla, retorna NULL
+    }
+
+    while (fgets(buffer + len, size - len, fp)) {
+        len += strlen(buffer + len);
+        if (buffer[len - 1] == '\n') {
+            buffer[len - 1] = '\0'; // Reemplaza el salto de línea con un terminador nulo
+            return buffer; // Retorna el buffer
+        }
+
+        size *= 2; // Duplica el tamaño del buffer si no encuentra un salto de línea
+        char *new_buffer = realloc(buffer, size); // Redimensiona el buffer
+
+        if (!new_buffer) {
+            free(buffer);
+            return NULL; // Si realloc falla, libera el buffer original y retorna NULL
+        }
+
+        buffer = new_buffer; // Actualiza el buffer
+    }
+
+    // Caso en el que se alcanza el final del archivo sin un salto de línea final
+    if (len > 0) {
+        buffer[len] = '\0'; // Añade el terminador nulo al final del buffer
+        return buffer; // Retorna la última línea leída
+    }
+
+    free(buffer);
+    return NULL; // Si no se lee nada, retorna NULL
+}
+
 
 void leer_y_ejecutar(char* path){
     char* ruta_completa = string_new();
@@ -252,14 +320,19 @@ void leer_y_ejecutar(char* path){
         perror("Error al abrir archivo, revisar el path.");
         return;
     }
-    char leido[200];
-
-    while (fgets(leido, 200, script) != NULL && !feof(script)){
-        trim_trailing_whitespace(leido);
+    char* leido = leer_linea_de_archivo(script);
+    int i = 0;
+    while (leido){
+        printf("\nSe lee la instruccion %s", leido);
+        i++;
         char** linea = string_split(leido, " ");
         ejecutar_comando_unico(linea);
         string_array_destroy(linea); 
+        leido = leer_linea_de_archivo(script);
     }
+    printf("\nSe leyeron %d instrucciones", i);
+
+    fclose(script);
 }
 
 // esta funcion fixea los casos en donde fgets al leer del archivo lee algo que deberia ser
@@ -275,17 +348,13 @@ void trim_trailing_whitespace(char *str) {
 void cambiar_grado_multiprogramacion(char* nuevo_grado){
     //para cambiarlo la planificacion debe estar detendida
     int grado_a_asignar = atoi(nuevo_grado);
-    if(planificacion_detenida == 1){
-        // se puede cambiar el grado de multiprogramacion
-        
-        grado_de_multiprogramacion.__align = grado_a_asignar - grado_max_multiprogramacion + grado_de_multiprogramacion.__align - 1;
-        sem_post(&grado_de_multiprogramacion);
-        grado_max_multiprogramacion = grado_a_asignar; // el grado_max_multiprog se actualiza para siempre contener el grado maximo de multirpg actual
-    }
-    else{
-        // no se puede realizar el cambio
-        log_warning(logger_kernel, "La planificacion no se detuvo. No se puede cambiar el grado de multiprogramacion");
-    }
+
+    pthread_mutex_lock(&mutex_grado_multiprogramacion);
+    // se puede cambiar el grado de multiprogramacion
+    grado_de_multiprogramacion.__align = grado_a_asignar - grado_max_multiprogramacion + grado_de_multiprogramacion.__align - 1;
+    sem_post(&grado_de_multiprogramacion);
+    grado_max_multiprogramacion = grado_a_asignar; // el grado_max_multiprog se actualiza para siempre contener el grado maximo de multirpg actual
+    pthread_mutex_unlock(&mutex_grado_multiprogramacion);
 }
 
 t_pcb* crear_pcb(char* path){
@@ -359,11 +428,9 @@ t_pcb* encontrar_pcb_por_pid(uint32_t pid, int* encontrado){
 }
 
 
-void retirar_pcb_de_su_respectivo_estado(uint32_t pid, int* resultado){
-    t_pcb* pcb_a_retirar = encontrar_pcb_por_pid(pid, resultado);
+void retirar_pcb_de_su_respectivo_estado(t_pcb* pcb_a_retirar){
     pcb_a_retirar->cde->motivo_finalizacion = INTERRUMPED_BY_USER;
 
-    if(resultado){
         switch(pcb_a_retirar->estado){
             case NEW:
                 sem_wait(&procesos_en_new);
@@ -388,23 +455,14 @@ void retirar_pcb_de_su_respectivo_estado(uint32_t pid, int* resultado){
                 break;
             case EXEC:
                 enviar_codigo(socket_cpu_interrupt, INTERRUPT);
-                
                 t_buffer* buffer = crear_buffer();
                 buffer_write_uint32(buffer, pcb_a_retirar->cde->pid);
                 enviar_buffer(buffer, socket_cpu_interrupt);
                 destruir_buffer(buffer);
                 break;
-            case TERMINADO:
-                // un proceso desde TERMINADO no pasa a ningun lado
-                break;
             default:
-                log_error(logger_kernel, "Entre al default en estado nro: %d", pcb_a_retirar->estado);
                 break;
-        
-        }
     }
-    else
-        log_warning(logger_kernel, "No ejecute el switch");
 }
 
 void finalizar_pcb(t_pcb* pcb_a_finalizar){
@@ -454,33 +512,20 @@ void iniciar_proceso(char* path){
  
 }
 
-void finalizarProceso(uint32_t pid_string){
-    int resultado = 0;
-    retirar_pcb_de_su_respectivo_estado(pid_string, &resultado);    
-    return;
-}
 
 void terminar_proceso_consola(uint32_t pid){
-    t_buffer* buffer = crear_buffer();
-    buffer_write_uint32(buffer, pid);
-
-    enviar_codigo(socket_cpu_interrupt, INTERRUPT);
-    enviar_buffer(buffer, socket_cpu_interrupt);
+    int encontrado;
+    t_pcb* pcb_a_liberar = encontrar_pcb_por_pid(pid, &encontrado);
+    if (!pcb_a_liberar){
+        log_error(logger_kernel, "No existe el proceso %d que intenta finalizar", pid);
+        return;
+    }
     
-    enviar_codigo(socket_memoria, FINALIZAR_PROCESO_SOLICITUD);
-    enviar_buffer(buffer, socket_memoria);
-
-    destruir_buffer(buffer);
-
-    mensajeMemoriaKernel rta_memoria = recibir_codigo(socket_memoria);
-
-    if(rta_memoria == FINALIZAR_PROCESO_OK){
-        log_info(logger_kernel, "SE ELIMINO PROCESO PID: %i DE MEMORIA", pid);
-    }
-    else{
-        log_error(logger_kernel, "Memoria no logró liberar correctamente las estructuras");
-        exit(1);
-    }
+    liberar_recursos_pcb(pcb_a_liberar);
+    pthread_mutex_lock(&mutex_procesos_globales);
+    retirar_pcb_de_su_respectivo_estado(pcb_a_liberar);
+    list_remove_element(procesos_globales, pcb_a_liberar);   // lo elimina de la global
+    pthread_mutex_unlock(&mutex_procesos_globales);
 }
 
 void terminar_proceso(){
@@ -494,34 +539,24 @@ void terminar_proceso(){
 	    pthread_mutex_unlock(&mutex_procesos_globales);
     
         // Solicitar a memoria liberar estructuras
-
         enviar_codigo(socket_memoria, FINALIZAR_PROCESO_SOLICITUD);
 
         t_buffer* buffer = crear_buffer();
         buffer_write_uint32(buffer, pcb->cde->pid);
         enviar_buffer(buffer, socket_memoria);
         destruir_buffer(buffer);
-
-        mensajeMemoriaKernel rta_memoria = recibir_codigo(socket_memoria);
-
-        if(rta_memoria == FINALIZAR_PROCESO_OK){
-            log_info(logger_kernel, "PID: %d - Destruir PCB", pcb->cde->pid);
-            destruir_pcb(pcb);
-        }
-        else{
-            log_error(logger_kernel, "Memoria no logró liberar correctamente las estructuras");
-            exit(1);
-        }
     }
 }
 
 void iniciar_quantum(){
     pthread_t clock_rr;
-    if (strcmp(algoritmo, "VRR") == 0)
-        pthread_create(&clock_rr, NULL, (void*) controlar_tiempo_de_ejecucion_VRR, NULL);
-    else 
-        pthread_create(&clock_rr, NULL, (void*) controlar_tiempo_de_ejecucion, NULL);
-    pthread_detach(clock_rr);
+    if (strcmp(algoritmo, "VRR") == 0){
+        pthread_create(&clock_rr, NULL, (void*) controlar_tiempo, NULL);
+        pthread_detach(clock_rr);
+    } else if (strcmp(algoritmo, "RR") == 0){
+        pthread_create(&clock_rr, NULL, (void*) controlar_tiempo, NULL);
+        pthread_detach(clock_rr);
+    }
 }
 
 void controlar_tiempo_de_ejecucion(){  
@@ -547,58 +582,92 @@ void controlar_tiempo_de_ejecucion(){
     }
 }
 
+void controlar_tiempo(){
+    while (1){
+        sem_wait(&sem_iniciar_quantum);
+
+        uint32_t pid_pcb_pre_clock = pcb_en_ejecucion->cde->pid;
+
+        if (strcmp(algoritmo, "VRR") == 0){
+            if (pcb_en_ejecucion->clock == NULL){
+                pcb_en_ejecucion->clock = temporal_create();
+                usleep(quantum * 1000);
+            }else {
+                // duermo lo restante y espero a que se acabe para interrumpir en caso de que se siga ejecutando
+                log_warning(logger_kernel, "Vuelve a exec el pid %d con tiempo restante %ld", pid_pcb_pre_clock, (quantum - temporal_gettime(pcb_en_ejecucion->clock)));
+                usleep((quantum - temporal_gettime(pcb_en_ejecucion->clock)) * 1000);
+            }
+        } else {
+            // caso RR siempre va a dormirse una cantidad completa de quantum
+            usleep(quantum * 1000);
+        }
+
+        if(pcb_en_ejecucion != NULL && pid_pcb_pre_clock == pcb_en_ejecucion->cde->pid){
+            if (strcmp(algoritmo, "VRR") == 0){
+                temporal_stop(pcb_en_ejecucion->clock);
+                temporal_destroy(pcb_en_ejecucion->clock);
+                pcb_en_ejecucion->clock = NULL;
+            }
+          
+            pthread_mutex_lock(&mutex_fin_q_VRR);
+            pcb_en_ejecucion->flag_fin_q = 1;
+            pthread_mutex_unlock(&mutex_fin_q_VRR);
+            enviar_codigo(socket_cpu_interrupt, DESALOJO);
+
+            t_buffer* buffer = crear_buffer();
+            buffer_write_uint32(buffer, pcb_en_ejecucion->cde->pid); 
+            enviar_buffer(buffer, socket_cpu_interrupt);
+            destruir_buffer(buffer);
+        }
+        sem_post(&sem_reloj_destruido);
+    }
+}
+
 void controlar_tiempo_de_ejecucion_VRR(){
     while(1){
         sem_wait(&sem_iniciar_quantum);
 
-        pthread_mutex_lock(&mutex_exec);
-        t_pcb* pcb_actual = pcb_en_ejecucion;
-        pthread_mutex_unlock(&mutex_exec);
-
         // puede pasar que el pcb este recien creado, entonces el flag es cero pero el clock es null...
-        if (pcb_actual->flag_fin_q != 1 && pcb_actual->clock) { // el clock a esta altura solo existe si es que le sobro en su previa ejecucion
-           // El proceso aún tiene tiempo de quantum restante
-	   log_warning(logger_kernel, "Entra el proceso %d con tiempo restante %ld ms", pcb_actual->cde->pid, quantum - temporal_gettime(pcb_actual->clock));
-           temporal_resume(pcb_actual->clock);
+        if (pcb_en_ejecucion->clock) { // el clock a esta altura solo existe si es que le sobro en su previa ejecucion
+            log_warning(logger_kernel, "Entra el proceso %d con tiempo restante %ld ms", pcb_en_ejecucion->cde->pid, quantum - temporal_gettime(pcb_en_ejecucion->clock));
+            temporal_resume(pcb_en_ejecucion->clock);
         } else {
-	    // El proceso es nuevo o necesita un nuevo quantum
-            log_warning(logger_kernel, "Entra el proceso %d con tiempo restante %d", pcb_actual->cde->pid, quantum); 
-            if (pcb_actual->clock) 
-                temporal_destroy(pcb_actual->clock);
+            log_warning(logger_kernel, "Entra el proceso %d con tiempo restante %d", pcb_en_ejecucion->cde->pid, quantum); 
 
-            pcb_actual->clock = temporal_create();
+            pcb_en_ejecucion->clock = temporal_create();
         }
-        // no deberia necesitar mutex ya que secuencialmente nadie altera el flag mas que el reloj
-        pcb_en_ejecucion->flag_fin_q = 0;
 
-        reloj_quantum_VRR(pcb_actual);
+        reloj_quantum_VRR();
 
-        if (pcb_actual->flag_fin_q) {
-	    // El proceso ha finalizado su quantum
-            enviar_codigo(socket_cpu_interrupt, DESALOJO);
-
-            t_buffer* buffer = crear_buffer();
-            buffer_write_uint32(buffer, pcb_actual->cde->pid); 
-            enviar_buffer(buffer, socket_cpu_interrupt);
-            destruir_buffer(buffer);
-        } 
+        if (pcb_en_ejecucion->clock)
+            temporal_stop(pcb_en_ejecucion->clock);
 
         sem_post(&clock_VRR);
+        sem_post(&clock_VRR_frenado);   
     }
 }
 
-void reloj_quantum_VRR(t_pcb* pcb_actual){
+void reloj_quantum_VRR(){
     while(flag_frenar_reloj != 1){
-        if (!pcb_en_ejecucion)   // habria que revisar que casos puede darse
-            return;
 
-        if (pcb_actual && pcb_actual->cde->pid == pcb_en_ejecucion->cde->pid && temporal_gettime(pcb_actual->clock) >= quantum){
-            temporal_stop(pcb_en_ejecucion->clock);
+        if (temporal_gettime(pcb_en_ejecucion->clock) >= quantum){
+
+            temporal_destroy(pcb_en_ejecucion->clock);
+            pcb_en_ejecucion->clock = NULL;
+
+            log_error(logger_kernel, "SE ENVIA INTERRUPCION POR FIN DE QUANTUM");
+            enviar_codigo(socket_cpu_interrupt, DESALOJO);
+
+            t_buffer* buffer = crear_buffer();
+            buffer_write_uint32(buffer, pcb_en_ejecucion->cde->pid); 
+            enviar_buffer(buffer, socket_cpu_interrupt);
+            destruir_buffer(buffer);
             // eliminamos el clock para que se cree nuevamente cuando pase de ready a exec
             pthread_mutex_lock(&mutex_fin_q_VRR);
             pcb_en_ejecucion->flag_fin_q = 1;
             pthread_mutex_unlock(&mutex_fin_q_VRR);
-            return;
+
+            flag_frenar_reloj = 1;
         }
     }
 }
@@ -663,46 +732,61 @@ void listar_procesos_por_estado(){
 }
 
 void enviar_cde_a_cpu(){
+
     enviar_codigo(socket_cpu_dispatch, EJECUTAR_PROCESO);
-
     t_buffer* buffer_dispatch = crear_buffer();
-    pthread_mutex_lock(&mutex_pcb_en_ejecucion);
+    //pthread_mutex_lock(&mutex_pcb_en_ejecucion);
     buffer_write_cde(buffer_dispatch, pcb_en_ejecucion->cde);
-    pthread_mutex_unlock(&mutex_pcb_en_ejecucion);
-
+    //pthread_mutex_unlock(&mutex_pcb_en_ejecucion);
     enviar_buffer(buffer_dispatch, socket_cpu_dispatch);
     destruir_buffer(buffer_dispatch);
+
     sem_post(&cde_recibido);
+
+    if (strcmp(algoritmo, "FIFO") == 0)
+        return;
+        
+    sem_post(&sem_iniciar_quantum);
 }
 
 void recibir_cde_de_cpu(){
     while(1){
+        // SI QUEDA TIEMPO CAMBIAR LA IDEA DE RECURSOS, CPU MANDARIA DOS CODIGOS, CDE O RECURSO_SOL, SI ES CDE ES LA LOGICA YA HECHA
+        // SI ES RECURSO_SOL SOLAMENTE KERNEL LE RESPONDE SI SE LE ASIGNA O NO EL RECURSO, SI HAY QUE BLOQUEARLO SE INTERRUMPE CPU
         sem_wait(&cde_recibido);
+        log_warning(logger_kernel, "Recibo el signal para cde_recibido");
 
         t_buffer* buffer = recibir_buffer(socket_cpu_dispatch);
-        t_cde* cde_recibido = buffer_read_cde(buffer);
+        t_cde* cde_recibido_de_cpu = buffer_read_cde(buffer);
+        destruir_buffer(buffer);
+        log_warning(logger_kernel, "Recibo el cde del pid %d", cde_recibido_de_cpu->pid);
         // considero este el momento en donde hay que frenar el clock en caso de que no haya vuelto por fin de quantum
         // se hace el chequeo de que la instruccion no sea relacionada a SIGNAL o WAIT porque en ese caso no quiero frenar el reloj
         // ya que en caso de que el recurso no tenga demoras y el quantum no se haya consumido el cde vuelve DIRECTAMENTE a cpu
-        if (strcmp(algoritmo, "VRR") == 0 && pcb_en_ejecucion->flag_fin_q != 1 && cde_recibido->motivo_desalojo != RECURSOS){
+        if (strcmp(algoritmo, "VRR") == 0 && pcb_en_ejecucion->clock && cde_recibido_de_cpu->motivo_desalojo != RECURSOS){
             temporal_stop(pcb_en_ejecucion->clock);
-            log_warning(logger_kernel, "Vuelve el proceso %d con tiempo restante %ld ms con motivo %s", pcb_en_ejecucion->cde->pid, quantum - temporal_gettime(pcb_en_ejecucion->clock), obtener_nombre_motivo(cde_recibido->motivo_desalojo));
-            pthread_mutex_lock(&mutex_frenar_reloj);
-            flag_frenar_reloj = 1;
-            pthread_mutex_unlock(&mutex_frenar_reloj);
-        } else if (strcmp(algoritmo, "VRR") == 0 && pcb_en_ejecucion->flag_fin_q == 1){
-            log_warning(logger_kernel, "Vuelve el proceso %d SIN tiempo restante con motivo %s", pcb_en_ejecucion->cde->pid, obtener_nombre_motivo(cde_recibido->motivo_desalojo));
+            log_warning(logger_kernel, "Vuelve el proceso %d con tiempo restante %ld ms con motivo %s", pcb_en_ejecucion->cde->pid, quantum - temporal_gettime(pcb_en_ejecucion->clock), obtener_nombre_motivo(cde_recibido_de_cpu->motivo_desalojo));
+        } else if (strcmp(algoritmo, "VRR") == 0 && cde_recibido_de_cpu->motivo_desalojo == RECURSOS){
+            log_warning(logger_kernel, "Vuelve el proceso %d SIN tiempo restante con motivo %s", pcb_en_ejecucion->cde->pid, obtener_nombre_motivo(cde_recibido_de_cpu->motivo_desalojo));
         }
+        // aseguramos que no se altere el pcb_en_ejecucion hasta que no setermine de preparar el clockVRR
+        //if (strcmp(algoritmo, "VRR") == 0 && cde_recibido_de_cpu->motivo_desalojo != RECURSOS)
+          //  sem_wait(&clock_VRR_frenado);
 
-        pthread_mutex_lock(&mutex_exec);
-        // retiramos el cde anterior a ser ejecutado
-        destruir_cde(pcb_en_ejecucion->cde);
-        pcb_en_ejecucion->cde = cde_recibido;
-        pthread_mutex_unlock(&mutex_exec);
+        if(pcb_en_ejecucion->cde->motivo_finalizacion == INTERRUMPED_BY_USER){
+            enviar_de_exec_a_finalizado();
+        } else if (pcb_en_ejecucion->cde->motivo_desalojo == OUT_OF_MEMORY_ERROR){
+            pcb_en_ejecucion->cde->motivo_finalizacion = OUT_OF_MEMORY;
+            enviar_de_exec_a_finalizado();
+        } else {
+            pthread_mutex_lock(&mutex_exec);
+            // retiramos el cde anterior a ser ejecutado
+            destruir_cde(pcb_en_ejecucion->cde);
+            pcb_en_ejecucion->cde = cde_recibido_de_cpu;
+            pthread_mutex_unlock(&mutex_exec);
 
-        evaluar_instruccion(pcb_en_ejecucion->cde->ultima_instruccion);        
-
-        destruir_buffer(buffer);
+            evaluar_instruccion(pcb_en_ejecucion->cde->ultima_instruccion);        
+        }
     }
 }
 
@@ -742,6 +826,9 @@ void evaluar_instruccion(t_instruccion* ultima_instruccion){
         case IO_FS_READ:
             evaluar_io(ultima_instruccion);
             break;
+        case IO_FS_DELETE:
+            evaluar_io(ultima_instruccion);
+            break;
         case EXIT:
             pcb_en_ejecucion->cde->motivo_finalizacion = SUCCESS;
             enviar_de_exec_a_finalizado();
@@ -755,7 +842,7 @@ void evaluar_instruccion(t_instruccion* ultima_instruccion){
 
 void evaluar_io(t_instruccion* ultima_instruccion){
     if (!interfaz_valida(ultima_instruccion->parametro1)){
-        finalizarProceso(pcb_en_ejecucion->cde->pid);
+        terminar_proceso_consola(pcb_en_ejecucion->cde->pid);
         return;
     }
 
@@ -793,9 +880,10 @@ void evaluar_signal(char* nombre_recurso_pedido){
         pcb_en_ejecucion->cde->motivo_finalizacion = INVALID_RESOURCE;
         if (strcmp(algoritmo, "VRR") == 0){
             if (!pcb_en_ejecucion->flag_fin_q){
-                pthread_mutex_lock(&mutex_frenar_reloj);
-                flag_frenar_reloj = 1;
-                pthread_mutex_unlock(&mutex_frenar_reloj);
+                temporal_stop(pcb_en_ejecucion->clock);
+                //pthread_mutex_lock(&mutex_frenar_reloj);
+                //flag_frenar_reloj = 1;
+                //pthread_mutex_unlock(&mutex_frenar_reloj);
             }
         }
         enviar_de_exec_a_finalizado(); 
@@ -850,9 +938,10 @@ void evaluar_signal(char* nombre_recurso_pedido){
         pcb_en_ejecucion->cde->motivo_finalizacion = INVALID_RESOURCE;
         if (strcmp(algoritmo, "VRR") == 0){
             if (!pcb_en_ejecucion->flag_fin_q){
-                pthread_mutex_lock(&mutex_frenar_reloj);
-                flag_frenar_reloj = 1;
-                pthread_mutex_unlock(&mutex_frenar_reloj);
+                temporal_stop(pcb_en_ejecucion->clock);
+                //pthread_mutex_lock(&mutex_frenar_reloj);
+                //flag_frenar_reloj = 1;
+                //pthread_mutex_unlock(&mutex_frenar_reloj);
             }
         }
         enviar_de_exec_a_finalizado(); 
@@ -883,9 +972,9 @@ void evaluar_wait(char* nombre_recurso_pedido){
 
             if (strcmp(algoritmo, "VRR") == 0 && !flag_fin_q) {
                 temporal_stop(pcb_en_ejecucion->clock);
-                pthread_mutex_lock(&mutex_frenar_reloj);
-                flag_frenar_reloj = 1;
-                pthread_mutex_unlock(&mutex_frenar_reloj);
+                //pthread_mutex_lock(&mutex_frenar_reloj);
+                //flag_frenar_reloj = 1;
+                //pthread_mutex_unlock(&mutex_frenar_reloj);
             }
 
             sem_t semaforo_recurso = recurso->sem_recurso;
@@ -922,9 +1011,10 @@ void evaluar_wait(char* nombre_recurso_pedido){
         pcb_en_ejecucion->cde->motivo_finalizacion = INVALID_RESOURCE;
         if (strcmp(algoritmo, "VRR") == 0){
             if (!pcb_en_ejecucion->flag_fin_q){
-                pthread_mutex_lock(&mutex_frenar_reloj);
-                flag_frenar_reloj = 1;
-                pthread_mutex_unlock(&mutex_frenar_reloj);
+                temporal_stop(pcb_en_ejecucion->clock);
+                //pthread_mutex_lock(&mutex_frenar_reloj);
+                //flag_frenar_reloj = 1;
+                //pthread_mutex_unlock(&mutex_frenar_reloj);
             }
         }
 
@@ -1061,9 +1151,11 @@ void inicializarSemaforos(){ // TERMINAR DE VER
     pthread_mutex_init(&mutex_frenar_reloj, NULL);
     pthread_mutex_init(&mutex_pcb_en_ejecucion, NULL);
     pthread_mutex_init(&mutex_fin_q_VRR, NULL);
-
+    pthread_mutex_init(&mutex_grado_multiprogramacion, NULL);
 
     sem_init(&procesos_en_exec, 0, 0);
+
+    sem_init(&clock_VRR_frenado, 0, 0);
 
     sem_init(&pausar_new_a_ready, 0, 0);
     sem_init(&pausar_ready_a_exec, 0, 0);
@@ -1104,19 +1196,17 @@ char* obtener_nombre_estado(t_estados estado){
         case TERMINADO:
             return "EXIT";
             break;
+        case READY_PLUS:
+            return "READY+";
+            break;
         default:
             return "NULO";
             break;
     }
 }
 
-void conectar_consola(){
-	int err = pthread_create(&hilo_consola, NULL, (void*)consola, NULL);
-	if (err != 0) {
-		perror("Fallo la creacion de hilo para IO\n");
-		return;
-	}
-	pthread_detach(hilo_consola);
+int max(int a, int b) {
+    return (a > b) ? a : b;
 }
 
 void atender_io(void* socket_io){
@@ -1139,7 +1229,7 @@ void atender_io(void* socket_io){
 
             // si es VRR hay que pasarlo a la cola prioritaria
             if (strcmp(algoritmo, "VRR") == 0 && interfaz->pcb_ejecutando->clock){
-                log_warning(logger_kernel, "Vuelve el proceso %d de IO con tiempo restante %ld", interfaz->pcb_ejecutando->cde->pid, quantum - temporal_gettime(interfaz->pcb_ejecutando->clock));
+                log_warning(logger_kernel, "Vuelve el proceso %d de IO con tiempo restante %d", interfaz->pcb_ejecutando->cde->pid, max(quantum - temporal_gettime(interfaz->pcb_ejecutando->clock), 0));
                 enviar_pcb_de_block_a_readyPlus(interfaz->pcb_ejecutando);
             } // si existe el clock entonces le resta quantum
             else 
@@ -1205,7 +1295,7 @@ void conectar_cpu_interrupt(){
 }
 
 void levantar_logger(){
-	logger_kernel = log_create("kernel_log.log", "KERNEL",true, LOG_LEVEL_INFO);
+	logger_kernel = log_create("kernel_log.log", "KERNEL",false, LOG_LEVEL_INFO);
 	if (!logger_kernel) {
 		perror("Error al iniciar logger de kernel\n");
 		exit(EXIT_FAILURE);
@@ -1220,10 +1310,103 @@ void levantar_config(){
 	}
 }
 
+void destructor_pcb(void* pcb){
+    t_pcb* pcb_a_destruir = pcb;
+    temporal_destroy(pcb_a_destruir->clock);
+    destruir_cde(pcb_a_destruir->cde);
+    list_destroy(pcb_a_destruir->recursos_asignados);
+    list_destroy(pcb_a_destruir->recursos_solicitados);
+    free(pcb_a_destruir);
+}
+
+void destruir_listas(){
+    list_destroy_and_destroy_elements(procesos_globales, destructor_pcb);
+    queue_destroy(procesosNew);
+    queue_destroy(procesosReady);
+    if (strcmp(algoritmo, "VRR") == 0)
+        queue_destroy(procesosReadyPlus);
+    queue_destroy(procesosBloqueados);
+    queue_destroy(procesosFinalizados);
+}
+
+void destruir_recursos(){
+    int i = 0;
+    while (i < list_size(recursos)){
+        t_recurso* recurso = list_get(recursos, i);
+        free(recurso->nombre);
+        list_destroy(recurso->procesos_bloqueados);
+        sem_destroy(&recurso->sem_recurso);
+        free(recurso);
+    }
+    list_destroy(recursos);
+}
+
+void destruir_semaforos(){
+    sem_destroy(&terminar_kernel);
+    sem_destroy(&procesos_en_exec);
+    sem_destroy(&cde_recibido);
+    sem_destroy(&cpu_libre);
+    sem_destroy(&procesos_en_new);
+    sem_destroy(&procesos_en_ready);
+    sem_destroy(&procesos_en_blocked);
+    sem_destroy(&procesos_en_exit);
+    sem_destroy(&sem_iniciar_quantum);
+    sem_destroy(&sem_reloj_destruido);
+    sem_destroy(&no_end_kernel);
+    sem_destroy(&grado_de_multiprogramacion);
+    sem_destroy(&clock_VRR);
+    sem_destroy(&sem_liberar_archivos);
+    sem_destroy(&pausar_new_a_ready);
+    sem_destroy(&pausar_ready_a_exec);
+    sem_destroy(&pausar_exec_a_finalizado);
+    sem_destroy(&pausar_exec_a_ready);
+    sem_destroy(&pausar_exec_a_blocked);
+    sem_destroy(&pausar_blocked_a_ready);
+    sem_destroy(&pausar_blocked_a_readyPlus);
+    pthread_mutex_destroy(&mutex_procesos_globales);
+    pthread_mutex_destroy(&mutex_new);
+    pthread_mutex_destroy(&mutex_ready);
+    pthread_mutex_destroy(&mutex_readyPlus);
+    pthread_mutex_destroy(&mutex_block);
+    pthread_mutex_destroy(&mutex_finalizados);
+    pthread_mutex_destroy(&mutex_exec);
+    pthread_mutex_destroy(&mutex_interfaz);
+    pthread_mutex_destroy(&mutex_fin_q_VRR);
+    pthread_mutex_destroy(&mutex_pcb_en_ejecucion);
+    pthread_mutex_destroy(&mutex_frenar_reloj);
+}
+
+void destruir_interfaz(void* inter){
+    t_interfaz* interfaz = inter;
+    if (interfaz->socket != -1)
+        close(interfaz->socket); // cerramos conexion
+    free(interfaz->nombre);
+    free(interfaz->tipo);
+    queue_destroy(interfaz->pcb_esperando);
+    free(interfaz);
+}
+
+void destruir_interfaces(){
+    list_destroy_and_destroy_elements(interfacesIO, destruir_interfaz);
+}
+
 void terminar_programa(){
-	terminar_conexiones(3, socket_memoria, socket_cpu_dispatch, socket_cpu_interrupt);
     if(logger_kernel) log_destroy(logger_kernel);
     if(config_kernel) config_destroy(config_kernel);
+    destruir_recursos();
+    destruir_semaforos();
+    destruir_interfaces(); 
+    destruir_listas();
+
+    if (socket_cpu_dispatch != -1)
+        close(socket_cpu_dispatch);
+    if (socket_cpu_interrupt != -1)
+        close(socket_cpu_interrupt);
+
+    if (socket_memoria != -1)
+        close(socket_memoria);
+    if (socket_servidor != -1)
+		close(socket_servidor);
 }
 
 void iterator(char* value) {
@@ -1414,7 +1597,7 @@ void enviar_pcb_de_block_a_readyPlus(t_pcb* pcb){
     pcb_a_readyPlus->estado = READY;
     pcb_a_readyPlus->cde->motivo_desalojo = NO_DESALOJADO;
 
-    log_info(logger_kernel, "PID: %d - Estado anterior: %s - Estado actual: %s", pcb_a_readyPlus->cde->pid, obtener_nombre_estado(BLOCKED), obtener_nombre_estado(READY));
+    log_info(logger_kernel, "PID: %d - Estado anterior: %s - Estado actual: %s", pcb_a_readyPlus->cde->pid, obtener_nombre_estado(BLOCKED), obtener_nombre_estado(READY_PLUS));
 
     sem_post(&procesos_en_ready);
 }
@@ -1442,7 +1625,7 @@ void enviar_de_ready_a_exec(){
 
 		pthread_mutex_lock(&mutex_exec);
 		pcb_en_ejecucion = retirar_pcb_de_ready_segun_algoritmo();
-		pthread_mutex_unlock(&mutex_exec);
+        pthread_mutex_unlock(&mutex_exec);
 
 		log_info(logger_kernel, "PID: %d - Estado anterior: %s - Estado actual: %s", pcb_en_ejecucion->cde->pid, obtener_nombre_estado(READY), obtener_nombre_estado(EXEC)); //OBLIGATORIO
         pcb_en_ejecucion->estado = EXEC;
@@ -1455,15 +1638,18 @@ void enviar_de_ready_a_exec(){
             pcb_en_ejecucion->flag_fin_q = 0;
             pthread_mutex_unlock(&mutex_fin_q_VRR);
             sem_wait(&sem_reloj_destruido); // si hay un ciclo de quantum ejecutandose se espera a que termine
-            sem_post(&sem_iniciar_quantum); // da comienzo a un nuevo ciclo
         }
 
         if((strcmp(algoritmo, "VRR") == 0)) {
-            pthread_mutex_lock(&mutex_frenar_reloj);
-            flag_frenar_reloj = 0;
-            pthread_mutex_unlock(&mutex_frenar_reloj);
-            sem_wait(&clock_VRR);
-            sem_post(&sem_iniciar_quantum);
+            pthread_mutex_lock(&mutex_fin_q_VRR);
+            pcb_en_ejecucion->flag_fin_q = 0;
+            pthread_mutex_unlock(&mutex_fin_q_VRR);
+            sem_wait(&sem_reloj_destruido);
+            //pthread_mutex_lock(&mutex_frenar_reloj);
+            //pcb_en_ejecucion->flag_fin_q = 0;
+            //flag_frenar_reloj = 0;
+            //pthread_mutex_unlock(&mutex_frenar_reloj);
+            //sem_wait(&clock_VRR);
         }
 
         enviar_cde_a_cpu(); //avisarle al kernel que empiece a correr el proceso en el cpu y le mande las cosas necesarias

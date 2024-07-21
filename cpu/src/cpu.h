@@ -62,6 +62,8 @@ void* mayor_tiempo_de_ultimo_acceso(void* A, void* B);
 int obtenerTiempoEnMiliSegundos(char* tiempo);
 bool se_encuentra_en_tlb(uint32_t dir_logica, uint32_t* dir_fisica);
 
+char* obtener_elementos_cargados_en_tlb(t_queue* cola);
+
 // --------------------------------
 
 void devolver_cde_a_kernel();

@@ -13,8 +13,6 @@ int main(int argc, char* argv[]) {
 	conectar();
 	sem_wait(&terminar_io);
 
-    terminar_programa();
-
     return 0;
 }
 
@@ -63,6 +61,9 @@ void avisar_finalizacion_a_kernel(){
 void atender_kernel_generica(){
 	while(1){
 		codigoInstruccion cod = recibir_codigo(socket_kernel);
+		if (cod == UINT8_MAX){
+			return;
+		}
 		switch (cod){
 			case IO_GEN_SLEEP:
 				t_buffer* buffer = recibir_buffer(socket_kernel);
@@ -86,6 +87,9 @@ void atender_kernel_generica(){
 void atender_kernel_stdin(){
 	while(1){
 		codigoInstruccion cod = recibir_codigo(socket_kernel);
+		if (cod == UINT8_MAX){
+			return;
+		}
 		switch (cod){
 			case IO_STDIN_READ:
 					ejecutar_std_in();
@@ -100,6 +104,9 @@ void atender_kernel_stdin(){
 void atender_kernel_stdout(){
 	while(1){
 		codigoInstruccion cod = recibir_codigo(socket_kernel);
+		if (cod == UINT8_MAX){
+			return;
+		}
 		switch (cod){
 			case IO_STDOUT_WRITE:
 				ejecutar_std_out();
@@ -116,10 +123,11 @@ void inicializar_fs(){
 	block_size  = config_get_int_value(config_io, "BLOCK_SIZE");
     block_count = config_get_int_value(config_io,"BLOCK_COUNT");
     path_filesystem = config_get_string_value(config_io,"PATH_BASE_DIALFS");
-
+	lista_global_archivos_abiertos = list_create();
 	levantar_archivo_bitarray();
 	levantar_archivo_bloques();
-	lista_global_archivos_abiertos = list_create();
+	levantar_archivos_creados();
+
 
 	bitmap = malloc(sizeof(t_bitarray));
 	bitmap->size = tamanio_archivo_bitarray;
@@ -141,6 +149,9 @@ void atender_kernel_dialfs(){
 
 	while(1){
 		codigoInstruccion cod = recibir_codigo(socket_kernel);
+		if (cod == UINT8_MAX){
+			return;
+		}
 		switch (cod){
 			case IO_FS_CREATE:
 				usleep(unidad_tiempo_trabajo * 1000);
@@ -319,16 +330,40 @@ void levantar_config(){
 	}
 }
 
+void destruir_archivo(void* arch){
+	archivo_t* archivo = arch;
+
+	config_destroy(archivo->metadata);
+	free(archivo->nombre_archivo);
+	free(archivo);
+}
+
 void terminar_programa(){
 	munmap(bitmap, tamanio_archivo_bitarray);
     munmap(bloquesmap, tamanio_archivo_bloques);
+	free(bloquesmap);
+	bitarray_destroy(bitmap);
 
 	close(fd_bitarray);
 	close(fd_bloques);
 
-	terminar_conexiones(2, socket_memoria, socket_kernel);
     if(logger_io) log_destroy(logger_io);
     if(config_io) config_destroy(config_io);
+
+	free(nombreIO);
+	free(tipo);
+	free(config_path);
+
+	sem_destroy(&sema_memoria);
+	sem_destroy(&sema_kernel);
+	sem_destroy(&terminar_io);
+
+	list_destroy_and_destroy_elements(lista_global_archivos_abiertos, destruir_archivo);
+
+	if (socket_kernel != -1)
+		close(socket_kernel);
+	if (socket_memoria != -1)
+		close(socket_memoria);
 }
 	
 /////////////////     DIALFS     /////////////////
@@ -418,6 +453,90 @@ void levantar_archivo_bloques(){
 		tamanio_archivo_bloques = sbA.st_size;
 	}
 }
+
+
+void levantar_archivos(const char *path) {
+    DIR *dir;
+    struct dirent *entry;
+
+    if ((dir = opendir(path)) == NULL) {
+        perror("opendir() error");
+        return;
+    } else {
+        printf("Contenido del directorio: %s\n", path);
+        while ((entry = readdir(dir)) != NULL) {
+            // Ignorar "." y ".."
+            if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) {
+                char fullpath[1024];
+                snprintf(fullpath, sizeof(fullpath), "%s/%s", path, entry->d_name);
+                printf("%s\n", fullpath);
+				crear_archivo_desde_path(fullpath,entry->d_name);
+            }
+        }
+        closedir(dir);
+    }
+}
+
+void crear_archivo_desde_path(char* path, char* nombre_archivo){
+	char* ruta_completa = string_new();
+	string_append(&ruta_completa, path);
+	string_append(&ruta_completa, "/");
+	string_append(&ruta_completa, nombre_archivo);
+	t_config* config_archivo = config_create(path);
+	archivo_t* archivo = malloc(sizeof(archivo_t));
+	archivo->metadata = config_archivo;
+	archivo->nombre_archivo = string_new();
+	string_append(&archivo->nombre_archivo, nombre_archivo);
+	list_add(lista_global_archivos_abiertos, archivo);
+	log_info(logger_io, "Ruta Obtenida: %s  Nombre Archivo: %s",ruta_completa, nombre_archivo);
+	free(ruta_completa);
+}
+
+void levantar_archivos_creados(){
+    char initial_path[1024];
+    if (getcwd(initial_path, sizeof(initial_path)) == NULL) {
+        perror("getcwd() error");
+        return;
+    }
+	// Cambiar el directorio actual al directorio padre ("..")
+    if (chdir("..") != 0) {
+        perror("chdir(..) error");
+        return;
+    }
+
+    // Cambiar al directorio "src"
+    if (chdir("src") != 0) {
+        perror("chdir(src) error");
+        return;
+    }
+
+    // Cambiar al directorio "baseDIALFS"
+    if (chdir("baseDIALFS") != 0) {
+        perror("chdir(baseDIALFS) error");
+        return;
+    }
+	// Cambiar al directorio "metadata"
+    if (chdir("metadata") != 0) {
+        perror("chdir(metadata) error");
+        return;
+    }
+	char current_path[1024];
+    if (getcwd(current_path, sizeof(current_path)) == NULL) {
+        perror("getcwd() error");
+        return;
+    }
+
+    // Listar archivos en el directorio actual
+    levantar_archivos(current_path);
+
+    // Volver al directorio inicial
+    if (chdir(initial_path) != 0) {
+        perror("chdir() error");
+        return;
+    }
+    return;
+}
+
 
 void ejecutar_fs_create(){
 	
@@ -526,11 +645,21 @@ void ejecutar_fs_truncate(){
 	int tamanio_archivo = config_get_int_value(archivo_buscado->metadata, "TAMANIO_ARCHIVO");
 
 
+	log_info(logger_io , "Cantidad de bloques del archivo: %s antes de modificacion: %d" ,archivo_buscado->nombre_archivo, tamanio_archivo );
 
-	if (tamanio_solicitado < tamanio_archivo)
+
+	if (tamanio_solicitado < tamanio_archivo){
+
 		reducir_tamanio(archivo_buscado, tamanio_solicitado);
-	else	
+		int tamanio_archivo_actualizado = config_get_int_value(archivo_buscado->metadata, "TAMANIO_ARCHIVO");
+		log_info(logger_io , "Cantidad de bloques del archivo : %s  despues de la reduccion : %d " , archivo_buscado->nombre_archivo, tamanio_archivo_actualizado);
+	}
+	else {
+
 		ampliar_tamanio(archivo_buscado, tamanio_solicitado);
+		int tamanio_archivo_actualizado = config_get_int_value(archivo_buscado->metadata, "TAMANIO_ARCHIVO");
+		log_info(logger_io , "Cantidad de bloques del archivo : %s  despues de la ampliacion : %d " , archivo_buscado->nombre_archivo, tamanio_archivo_actualizado);
+	}
 
 }
 
@@ -671,12 +800,16 @@ void ampliar_tamanio(archivo_t* archivo, uint32_t tamanio_solicitado){
 	int bloques_asignados_antes = 1;
 	if (tamanio_archivo != 0)
 		bloques_asignados_antes = ceil(tamanio_archivo / block_size);
-
+	
 	// si tenia 4 bloques asignados, los bits 0 1 2 y 3 estaban en 1 (ocupados) 
 	// a partir de la posicion 4 quiero buscar libres
-	int bloques_a_asignar = ceil(tamanio_solicitado / block_size) - bloques_asignados_antes;
-	if (bloques_a_asignar == 0)
+	
+	int bloques_a_asignar = ceil((float)tamanio_solicitado / (float)block_size) - bloques_asignados_antes;
+	if (bloques_a_asignar == 0){
+		config_set_value(archivo->metadata, "TAMANIO_ARCHIVO", string_itoa(tamanio_solicitado));
+		config_save(archivo->metadata);
 		return;
+	}		
 	
 	if (hay_bloques_contiguos_al_archivo(bloques_a_asignar, bloque_inicial + bloques_asignados_antes)){
 		int i = 0;
@@ -746,19 +879,12 @@ void ejecutar_fs_delete(){
 		log_info(logger_io, "El archivo buscado no existe.");
 		return;
 	}
-
-
 	log_info(logger_io , "DialFS - Eliminar Archivo: PID: %d - Eliminar Archivo: %s " , pid, nombreArchivo);
 
-
-	log_info (logger_io ,"DialFS - Inicio Compactación: PID: %d - Inicio Compactación." , pid );
-
-	
-	log_info(logger_io , "DialFS - Fin Compactación: PID: %d - Fin Compactación. " , pid);
 } 
 
 void liberar_espacio_en_disco(int bloque_inicial, int tamanio_archivo){
-	int cantidad_bloques_totales = ceil(tamanio_archivo / block_size);
+	int cantidad_bloques_totales = ceil((float)tamanio_archivo / (float)block_size);
 	int i = 0;
 	while (i < cantidad_bloques_totales){
 		bitarray_clean_bit(bitmap, bloque_inicial + i);
