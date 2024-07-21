@@ -109,7 +109,7 @@ t_queue* procesosFinalizados;
 // como por ejemplo en kernel: que se indique por consola 
 sem_t terminar_kernel;
 sem_t procesos_en_exec;
-sem_t cde_recibido;
+sem_t cpu_debe_retornar;
 sem_t cpu_libre;
 // semaforos de procesos y estados
 pthread_mutex_t mutex_procesos_globales;

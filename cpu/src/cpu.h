@@ -50,6 +50,8 @@ void escribir_en_dir_fisica_los_bytes(uint32_t dir_fisica, uint32_t bytes, uint3
 void ejecutar_copy_string(int tamanio);
 void escribir_y_guardar_en_dos_paginas(uint32_t dir_logica, uint32_t* valor);
 
+void ejecutar_signal(t_instruccion*);
+void ejecutar_wait(t_instruccion*);
 // mmu
 int obtener_numero_pagina(int direccion_logica);
 int obtener_desplazamiento_pagina(int direccion_logica);

@@ -178,7 +178,7 @@ void levantar_planificador_corto_plazo(){
 }
 
 void levantar_recepcion_cde(){
-    int err = pthread_create(&hilo_recepcion_cde, NULL, (void*)recibir_cde_de_cpu, NULL);
+    int err = pthread_create(&hilo_recepcion_cde, NULL, (void*)atender_cpu, NULL);
 	if (err != 0) {
 		perror("Fallo la creacion de hilo para la recepcion de cde\n");
 		return;
@@ -429,10 +429,9 @@ t_pcb* encontrar_pcb_por_pid(uint32_t pid, int* encontrado){
 
 
 void retirar_pcb_de_su_respectivo_estado(t_pcb* pcb_a_retirar){
-    pcb_a_retirar->cde->motivo_finalizacion = INTERRUMPED_BY_USER;
-
         switch(pcb_a_retirar->estado){
             case NEW:
+                pcb_a_retirar->cde->motivo_finalizacion = INTERRUMPED_BY_USER;
                 sem_wait(&procesos_en_new);
                 pthread_mutex_lock(&mutex_new);
                 list_remove_element(procesosNew->elements, pcb_a_retirar);
@@ -440,6 +439,7 @@ void retirar_pcb_de_su_respectivo_estado(t_pcb* pcb_a_retirar){
                 finalizar_pcb(pcb_a_retirar);
                 break;
             case READY:
+                pcb_a_retirar->cde->motivo_finalizacion = INTERRUMPED_BY_USER;
                 sem_wait(&procesos_en_ready);
                 pthread_mutex_lock(&mutex_ready);
                 list_remove_element(procesosReady->elements, pcb_a_retirar);
@@ -447,6 +447,7 @@ void retirar_pcb_de_su_respectivo_estado(t_pcb* pcb_a_retirar){
                 finalizar_pcb(pcb_a_retirar);
                 break;
             case BLOCKED:
+                pcb_a_retirar->cde->motivo_finalizacion = INTERRUMPED_BY_USER;
                 sem_wait(&procesos_en_blocked);
                 pthread_mutex_lock(&mutex_block);
                 list_remove_element(procesosBloqueados->elements, pcb_a_retirar);
@@ -741,7 +742,7 @@ void enviar_cde_a_cpu(){
     enviar_buffer(buffer_dispatch, socket_cpu_dispatch);
     destruir_buffer(buffer_dispatch);
 
-    sem_post(&cde_recibido);
+    sem_post(&cpu_debe_retornar);
 
     if (strcmp(algoritmo, "FIFO") == 0)
         return;
@@ -749,50 +750,67 @@ void enviar_cde_a_cpu(){
     sem_post(&sem_iniciar_quantum);
 }
 
-void recibir_cde_de_cpu(){
-    while(1){
-        // SI QUEDA TIEMPO CAMBIAR LA IDEA DE RECURSOS, CPU MANDARIA DOS CODIGOS, CDE O RECURSO_SOL, SI ES CDE ES LA LOGICA YA HECHA
-        // SI ES RECURSO_SOL SOLAMENTE KERNEL LE RESPONDE SI SE LE ASIGNA O NO EL RECURSO, SI HAY QUE BLOQUEARLO SE INTERRUMPE CPU
-        sem_wait(&cde_recibido);
+void evaluar_solicitud_recurso(){
+    t_buffer* buffer = recibir_buffer(socket_cpu_dispatch);
+    t_instruccion* instruccion = buffer_read_instruccion(buffer);
+    destruir_buffer(buffer);
+
+    if (instruccion->codigo == SIGNAL)
+        evaluar_signal(instruccion->parametro1);
+    else 
+        evaluar_wait(instruccion->parametro1);
+    // avisamos que ya se debe recibir un nuevo mensaje
+    sem_post(&cpu_debe_retornar);
+}
+
+void atender_cpu(){
+    while (1) {
+
+        sem_wait(&cpu_debe_retornar);
+        log_warning(logger_kernel, "Recibo el signal para cde_recibido");
+        
+        mensajeKernelCpu cod = recibir_codigo(socket_cpu_dispatch);
         log_warning(logger_kernel, "Recibo el signal para cde_recibido");
 
-        t_buffer* buffer = recibir_buffer(socket_cpu_dispatch);
-        t_cde* cde_recibido_de_cpu = buffer_read_cde(buffer);
-        destruir_buffer(buffer);
-        log_warning(logger_kernel, "Recibo el cde del pid %d", cde_recibido_de_cpu->pid);
-        // considero este el momento en donde hay que frenar el clock en caso de que no haya vuelto por fin de quantum
-        // se hace el chequeo de que la instruccion no sea relacionada a SIGNAL o WAIT porque en ese caso no quiero frenar el reloj
-        // ya que en caso de que el recurso no tenga demoras y el quantum no se haya consumido el cde vuelve DIRECTAMENTE a cpu
-        if (strcmp(algoritmo, "VRR") == 0 && pcb_en_ejecucion->clock && cde_recibido_de_cpu->motivo_desalojo != RECURSOS){
-            temporal_stop(pcb_en_ejecucion->clock);
-            log_warning(logger_kernel, "Vuelve el proceso %d con tiempo restante %ld ms con motivo %s", pcb_en_ejecucion->cde->pid, quantum - temporal_gettime(pcb_en_ejecucion->clock), obtener_nombre_motivo(cde_recibido_de_cpu->motivo_desalojo));
-        } else if (strcmp(algoritmo, "VRR") == 0 && cde_recibido_de_cpu->motivo_desalojo == RECURSOS){
-            log_warning(logger_kernel, "Vuelve el proceso %d SIN tiempo restante con motivo %s", pcb_en_ejecucion->cde->pid, obtener_nombre_motivo(cde_recibido_de_cpu->motivo_desalojo));
-        }
-        // aseguramos que no se altere el pcb_en_ejecucion hasta que no setermine de preparar el clockVRR
-        //if (strcmp(algoritmo, "VRR") == 0 && cde_recibido_de_cpu->motivo_desalojo != RECURSOS)
-          //  sem_wait(&clock_VRR_frenado);
-
-        if(pcb_en_ejecucion->cde->motivo_finalizacion == INTERRUMPED_BY_USER){
-            enviar_de_exec_a_finalizado();
-        } else if (pcb_en_ejecucion->cde->motivo_desalojo == OUT_OF_MEMORY_ERROR){
-            pcb_en_ejecucion->cde->motivo_finalizacion = OUT_OF_MEMORY;
-            enviar_de_exec_a_finalizado();
-        } else {
-            pthread_mutex_lock(&mutex_exec);
-            // retiramos el cde anterior a ser ejecutado
-            destruir_cde(pcb_en_ejecucion->cde);
-            pcb_en_ejecucion->cde = cde_recibido_de_cpu;
-            pthread_mutex_unlock(&mutex_exec);
-
-            evaluar_instruccion(pcb_en_ejecucion->cde->ultima_instruccion);        
+        if (cod == CDE) {
+            recibir_cde_de_cpu();
+        } else if (cod == RECURSO_SOLICITUD) {
+            evaluar_solicitud_recurso();
         }
     }
 }
 
-bool instruccion_de_recursos(codigoInstruccion cod){
-    return (cod == WAIT || cod == SIGNAL);
-} 
+void recibir_cde_de_cpu(){
+
+    t_buffer* buffer = recibir_buffer(socket_cpu_dispatch);
+    t_cde* cde_recibido_de_cpu = buffer_read_cde(buffer);
+    destruir_buffer(buffer);
+
+    if (pcb_en_ejecucion->clock) temporal_stop(pcb_en_ejecucion->clock);
+
+    log_warning(logger_kernel, "Recibo el cde del pid %d", cde_recibido_de_cpu->pid);
+
+    // retiramos el cde anterior a ser ejecutado
+    pthread_mutex_lock(&mutex_exec);
+    destruir_cde(pcb_en_ejecucion->cde);
+    pcb_en_ejecucion->cde = cde_recibido_de_cpu;
+    pthread_mutex_unlock(&mutex_exec);
+
+    if(pcb_en_ejecucion->cde->motivo_desalojo == INTERRUPCION){
+        pcb_en_ejecucion->cde->motivo_finalizacion = INTERRUMPED_BY_USER;
+        enviar_de_exec_a_finalizado();
+    } else if (pcb_en_ejecucion->cde->motivo_desalojo == OUT_OF_MEMORY_ERROR){
+        pcb_en_ejecucion->cde->motivo_finalizacion = OUT_OF_MEMORY;
+        enviar_de_exec_a_finalizado();
+    } else if (pcb_en_ejecucion->cde->motivo_desalojo == RECURSO_INVALIDO){
+        pcb_en_ejecucion->cde->motivo_finalizacion = INVALID_RESOURCE;
+        enviar_de_exec_a_finalizado();
+    } else if (pcb_en_ejecucion->cde->motivo_desalojo == RECURSO_NO_DISPONIBLE){
+        enviar_de_exec_a_block();
+    } else {
+        evaluar_instruccion(pcb_en_ejecucion->cde->ultima_instruccion);        
+    }
+}
 
 void evaluar_instruccion(t_instruccion* ultima_instruccion){
     // las IO se evaluan de la misma manera ya que desde kernel se comportan siempre igual
@@ -801,12 +819,6 @@ void evaluar_instruccion(t_instruccion* ultima_instruccion){
     switch (ultima_instruccion->codigo){
         case IO_GEN_SLEEP:
             evaluar_io(ultima_instruccion);
-            break;
-        case WAIT:
-            evaluar_wait(ultima_instruccion->parametro1);
-            break;
-        case SIGNAL:
-            evaluar_signal(ultima_instruccion->parametro1);
             break;
         case IO_STDIN_READ:
             evaluar_io(ultima_instruccion);
@@ -877,16 +889,7 @@ void evaluar_signal(char* nombre_recurso_pedido){
 
     if (!encontrado) {
         log_error(logger_kernel, "PID: %d - Solicitud de recurso inexistente, abortando proceso", pcb_en_ejecucion->cde->pid);
-        pcb_en_ejecucion->cde->motivo_finalizacion = INVALID_RESOURCE;
-        if (strcmp(algoritmo, "VRR") == 0){
-            if (!pcb_en_ejecucion->flag_fin_q){
-                temporal_stop(pcb_en_ejecucion->clock);
-                //pthread_mutex_lock(&mutex_frenar_reloj);
-                //flag_frenar_reloj = 1;
-                //pthread_mutex_unlock(&mutex_frenar_reloj);
-            }
-        }
-        enviar_de_exec_a_finalizado(); 
+        enviar_codigo(socket_cpu_dispatch, RECURSO_INEXISTENTE);
         return;
     }
 
@@ -905,18 +908,6 @@ void evaluar_signal(char* nombre_recurso_pedido){
         
         list_remove_element(pcb_en_ejecucion->recursos_asignados, recurso); // saco el recurso porque lo libero
 
-        pthread_mutex_lock(&mutex_fin_q_VRR);
-        int flag_fin_q = pcb_en_ejecucion->flag_fin_q;
-        pthread_mutex_unlock(&mutex_fin_q_VRR);
-
-        if (strcmp(algoritmo, "FIFO") != 0) {
-            if (flag_fin_q) 
-                enviar_de_exec_a_ready();
-            else 
-                enviar_cde_a_cpu();
-        } else 
-            enviar_cde_a_cpu();
-
         if(list_size(recurso->procesos_bloqueados) > 0){ // Desbloquea al primer proceso de la cola de bloqueados del recurso
 			sem_t semaforo_recurso = recurso->sem_recurso;
 
@@ -933,18 +924,10 @@ void evaluar_signal(char* nombre_recurso_pedido){
 
             enviar_pcb_de_block_a_ready(pcb);
 		}
+        enviar_codigo(socket_cpu_dispatch, RECURSO_OK);
     } else {
         log_error(logger_kernel, "PID: %d - Solicitud de recurso NO asignado al proceso, abortando proceso", pcb_en_ejecucion->cde->pid);
-        pcb_en_ejecucion->cde->motivo_finalizacion = INVALID_RESOURCE;
-        if (strcmp(algoritmo, "VRR") == 0){
-            if (!pcb_en_ejecucion->flag_fin_q){
-                temporal_stop(pcb_en_ejecucion->clock);
-                //pthread_mutex_lock(&mutex_frenar_reloj);
-                //flag_frenar_reloj = 1;
-                //pthread_mutex_unlock(&mutex_frenar_reloj);
-            }
-        }
-        enviar_de_exec_a_finalizado(); 
+        enviar_codigo(socket_cpu_dispatch, RECURSO_INEXISTENTE);
     }
 }
 
@@ -966,17 +949,6 @@ void evaluar_wait(char* nombre_recurso_pedido){
         
         if(recurso->instancias < 0){  // Chequea si debe bloquear al proceso por falta de instancias
 
-            pthread_mutex_lock(&mutex_fin_q_VRR);
-            int flag_fin_q = pcb_en_ejecucion->flag_fin_q;
-            pthread_mutex_unlock(&mutex_fin_q_VRR);
-
-            if (strcmp(algoritmo, "VRR") == 0 && !flag_fin_q) {
-                temporal_stop(pcb_en_ejecucion->clock);
-                //pthread_mutex_lock(&mutex_frenar_reloj);
-                //flag_frenar_reloj = 1;
-                //pthread_mutex_unlock(&mutex_frenar_reloj);
-            }
-
             sem_t semaforo_recurso = recurso->sem_recurso;
         	sem_wait(&semaforo_recurso);
 
@@ -987,38 +959,17 @@ void evaluar_wait(char* nombre_recurso_pedido){
             log_info(logger_kernel, "PID: %d - Bloqueado por: %s", pcb_en_ejecucion->cde->pid, nombre_recurso_pedido);
 
             list_add(pcb_en_ejecucion->recursos_solicitados, recurso);
-            
-            enviar_de_exec_a_block();
+
+            enviar_codigo(socket_cpu_dispatch, RECURSO_SIN_INSTANCIAS);
         }
         else{
             list_add(pcb_en_ejecucion->recursos_asignados, recurso);
 
-            pthread_mutex_lock(&mutex_fin_q_VRR);
-            int flag_fin_q = pcb_en_ejecucion->flag_fin_q;
-            pthread_mutex_unlock(&mutex_fin_q_VRR);
-
-            if (strcmp(algoritmo, "FIFO") != 0) {
-                if (flag_fin_q) 
-                    enviar_de_exec_a_ready();
-                else 
-                    enviar_cde_a_cpu();
-            } else 
-                enviar_cde_a_cpu();
+            enviar_codigo(socket_cpu_dispatch, RECURSO_OK);
         }
-    }
-    else{ // el recurso no existe
+    } else { // el recurso no existe
         log_error(logger_kernel, "PID: %d - Solicitud de recurso inexistente, abortando proceso", pcb_en_ejecucion->cde->pid);
-        pcb_en_ejecucion->cde->motivo_finalizacion = INVALID_RESOURCE;
-        if (strcmp(algoritmo, "VRR") == 0){
-            if (!pcb_en_ejecucion->flag_fin_q){
-                temporal_stop(pcb_en_ejecucion->clock);
-                //pthread_mutex_lock(&mutex_frenar_reloj);
-                //flag_frenar_reloj = 1;
-                //pthread_mutex_unlock(&mutex_frenar_reloj);
-            }
-        }
-
-        enviar_de_exec_a_finalizado();
+        enviar_codigo(socket_cpu_dispatch, RECURSO_INEXISTENTE);
     }
 }
 
@@ -1176,7 +1127,7 @@ void inicializarSemaforos(){ // TERMINAR DE VER
     sem_init(&procesos_en_ready, 0, 0);
     sem_init(&procesos_en_blocked, 0, 0);
     sem_init(&procesos_en_exit, 0, 0);
-    sem_init(&cde_recibido, 0, 0);
+    sem_init(&cpu_debe_retornar, 0, 0);
 }
 
 char* obtener_nombre_estado(t_estados estado){
@@ -1344,7 +1295,7 @@ void destruir_recursos(){
 void destruir_semaforos(){
     sem_destroy(&terminar_kernel);
     sem_destroy(&procesos_en_exec);
-    sem_destroy(&cde_recibido);
+    sem_destroy(&cpu_debe_retornar);
     sem_destroy(&cpu_libre);
     sem_destroy(&procesos_en_new);
     sem_destroy(&procesos_en_ready);
@@ -1484,8 +1435,10 @@ char* obtener_nombre_motivo(cod_desalojo motivo){
             return "INTERRUPCION";
 	    case FIN_DE_QUANTUM:
             return "FIN_DE_QUANTUM";
-        case RECURSOS:
-            return "RECURSOS";
+        case RECURSO_INVALIDO:
+            return "RECURSO_INVALIDO";
+        case RECURSO_NO_DISPONIBLE:
+            return "RECURSO_NO_DISPONIBLE";
         default:
             return NULL;  // nunca deberia entrar aca, esta pueso por los warning de retorno
     }
