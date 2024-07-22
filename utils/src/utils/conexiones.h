@@ -44,7 +44,12 @@ typedef enum{
 typedef enum{
     EJECUTAR_PROCESO,
 	INTERRUPT,
-	DESALOJO
+	DESALOJO,
+	CDE,
+	RECURSO_SOLICITUD,
+	RECURSO_OK,
+	RECURSO_INEXISTENTE,
+	RECURSO_SIN_INSTANCIAS
 } mensajeKernelCpu;
 
 typedef enum

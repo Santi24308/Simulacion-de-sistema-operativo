@@ -339,7 +339,7 @@ void destruir_archivo(void* arch){
 }
 
 void terminar_programa(){
-	munmap(bitmap, tamanio_archivo_bitarray);
+	munmap(bitmap->bitarray, tamanio_archivo_bitarray);
     munmap(bloquesmap, tamanio_archivo_bloques);
 	free(bloquesmap);
 	bitarray_destroy(bitmap);
@@ -721,7 +721,7 @@ int recrear_bloquesmap(archivo_t* archivo_a_ampliar, uint32_t cantidad_bloques_n
 			bloque_inicial = config_get_int_value(archivo_lista->metadata, "BLOQUE_INICIAL");
 			bloques_asignados_antes = 1;
 			if (tamanio_archivo != 0)
-				bloques_asignados_antes = ceil(tamanio_archivo / block_size);
+				bloques_asignados_antes = ceil((float)tamanio_archivo / (float)block_size);
 
 			config_set_value(archivo_lista->metadata, "BLOQUE_INICIAL", string_itoa(ultimo_indice_disponible));
 			config_save(archivo_lista->metadata);
@@ -731,7 +731,8 @@ int recrear_bloquesmap(archivo_t* archivo_a_ampliar, uint32_t cantidad_bloques_n
 			offset_bloquesmap_paralelo += bloques_asignados_antes * block_size;
 
 			// como siempre se copian contiguos el ultimo indice va a ser la cantidad copiada (por arrancar de 0)
-			ultimo_indice_disponible += offset_bloquesmap_paralelo / block_size;
+			ultimo_indice_disponible += bloques_asignados_antes;
+			//ultimo_indice_disponible += offset_bloquesmap_paralelo / block_size;
 		}
 		
 		i++;
@@ -742,7 +743,7 @@ int recrear_bloquesmap(archivo_t* archivo_a_ampliar, uint32_t cantidad_bloques_n
 	bloque_inicial = config_get_int_value(archivo_a_ampliar->metadata, "BLOQUE_INICIAL");
 	bloques_asignados_antes = 1;
 	if (tamanio_archivo != 0)
-		bloques_asignados_antes = ceil(tamanio_archivo / block_size);
+		bloques_asignados_antes = ceil((float)tamanio_archivo / (float)block_size);
 
 	config_set_value(archivo_a_ampliar->metadata, "BLOQUE_INICIAL", string_itoa(ultimo_indice_disponible));
 	config_save(archivo_a_ampliar->metadata);
@@ -774,7 +775,7 @@ void compactar_y_asignar(archivo_t* archivo, uint32_t tamanio_solicitado){
 
 	// listo el bloquesmap ahora resta actualizar el bitmap
 	// usamos el ultimo bit disponible para poner a todos los bits previos a ese en 1 y el resto en 0
-	printf("\n%d\n", indice_ultimo_bit_disponible);
+	printf("\nultimo indice disponible %d\n", indice_ultimo_bit_disponible);
 	int i = 0;
 	while (i < bitarray_get_max_bit(bitmap)){
 		if (i < indice_ultimo_bit_disponible) 
@@ -799,7 +800,7 @@ void ampliar_tamanio(archivo_t* archivo, uint32_t tamanio_solicitado){
 	// para cubrir el caso en que un archivo tenga asignado un bloque pero el tamaño sea 0
 	int bloques_asignados_antes = 1;
 	if (tamanio_archivo != 0)
-		bloques_asignados_antes = ceil(tamanio_archivo / block_size);
+		bloques_asignados_antes = ceil((float)tamanio_archivo / (float)block_size);
 	
 	// si tenia 4 bloques asignados, los bits 0 1 2 y 3 estaban en 1 (ocupados) 
 	// a partir de la posicion 4 quiero buscar libres
@@ -879,12 +880,14 @@ void ejecutar_fs_delete(){
 		log_info(logger_io, "El archivo buscado no existe.");
 		return;
 	}
-	log_info(logger_io , "DialFS - Eliminar Archivo: PID: %d - Eliminar Archivo: %s " , pid, nombreArchivo);
 
+	log_info(logger_io , "DialFS - Eliminar Archivo: PID: %d - Eliminar Archivo: %s " , pid, nombreArchivo);
 } 
 
 void liberar_espacio_en_disco(int bloque_inicial, int tamanio_archivo){
-	int cantidad_bloques_totales = ceil((float)tamanio_archivo / (float)block_size);
+	int cantidad_bloques_totales = 1;
+	if (tamanio_archivo != 0)
+		cantidad_bloques_totales = ceil((float)tamanio_archivo / (float)block_size);
 	int i = 0;
 	while (i < cantidad_bloques_totales){
 		bitarray_clean_bit(bitmap, bloque_inicial + i);
@@ -896,7 +899,7 @@ void liberar_archivo(archivo_t* archivo) {
     if (archivo != NULL) {
 
 		liberar_espacio_en_disco(config_get_int_value(archivo->metadata, "BLOQUE_INICIAL"), config_get_int_value(archivo->metadata, "TAMANIO_ARCHIVO"));
-		msync(bitmap, tamanio_archivo_bitarray, MS_SYNC);
+		msync(bitmap->bitarray, tamanio_archivo_bitarray, MS_SYNC);
 
         if (archivo->nombre_archivo != NULL) {
             free(archivo->nombre_archivo);
@@ -913,6 +916,7 @@ void eliminar_archivo_de_lista(t_list* lista, char* nombreArchivo, bool* encontr
     for (int i = 0; i < list_size(lista); i++) {
         archivo_t* archivo = list_get(lista, i);
         if (strcmp(archivo->nombre_archivo, nombreArchivo) == 0) {
+			remove(archivo->metadata->path);
 			// hay que setear sus bits de uso en 0 
             list_remove(lista, i);
             liberar_archivo(archivo);

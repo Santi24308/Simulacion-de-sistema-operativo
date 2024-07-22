@@ -198,7 +198,7 @@ void atender_cpu()
 		switch (pedido_cpu)
 		{
 		case PEDIDO_INSTRUCCION:
-			usleep(atoi(retardo_respuesta));
+			usleep(atoi(retardo_respuesta) * 1000);
 			// Ante un pedido de lectura, devolver el valor que se encuentra a partir de la dirección física pedida
 			// Ante un pedido de escritura, escribir lo indicado a partir de la dirección física pedida. En caso satisfactorio se responderá un mensaje de OK
 			enviar_instruccion();

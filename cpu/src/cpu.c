@@ -438,8 +438,10 @@ char* obtener_nombre_motivo_desalojo(cod_desalojo cod){
             return "FIN_DE_QUANTUM";
 	    case FINALIZACION_ERROR:
             return "FINALIZACION_ERROR";
-        case RECURSOS:
-            return "RECURSOS";
+        case RECURSO_INVALIDO:
+            return "INVALID_RESOURCE";
+        case RECURSO_NO_DISPONIBLE:
+            return "RECURSO_SIN_INSTANCIAS";
         case OUT_OF_MEMORY_ERROR:
             return "OUT_OF_MEMORY";
         default:
@@ -488,13 +490,11 @@ void ejecutar_instruccion(t_instruccion* instruccion_a_ejecutar){
             break;
         case WAIT:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1);
-            cde_ejecutando->motivo_desalojo = RECURSOS;
-            realizar_desalojo = 1;
+            ejecutar_wait(instruccion_a_ejecutar);
             break;
         case SIGNAL:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1);
-            cde_ejecutando->motivo_desalojo = RECURSOS;
-            realizar_desalojo = 1;
+            ejecutar_signal(instruccion_a_ejecutar);
             break;
         case COPY_STRING:
             log_info(logger_cpu, "PID: %d - Ejecutando: %s - %s", cde_ejecutando->pid, obtener_nombre_instruccion(instruccion_a_ejecutar), instruccion_a_ejecutar->parametro1);
@@ -559,6 +559,51 @@ void ejecutar_instruccion(t_instruccion* instruccion_a_ejecutar){
     }
 }
 
+void ejecutar_signal(t_instruccion* instruccion){
+    enviar_codigo(socket_kernel_dispatch, RECURSO_SOLICITUD);
+    t_buffer* buffer = crear_buffer();
+    buffer_write_instruccion(buffer, instruccion);
+    enviar_buffer(buffer, socket_kernel_dispatch);
+
+    mensajeKernelCpu cod = recibir_codigo(socket_kernel_dispatch);
+    switch (cod){
+        case RECURSO_OK:
+            // se sigue en la cpu sin alterar nada
+            break;
+        case RECURSO_INEXISTENTE:
+            cde_ejecutando->motivo_desalojo = RECURSO_INVALIDO;
+            cde_ejecutando->motivo_finalizacion = INVALID_RESOURCE;
+            realizar_desalojo = 1;
+            break;
+        default:
+            break;
+    }
+}
+
+void ejecutar_wait(t_instruccion* instruccion){
+    enviar_codigo(socket_kernel_dispatch, RECURSO_SOLICITUD);
+    t_buffer* buffer = crear_buffer();
+    buffer_write_instruccion(buffer, instruccion);
+    enviar_buffer(buffer, socket_kernel_dispatch);
+
+    mensajeKernelCpu cod = recibir_codigo(socket_kernel_dispatch);
+    switch (cod){
+        case RECURSO_OK:
+            // se sigue en la cpu sin alterar nada
+            break;
+        case RECURSO_INEXISTENTE:
+            cde_ejecutando->motivo_desalojo = RECURSO_INVALIDO;
+            realizar_desalojo = 1;
+            break;
+        case RECURSO_SIN_INSTANCIAS:
+            cde_ejecutando->motivo_desalojo = RECURSO_NO_DISPONIBLE;
+            realizar_desalojo = 1;
+            break;
+        default:
+            break;
+    }
+}
+
 void actualizar_dirLogica_a_dirFisica(char** parametro_direccion, char** parametro_tamanio){
     uint32_t dir_fisica = UINT32_MAX;
     bool pagina_en_tlb = se_encuentra_en_tlb(buscar_valor_registro(*parametro_direccion), &dir_fisica); 
@@ -606,6 +651,7 @@ void desalojar_cde(t_instruccion* instruccion_a_ejecutar){
 }
 
 void devolver_cde_a_kernel(){
+    enviar_codigo(socket_kernel_dispatch, CDE);
     // elimine la linea en donde se copia la ultima instruccion porque ya lo hace antes de ejecutarla apenas la obtiene de memoria
     t_buffer* buffer = crear_buffer();
     buffer_write_cde(buffer, cde_ejecutando);

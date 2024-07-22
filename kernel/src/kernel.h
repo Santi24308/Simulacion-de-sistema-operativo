@@ -15,6 +15,7 @@ void conectar_cpu_interrupt();
 void conectar_io();
 void conectar_memoria();
 void atender_io();
+void atender_cpu();
 void inicializar_modulo();
 void consola();
 void conectar();
