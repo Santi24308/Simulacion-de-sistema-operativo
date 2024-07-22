@@ -578,7 +578,7 @@ void controlar_tiempo(){
             usleep(quantum * 1000);
         }
 
-        if(pcb_en_ejecucion != NULL && pid_pcb_pre_clock == pcb_en_ejecucion->cde->pid && pcb_en_ejecucion->flag_fin_q == 0){
+        if(pcb_en_ejecucion != NULL && pid_pcb_pre_clock == pcb_en_ejecucion->cde->pid){
             if (strcmp(algoritmo, "VRR") == 0){
                 temporal_stop(pcb_en_ejecucion->clock);
                 temporal_destroy(pcb_en_ejecucion->clock);
