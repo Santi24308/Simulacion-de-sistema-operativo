@@ -339,7 +339,7 @@ void destruir_archivo(void* arch){
 }
 
 void terminar_programa(){
-	munmap(bitmap, tamanio_archivo_bitarray);
+	munmap(bitmap->bitarray, tamanio_archivo_bitarray);
     munmap(bloquesmap, tamanio_archivo_bloques);
 	free(bloquesmap);
 	bitarray_destroy(bitmap);
@@ -899,7 +899,7 @@ void liberar_archivo(archivo_t* archivo) {
     if (archivo != NULL) {
 
 		liberar_espacio_en_disco(config_get_int_value(archivo->metadata, "BLOQUE_INICIAL"), config_get_int_value(archivo->metadata, "TAMANIO_ARCHIVO"));
-		msync(bitmap, tamanio_archivo_bitarray, MS_SYNC);
+		msync(bitmap->bitarray, tamanio_archivo_bitarray, MS_SYNC);
 
         if (archivo->nombre_archivo != NULL) {
             free(archivo->nombre_archivo);
