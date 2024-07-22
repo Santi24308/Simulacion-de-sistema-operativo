@@ -551,36 +551,11 @@ void terminar_proceso(){
 
 void iniciar_quantum(){
     pthread_t clock_rr;
-    if (strcmp(algoritmo, "VRR") == 0){
+
+    if(strcmp(algoritmo,"FIFO") != 0){ 
         pthread_create(&clock_rr, NULL, (void*) controlar_tiempo, NULL);
         pthread_detach(clock_rr);
-    } else if (strcmp(algoritmo, "RR") == 0){
-        pthread_create(&clock_rr, NULL, (void*) controlar_tiempo, NULL);
-        pthread_detach(clock_rr);
-    }
-}
-
-void controlar_tiempo_de_ejecucion(){  
-    while(1){
-        sem_wait(&sem_iniciar_quantum);
-
-        uint32_t pid_pcb_pre_clock = pcb_en_ejecucion->cde->pid;
-
-        usleep(quantum * 1000);
-
-        if(pcb_en_ejecucion != NULL && pid_pcb_pre_clock == pcb_en_ejecucion->cde->pid){
-            pthread_mutex_lock(&mutex_fin_q_VRR);
-            pcb_en_ejecucion->flag_fin_q = 1;
-            pthread_mutex_unlock(&mutex_fin_q_VRR);
-            enviar_codigo(socket_cpu_interrupt, DESALOJO);
-
-            t_buffer* buffer = crear_buffer();
-            buffer_write_uint32(buffer, pcb_en_ejecucion->cde->pid); 
-            enviar_buffer(buffer, socket_cpu_interrupt);
-            destruir_buffer(buffer);
-        }
-        sem_post(&sem_reloj_destruido);
-    }
+    }   
 }
 
 void controlar_tiempo(){
@@ -603,7 +578,7 @@ void controlar_tiempo(){
             usleep(quantum * 1000);
         }
 
-        if(pcb_en_ejecucion != NULL && pid_pcb_pre_clock == pcb_en_ejecucion->cde->pid){
+        if(pcb_en_ejecucion != NULL && pid_pcb_pre_clock == pcb_en_ejecucion->cde->pid && pcb_en_ejecucion->flag_fin_q == 0){
             if (strcmp(algoritmo, "VRR") == 0){
                 temporal_stop(pcb_en_ejecucion->clock);
                 temporal_destroy(pcb_en_ejecucion->clock);
@@ -621,30 +596,6 @@ void controlar_tiempo(){
             destruir_buffer(buffer);
         }
         sem_post(&sem_reloj_destruido);
-    }
-}
-
-void controlar_tiempo_de_ejecucion_VRR(){
-    while(1){
-        sem_wait(&sem_iniciar_quantum);
-
-        // puede pasar que el pcb este recien creado, entonces el flag es cero pero el clock es null...
-        if (pcb_en_ejecucion->clock) { // el clock a esta altura solo existe si es que le sobro en su previa ejecucion
-            log_warning(logger_kernel, "Entra el proceso %d con tiempo restante %ld ms", pcb_en_ejecucion->cde->pid, quantum - temporal_gettime(pcb_en_ejecucion->clock));
-            temporal_resume(pcb_en_ejecucion->clock);
-        } else {
-            log_warning(logger_kernel, "Entra el proceso %d con tiempo restante %d", pcb_en_ejecucion->cde->pid, quantum); 
-
-            pcb_en_ejecucion->clock = temporal_create();
-        }
-
-        reloj_quantum_VRR();
-
-        if (pcb_en_ejecucion->clock)
-            temporal_stop(pcb_en_ejecucion->clock);
-
-        sem_post(&clock_VRR);
-        sem_post(&clock_VRR_frenado);   
     }
 }
 
