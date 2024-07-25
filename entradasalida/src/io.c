@@ -269,7 +269,7 @@ void ejecutar_std_out(){
 }
 
 void conectar_memoria(){
-	ip = config_get_string_value(config_io, "IP");
+	ip = config_get_string_value(config_io, "IP_MEMORIA");
 	puerto_mem = config_get_string_value(config_io, "PUERTO_MEM");
 
     socket_memoria = crear_conexion(ip, puerto_mem);
@@ -286,7 +286,7 @@ void conectar_memoria(){
 }
 
 void conectar_kernel(){
-	ip = config_get_string_value(config_io, "IP");
+	ip = config_get_string_value(config_io, "IP_KERNEL");
 	puerto_kernel = config_get_string_value(config_io, "PUERTO_KERNEL");
 
     socket_kernel = crear_conexion(ip, puerto_kernel);

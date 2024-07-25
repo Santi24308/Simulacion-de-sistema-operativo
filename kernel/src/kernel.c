@@ -1162,7 +1162,7 @@ void atender_io(void* socket_io){
 }
 
 void conectar_memoria(){
-	ip = config_get_string_value(config_kernel, "IP");
+	ip = config_get_string_value(config_kernel, "IP_MEMORIA");
 	puerto_mem = config_get_string_value(config_kernel, "PUERTO_MEM");
 
     socket_memoria = crear_conexion(ip, puerto_mem);
@@ -1173,7 +1173,7 @@ void conectar_memoria(){
 }
 
 void conectar_cpu_dispatch(){
-	ip = config_get_string_value(config_kernel, "IP");
+	ip = config_get_string_value(config_kernel, "IP_CPU");
 	puerto_cpu_dispatch = config_get_string_value(config_kernel, "PUERTO_CPU_DISPATCH");
 
     socket_cpu_dispatch = crear_conexion(ip, puerto_cpu_dispatch);
@@ -1185,7 +1185,7 @@ void conectar_cpu_dispatch(){
 }
 
 void conectar_cpu_interrupt(){
-	ip = config_get_string_value(config_kernel, "IP");
+	ip = config_get_string_value(config_kernel, "IP_CPU");
 	puerto_cpu_interrupt = config_get_string_value(config_kernel, "PUERTO_CPU_INTERRUPT");
 
     socket_cpu_interrupt = crear_conexion(ip, puerto_cpu_interrupt);
