@@ -1,0 +1,43 @@
+Prueba Plani Paths:
+Memoria: /home/utnso/tp-2024-1c-los-programadores-de-la-nada/memoria/configs/memoria_pdm.config
+CPU:  /home/utnso/tp-2024-1c-los-programadores-de-la-nada/cpu/configs/cpu_plani.config
+Kernel: /home/utnso/tp-2024-1c-los-programadores-de-la-nada/kernel/configs/kernel_plani.config
+IO: SLP1 /home/utnso/tp-2024-1c-los-programadores-de-la-nada/entradasalida/config_plani/SLP1.config
+
+Prueba Deadlock Paths:
+Memoria: /home/utnso/tp-2024-1c-los-programadores-de-la-nada/memoria/configs/memoria_pdm.config
+Cpu: /home/utnso/tp-2024-1c-los-programadores-de-la-nada/cpu/configs/cpu_deadlock.config
+Kernel:/home/utnso/tp-2024-1c-los-programadores-de-la-nada/kernel/configs/kernel_deadlock.config
+IO: ESPERA /home/utnso/tp-2024-1c-los-programadores-de-la-nada/entradasalida/config_deadlock/ESPERA.config
+
+Prueba Memoria y TLB Paths:
+Memoria: /home/utnso/tp-2024-1c-los-programadores-de-la-nada/memoria/configs/memoria_pdm.config
+CPU: /home/utnso/tp-2024-1c-los-programadores-de-la-nada/cpu/configs/cpu_memytlb.config
+Kernel: /home/utnso/tp-2024-1c-los-programadores-de-la-nada/kernel/configs/kernel_memytlb.config
+IO: IO_GEN_SLEEP /home/utnso/tp-2024-1c-los-programadores-de-la-nada/entradasalida/config_memytlb/IO_GEN_SLEEP.config
+
+Prueba IO Paths:
+Memoria: /home/utnso/tp-2024-1c-los-programadores-de-la-nada/memoria/configs/memoria_iofs.config
+Cpu: /home/utnso/tp-2024-1c-los-programadores-de-la-nada/cpu/configs/cpu_io.config
+Kernel: /home/utnso/tp-2024-1c-los-programadores-de-la-nada/kernel/configs/kernel_io.config
+IO: GENERICA /home/utnso/tp-2024-1c-los-programadores-de-la-nada/entradasalida/config_io/GENERICA.config
+IO: MONITOR /home/utnso/tp-2024-1c-los-programadores-de-la-nada/entradasalida/config_io/MONITOR.config
+IO: TECLADO /home/utnso/tp-2024-1c-los-programadores-de-la-nada/entradasalida/config_io/TECLADO.config
+
+Prueba FS Paths:
+Memoria: /home/utnso/tp-2024-1c-los-programadores-de-la-nada/memoria/configs/memoria_iofs.config
+Cpu: /home/utnso/tp-2024-1c-los-programadores-de-la-nada/cpu/configs/cpu_fs.config
+Kernel: /home/utnso/tp-2024-1c-los-programadores-de-la-nada/kernel/configs/kernel_FS.config
+IO: FS /home/utnso/tp-2024-1c-los-programadores-de-la-nada/entradasalida/config_fs/FS.config
+IO: MONITOR /home/utnso/tp-2024-1c-los-programadores-de-la-nada/entradasalida/config_fs/MONITOR.config
+IO: TECLADO /home/utnso/tp-2024-1c-los-programadores-de-la-nada/entradasalida/config_fs/TECLADO.config
+
+Prueba Salvations Path:
+Memoria: /home/utnso/tp-2024-1c-los-programadores-de-la-nada/memoria/configs/memoria_salvations.config
+Cpu: /home/utnso/tp-2024-1c-los-programadores-de-la-nada/cpu/configs/cpu_salvations.config
+Kernel: /home/utnso/tp-2024-1c-los-programadores-de-la-nada/kernel/configs/kernel_salvations.config
+IO: ESPERA /home/utnso/tp-2024-1c-los-programadores-de-la-nada/entradasalida/config_salvations/ESPERA.config
+IO: GENERICA /home/utnso/tp-2024-1c-los-programadores-de-la-nada/entradasalida/config_salvations/GENERICA.config 
+IO: MONITOR /home/utnso/tp-2024-1c-los-programadores-de-la-nada/entradasalida/config_salvations/MONITOR.config
+IO: SLP1 /home/utnso/tp-2024-1c-los-programadores-de-la-nada/entradasalida/config_salvations/SLP1.config
+IO: TECLADO /home/utnso/tp-2024-1c-los-programadores-de-la-nada/entradasalida/config_salvations/TECLADO.config
