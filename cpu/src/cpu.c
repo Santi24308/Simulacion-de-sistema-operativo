@@ -76,6 +76,11 @@ void levantar_config(){
 		perror("Error al iniciar config de cpu\n");
 		exit(EXIT_FAILURE);
 	}
+
+    printf("\nIngrese IP de Memoria:\n");
+    char* ip_memo = readline("> ");
+    config_set_value(config_cpu, "IP", ip_memo);
+    config_save(config_cpu);
 }
 
 void inicializar_registros(){

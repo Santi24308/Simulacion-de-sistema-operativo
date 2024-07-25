@@ -328,6 +328,16 @@ void levantar_config(){
 		perror("Error al iniciar config de IO\n");
 		exit(EXIT_FAILURE);
 	}
+
+	printf("\nIngrese IP de Memoria:\n");
+    char* ip_memo = readline("> ");
+    config_set_value(config_io, "IP_MEMORIA", ip_memo);
+    config_save(config_io);
+
+	printf("\nIngrese IP de Kernel:\n");
+    char* ip_kernel = readline("> ");
+    config_set_value(config_io, "IP_KERNEL", ip_kernel);
+    config_save(config_io);
 }
 
 void destruir_archivo(void* arch){

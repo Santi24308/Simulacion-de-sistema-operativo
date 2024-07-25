@@ -1210,6 +1210,16 @@ void levantar_config(){
 		perror("Error al iniciar config de kernel\n");
 		exit(EXIT_FAILURE);
 	}
+
+    printf("\nIngrese IP de Memoria:\n");
+    char* ip_memo = readline("> ");
+    config_set_value(config_kernel, "IP_MEMORIA", ip_memo);
+    config_save(config_kernel);
+
+    printf("\nIngrese IP de CPU:\n");
+    char* ip_cpu = readline("> ");
+    config_set_value(config_kernel, "IP_CPU", ip_cpu);
+    config_save(config_kernel);
 }
 
 void destructor_pcb(void* pcb){
