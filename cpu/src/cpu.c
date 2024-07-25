@@ -6,7 +6,7 @@ int main(int argc, char* argv[]) {
 	if(argc != 2) {
 		printf("ERROR: Tenés que pasar el path del archivo config de CPU\n");
 		return -1;
-	}
+	} 
 
 	config_path = argv[1];
 
