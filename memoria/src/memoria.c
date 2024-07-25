@@ -64,7 +64,7 @@ void inicializar_modulo()
 	memoria_fisica = calloc(1, total_espacio_memoria); 
 	if (memoria_fisica == NULL)
 	{
-		log_error(logger_memoria, "MALLOC FAIL para la memoria fisica!\n");
+		//log_error(logger_memoria, "MALLOC FAIL para la memoria fisica!\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -217,15 +217,15 @@ void atender_cpu()
 			memset(datos_leidos, 0 , bytes_mov_in);
 			if (datos_leidos == NULL)
 			{
-				log_error(logger_memoria, "Error al asignar memoria para datos leídos.\n");
+				//log_error(logger_memoria, "Error al asignar memoria para datos leídos.\n");
 				break;
 			}
 
-			printf("\nVariable antes de la lectura:\n");
-			mem_hexdump(datos_leidos, bytes_mov_in);
+			//printf("\nVariable antes de la lectura:\n");
+			//mem_hexdump(datos_leidos, bytes_mov_in);
 			memcpy(datos_leidos, memoria_fisica + dir_fisica_mov_in, bytes_mov_in);
-			printf("\nVariable despues de la lectura:\n");
-			mem_hexdump(datos_leidos, bytes_mov_in);
+			//printf("\nVariable despues de la lectura:\n");
+			//mem_hexdump(datos_leidos, bytes_mov_in);
 
 			t_buffer *buffer_respuesta = crear_buffer();
 			buffer_write_uint32(buffer_respuesta, truncar_bytes(datos_leidos, bytes_mov_in)); // el truncar es porque valgrind molesta con que hay bytes sin inicializar
@@ -243,11 +243,11 @@ void atender_cpu()
 			uint32_t bytes_mov_out = buffer_read_uint32(buffer_mov_out);
 			destruir_buffer(buffer_mov_out);
 
-			printf("\nMemoria antes de la escritura:\n");
-			mem_hexdump(memoria_fisica+dir_fisica_mov_out, 64);
+			//printf("\nMemoria antes de la escritura:\n");
+			//mem_hexdump(memoria_fisica+dir_fisica_mov_out, 64);
 			memcpy(memoria_fisica+dir_fisica_mov_out, (void *)&valor_a_escribir, bytes_mov_out);
-			printf("\nMemoria despues de la escritura:\n");
-			mem_hexdump(memoria_fisica+dir_fisica_mov_out, 64);
+			//printf("\nMemoria despues de la escritura:\n");
+			//mem_hexdump(memoria_fisica+dir_fisica_mov_out, 64);
 
 			log_info(logger_memoria, "PID: %d - Accion: ESCRIBIR - Direccion fisica: %d - Tamaño %d", pid_mov_out, dir_fisica_mov_out, bytes_mov_out);
 
@@ -278,12 +278,12 @@ void atender_cpu()
 				if(tamanio == 0) 
 				{
 				// Liberar todos los recursos asociados al proceso
-				log_info(logger_memoria, "PID: %d - Tamaño solicitado es 0, liberando todos los recursos.", pid_resize);
+				//log_info(logger_memoria, "PID: %d - Tamaño solicitado es 0, liberando todos los recursos.", pid_resize);
 				while (!list_is_empty(proceso->tabla_de_paginas)) {
 				t_pagina *pagina_a_eliminar = list_remove(proceso->tabla_de_paginas, 0);
 				destruir_pagina_y_liberar_marco(pagina_a_eliminar);
 				}
-				log_info(logger_memoria, "PID: %d - Se liberaron todos los recursos.", pid_resize);
+				//log_info(logger_memoria, "PID: %d - Se liberaron todos los recursos.", pid_resize);
 				}
 
 				uint32_t diferencia = tamanio_reservado_en_paginas - cantidad_paginas_solicitadas;
@@ -294,7 +294,7 @@ void atender_cpu()
 					destruir_pagina_y_liberar_marco(pagina_a_eliminar);
 					list_remove_element(proceso->tabla_de_paginas, pagina_a_eliminar);
 					diferencia--;
-					log_info(logger_memoria, "Se destruyeron paginas del proceso PID: %d - Tamaño %d", pid_resize, diferencia);
+					//log_info(logger_memoria, "Se destruyeron paginas del proceso PID: %d - Tamaño %d", pid_resize, diferencia);
 				}
 			}
 
@@ -314,7 +314,7 @@ void atender_cpu()
 						cantidad_paginas_solicitadas--;
 					}
 					// log creacion
-					log_info(logger_memoria, "Se crearon paginas del proceso PID: %d - Tamaño %d", pid_resize, pagina_totales_a_crear);
+					//log_info(logger_memoria, "Se crearon paginas del proceso PID: %d - Tamaño %d", pid_resize, pagina_totales_a_crear);
 				}
 				else
 				{
@@ -392,12 +392,12 @@ void escribir_a_partir_de_direccion(int socket_interfaz_io)
 	uint32_t bytes_disp_frame = tamanio_paginas - obtener_desplazamiento_pagina(direccion_fisica);
 	if (bytes_disp_frame >= bytes_a_copiar)
 	{	
-		printf("\nMemoria antes de la escritura:\n");
-		mem_hexdump(memoria_fisica, 64);
+		//printf("\nMemoria antes de la escritura:\n");
+		//mem_hexdump(memoria_fisica, 64);
 		memcpy(memoria_fisica + direccion_fisica, valor_a_escribir, bytes_a_copiar);
 		bytes_copiados += bytes_a_copiar;
-		printf("\nMemoria despues de la escritura:\n");
-		mem_hexdump(memoria_fisica, 64);
+		//printf("\nMemoria despues de la escritura:\n");
+		//mem_hexdump(memoria_fisica, 64);
 		enviar_codigo(socket_interfaz_io, OK);
 		log_info(logger_memoria, "PID: %d - Accion: ESCRIBIR - Direccion fisica: %d - Tamaño %d", pid, direccion_fisica, bytes_a_copiar_original);
 
@@ -415,11 +415,11 @@ void escribir_a_partir_de_direccion(int socket_interfaz_io)
 		{
 			t_pagina *pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica_nueva, pid);
 			direccion_fisica_nueva = recalcular_direccion_fisica(pagina_siguiente);
-			printf("\nMemoria antes de la escritura:\n");
-			mem_hexdump(memoria_fisica+direccion_fisica_nueva, tamanio_paginas);
+			//printf("\nMemoria antes de la escritura:\n");
+			//mem_hexdump(memoria_fisica+direccion_fisica_nueva, tamanio_paginas);
 			memcpy(memoria_fisica + direccion_fisica_nueva, valor_a_escribir + bytes_copiados, tamanio_paginas);
-			printf("\nMemoria despues de la escritura:\n");
-			mem_hexdump(memoria_fisica+direccion_fisica_nueva, tamanio_paginas);
+			//printf("\nMemoria despues de la escritura:\n");
+			//mem_hexdump(memoria_fisica+direccion_fisica_nueva, tamanio_paginas);
 			bytes_copiados += tamanio_paginas;
 			bytes_a_copiar = bytes_a_copiar - tamanio_paginas;
 			cant_paginas_restantes = ceil((float)bytes_a_copiar / tamanio_paginas);
@@ -427,11 +427,11 @@ void escribir_a_partir_de_direccion(int socket_interfaz_io)
 		}
 		t_pagina *pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica_nueva, pid);
 		direccion_fisica_nueva = recalcular_direccion_fisica(pagina_siguiente);
-		printf("\nMemoria antes de la escritura:\n");
-		mem_hexdump(memoria_fisica, 64);
+		//printf("\nMemoria antes de la escritura:\n");
+		//mem_hexdump(memoria_fisica, 64);
 		memcpy(memoria_fisica + direccion_fisica_nueva, valor_a_escribir + bytes_copiados, bytes_a_copiar);
-		printf("\nMemoria despues de la escritura:\n");
-		mem_hexdump(memoria_fisica, 64);
+		//printf("\nMemoria despues de la escritura:\n");
+		//mem_hexdump(memoria_fisica, 64);
 	}
 
 	log_info(logger_memoria, "PID: %d - Accion: ESCRIBIR - Direccion fisica: %d - Tamaño %d", pid, direccion_fisica, bytes_a_copiar_original);
@@ -494,11 +494,11 @@ void leer_a_partir_de_direccion(int socket_interfaz_io)
 	// si el desplazamiento es distinto de cero leemos hasta terminar la pagina
 	if (desplazamiento != 0){
 		bytes_usados = tamanio_paginas - desplazamiento;
-		printf("\nVariable antes de la lectura:\n");
-		mem_hexdump(valor_a_leer, bytes_a_leer);
+		//printf("\nVariable antes de la lectura:\n");
+		//mem_hexdump(valor_a_leer, bytes_a_leer);
 		memcpy(valor_a_leer, memoria_fisica+direccion_fisica, bytes_usados);
-		printf("\nVariable despues de la lectura:\n");
-		mem_hexdump(valor_a_leer, bytes_a_leer);
+		//printf("\nVariable despues de la lectura:\n");
+		//mem_hexdump(valor_a_leer, bytes_a_leer);
 		
 		bytes_restantes = bytes_a_leer - bytes_usados;
 		
@@ -516,11 +516,11 @@ void leer_a_partir_de_direccion(int socket_interfaz_io)
 
 		// nos fijamos si lo que hay que leer es menor o igual a una pagina para asegurar que leemos y completamos la solicitud
 		if (bytes_a_leer <= tamanio_paginas){
-			printf("\nVariable antes de la lectura:\n");
-			mem_hexdump(valor_a_leer, bytes_a_leer);
+			//printf("\nVariable antes de la lectura:\n");
+			//mem_hexdump(valor_a_leer, bytes_a_leer);
 			memcpy(valor_a_leer,  memoria_fisica+direccion_fisica, bytes_a_leer);
-			printf("\nVariable despues de la lectura:\n");
-			mem_hexdump(valor_a_leer, bytes_a_leer);
+			//printf("\nVariable despues de la lectura:\n");
+			//mem_hexdump(valor_a_leer, bytes_a_leer);
 
 			valor_a_leer[bytes_a_leer] = '\0';
 			buffer_write_string(buffer, valor_a_leer);
@@ -531,11 +531,11 @@ void leer_a_partir_de_direccion(int socket_interfaz_io)
 			return;
 		} else {
 			// en este caso leemos una pagina completa y actualizamos los bytes usados
-			printf("\nVariable antes de la lectura:\n");
-			mem_hexdump(valor_a_leer, bytes_a_leer);
+			//printf("\nVariable antes de la lectura:\n");
+			//mem_hexdump(valor_a_leer, bytes_a_leer);
 			memcpy(valor_a_leer,  memoria_fisica+direccion_fisica, tamanio_paginas);
-			printf("\nVariable despues de la lectura:\n");
-			mem_hexdump(valor_a_leer, bytes_a_leer);
+			//printf("\nVariable despues de la lectura:\n");
+			//mem_hexdump(valor_a_leer, bytes_a_leer);
 
 			bytes_usados += tamanio_paginas;
 			bytes_restantes = bytes_a_leer - tamanio_paginas;
@@ -551,11 +551,11 @@ void leer_a_partir_de_direccion(int socket_interfaz_io)
 	while (bytes_restantes != 0 && bytes_restantes >= tamanio_paginas){
 		pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica_nueva, pid);
 		direccion_fisica_nueva = recalcular_direccion_fisica(pagina_siguiente);
-		printf("\nVariable antes de la lectura:\n");
-		mem_hexdump(valor_a_leer, bytes_a_leer);
+		//printf("\nVariable antes de la lectura:\n");
+		//mem_hexdump(valor_a_leer, bytes_a_leer);
 		memcpy(valor_a_leer+bytes_usados, memoria_fisica+direccion_fisica_nueva, tamanio_paginas);
-		printf("\nVariable despues de la lectura:\n");
-		mem_hexdump(valor_a_leer, bytes_a_leer);
+		//printf("\nVariable despues de la lectura:\n");
+		//mem_hexdump(valor_a_leer, bytes_a_leer);
 		
 		bytes_usados += tamanio_paginas;
 		bytes_restantes -= tamanio_paginas;
@@ -566,11 +566,11 @@ void leer_a_partir_de_direccion(int socket_interfaz_io)
 	if (bytes_restantes != 0){
 		pagina_siguiente = obtener_pagsig_de_dirfisica(direccion_fisica_nueva, pid);
 		direccion_fisica_nueva = recalcular_direccion_fisica(pagina_siguiente);
-		printf("\nVariable antes de la lectura:\n");
-		mem_hexdump(valor_a_leer, bytes_a_leer);
+		//printf("\nVariable antes de la lectura:\n");
+		//mem_hexdump(valor_a_leer, bytes_a_leer);
 		memcpy(valor_a_leer+bytes_usados, memoria_fisica+direccion_fisica_nueva, bytes_restantes);
-		printf("\nVariable despues de la lectura:\n");
-		mem_hexdump(valor_a_leer, bytes_a_leer);
+		//printf("\nVariable despues de la lectura:\n");
+		//mem_hexdump(valor_a_leer, bytes_a_leer);
 	}
 
 	// si ya tenia el \0 no quiero agregarlo de nuevo por lo que achico al tamaño original
@@ -604,7 +604,7 @@ void esperarIOs() {
 
 		conectar_io(&interfaz->hilo_io, &interfaz->socket);
 
-		log_info(logger_memoria, "Se conecto la IO con ID : %s  TIPO: %s", id, tipo);
+		//log_info(logger_memoria, "Se conecto la IO con ID : %s  TIPO: %s", id, tipo);
 	}
 }
 
@@ -795,7 +795,7 @@ void buscar_y_eliminar_proceso(uint32_t pid)
 			return;
 		}
 	}
-	log_warning(logger_memoria, "Proceso no encontrado, no hay cambios.");
+	//log_warning(logger_memoria, "Proceso no encontrado, no hay cambios.");
 }
 
 void eliminar_lista_instrucciones(t_list *lista)
@@ -937,9 +937,9 @@ void devolver_nro_marco()
 void inicializar_paginacion()
 {
 	cant_marcos_ppal = calculoDeCantidadMarcos();
-	log_info(logger_memoria, " el espacio de memoria total es %d", total_espacio_memoria);
+	//log_info(logger_memoria, " el espacio de memoria total es %d", total_espacio_memoria);
 
-	log_info(logger_memoria, "Tengo %d marcos de %d bytes en memoria principal", cant_marcos_ppal, tamanio_paginas);
+	//log_info(logger_memoria, "Tengo %d marcos de %d bytes en memoria principal", cant_marcos_ppal, tamanio_paginas);
 
 	crear_tabla_global_de_marcos();
 }
@@ -957,20 +957,20 @@ void crear_tabla_global_de_marcos()
 	int cantidadDeMarcos = calculoDeCantidadMarcos();
 	if (cantidadDeMarcos <= 0)
 	{
-		log_error(logger_memoria, "cantidad de marcos calculada es inválida");
+		//log_error(logger_memoria, "cantidad de marcos calculada es inválida");
 		return;
 	}
 
 	t_marco *marco;
 	tabla_de_marcos = list_create();
-	log_info(logger_memoria, "Inicializando tabla de marcos con %d marcos", cantidadDeMarcos);
+	//log_info(logger_memoria, "Inicializando tabla de marcos con %d marcos", cantidadDeMarcos);
 
 	for (int i = 0; i < cantidadDeMarcos; i++)
 	{
 		marco = (t_marco *)calloc(1, sizeof(t_marco));
 		if (marco == NULL)
 		{
-			log_error(logger_memoria, "error en la creacion del marco %d", i);
+			//log_error(logger_memoria, "error en la creacion del marco %d", i);
 			break; // Si malloc falla, salimos del ciclo para evitar un bucle infinito
 		}
 		//inicializarMarco(marco);
@@ -980,8 +980,8 @@ void crear_tabla_global_de_marcos()
 
 		//log_info(logger_memoria, "Marco %d inicializado y añadido a la tabla", i);
 	}
-	log_info(logger_memoria, "Se crearon %d marcos", list_size(tabla_de_marcos));
-	log_info(logger_memoria, "Tabla de marcos creada con éxito");
+	//log_info(logger_memoria, "Se crearon %d marcos", list_size(tabla_de_marcos));
+	//log_info(logger_memoria, "Tabla de marcos creada con éxito");
 }
 
 void inicializarMarco(t_marco *marco)

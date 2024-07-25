@@ -198,7 +198,7 @@ void atender_kernel_interrupt(){
                     pthread_mutex_unlock(&mutex_desalojar);
                     break;
                 case DESALOJO:
-                    log_error(logger_cpu, "SE RECIBE INTERRUPCION POR QUANTUM");
+                    //log_error(logger_cpu, "SE RECIBE INTERRUPCION POR QUANTUM");
                     if(es_bloqueante(instruccion_actualizada)) 
                         break;
                     
@@ -406,7 +406,7 @@ void ejecutar_proceso(){
         realizar_desalojo = 0;
         pthread_mutex_unlock(&mutex_desalojar);
         
-        log_warning(logger_cpu, "PID: %d - Volviendo a kernel por interrupcion", cde_ejecutando->pid);
+        //log_warning(logger_cpu, "PID: %d - Volviendo a kernel por interrupcion", cde_ejecutando->pid);
         cde_ejecutando->motivo_desalojo = INTERRUPCION;
         desalojar_cde(instruccion_a_ejecutar);
 	} else if (realizar_desalojo){ // salida por fin de quantum
@@ -416,7 +416,7 @@ void ejecutar_proceso(){
         realizar_desalojo = 0;
         pthread_mutex_unlock(&mutex_desalojar);
         
-        log_warning(logger_cpu, "PID: %d - Desalojado por %s", cde_ejecutando->pid, obtener_nombre_motivo_desalojo(cde_ejecutando->motivo_desalojo)); 
+       // log_warning(logger_cpu, "PID: %d - Desalojado por %s", cde_ejecutando->pid, obtener_nombre_motivo_desalojo(cde_ejecutando->motivo_desalojo)); 
         desalojar_cde(instruccion_a_ejecutar);
     } else if (fin_q){
         pthread_mutex_lock(&mutex_desalojar);
@@ -425,7 +425,7 @@ void ejecutar_proceso(){
         realizar_desalojo = 0;
         pthread_mutex_unlock(&mutex_desalojar);
         
-        log_warning(logger_cpu, "PID: %d - Desalojado por fin de Quantum", cde_ejecutando->pid); 
+       // log_warning(logger_cpu, "PID: %d - Desalojado por fin de Quantum", cde_ejecutando->pid); 
         cde_ejecutando->motivo_desalojo = FIN_DE_QUANTUM;
         desalojar_cde(instruccion_a_ejecutar);
     }
@@ -559,7 +559,7 @@ void ejecutar_instruccion(t_instruccion* instruccion_a_ejecutar){
             cde_ejecutando->motivo_desalojo = FINALIZACION_EXIT;
             break;
         default:
-            log_warning(logger_cpu, "Instruccion no reconocida");
+           // log_warning(logger_cpu, "Instruccion no reconocida");
             break;
     }
 }
@@ -835,12 +835,12 @@ void leer_de_dir_fisica_los_bytes(uint32_t dir_fisica, uint32_t bytes, uint32_t*
     enviar_buffer(buffer, socket_memoria);
 
 
-    printf("\nValor leido antes de la lectura:\n");
-	mem_hexdump(valor_leido, bytes);
+    //printf("\nValor leido antes de la lectura:\n");
+	//mem_hexdump(valor_leido, bytes);
     buffer = recibir_buffer(socket_memoria);
     *valor_leido = buffer_read_uint32(buffer);
-	printf("\nCadena despues de la lectura:\n");
-    mem_hexdump(valor_leido, bytes);
+	//printf("\nCadena despues de la lectura:\n");
+    //mem_hexdump(valor_leido, bytes);
     destruir_buffer(buffer);
 
     log_info(logger_cpu, "Lectura/Escritura Memoria: “PID: %d - Acción: LEER - Dirección Física: %d - Valor: %d.", cde_ejecutando->pid, dir_fisica, *valor_leido);
@@ -928,14 +928,14 @@ uint32_t dato_reconstruido(uint32_t primera, uint32_t segunda, int bytes_primera
     void* dato_reconstruido_ptr = malloc(4);
     memset(dato_reconstruido_ptr, 0, 4);
 
-    printf("\nDato antes de ser reconstruido:\n");
-	mem_hexdump(dato_reconstruido_ptr, 4);
+    //printf("\nDato antes de ser reconstruido:\n");
+	//mem_hexdump(dato_reconstruido_ptr, 4);
 
     memcpy(dato_reconstruido_ptr, primera_ptr, (size_t)bytes_primera);
     memcpy(dato_reconstruido_ptr + (size_t)bytes_primera, segunda_ptr, (size_t)bytes_segunda);
 
-    printf("\nDato despues de ser reconstruido:\n");
-	mem_hexdump(dato_reconstruido_ptr, 4);
+    //printf("\nDato despues de ser reconstruido:\n");
+	//mem_hexdump(dato_reconstruido_ptr, 4);
 
     uint32_t valor = *(uint32_t*)dato_reconstruido_ptr;
 
@@ -1124,8 +1124,8 @@ void* formar_string(uint32_t* dir_logica_string, int bytes_totales){
         bytes_leidos += 1;
     }
 
-    printf("\nString formado:\n");
-	mem_hexdump(valor_ptr, bytes_totales);    
+    //printf("\nString formado:\n");
+	//mem_hexdump(valor_ptr, bytes_totales);    
 
     return valor_ptr;
 }
@@ -1212,7 +1212,8 @@ uint32_t calcular_direccion_fisica(int direccion_logica, t_cde* cde){
 	if(cantidad_entradas_tlb > 0){
     colocar_pagina_en_tlb(cde->pid, nro_pagina, nro_marco_recibido);}
     	else{
-    log_info(logger_cpu ,"la pagina: %d  no se almacena en TLB, porque no existe la TLB" , nro_pagina);}
+    //log_info(logger_cpu ,"la pagina: %d  no se almacena en TLB, porque no existe la TLB" , nro_pagina);
+    }
 
     return nro_marco_recibido * tamanio_pagina + desplazamiento; // retorna la direccion_fisica
 }
@@ -1236,13 +1237,13 @@ void colocar_pagina_en_tlb(uint32_t pid, uint32_t nro_pagina, uint32_t marco){
         queue_push(tlb, nueva_pagina);
         
         char* lista_tlb_post_nueva_pagina = obtener_elementos_cargados_en_tlb(tlb);
-        log_info(logger_cpu, "Cola TLB Post Nueva Pagina %s: %s", algoritmo_tlb, lista_tlb_post_nueva_pagina);
+        //log_info(logger_cpu, "Cola TLB Post Nueva Pagina %s: %s", algoritmo_tlb, lista_tlb_post_nueva_pagina);
         free(lista_tlb_post_nueva_pagina);
     } else{
         desalojar_y_agregar(nueva_pagina);
 
         char* lista_tlb_post_desalojo = obtener_elementos_cargados_en_tlb(tlb);
-        log_info(logger_cpu, "Cola TLB Post Desalojo %s: %s", algoritmo_tlb, lista_tlb_post_desalojo);
+        //log_info(logger_cpu, "Cola TLB Post Desalojo %s: %s", algoritmo_tlb, lista_tlb_post_desalojo);
         free(lista_tlb_post_desalojo);}
 }
 

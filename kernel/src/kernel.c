@@ -62,7 +62,7 @@ void esperarIOs(){
 
         conectar_io(&interfaz->hilo_io, &interfaz->socket);
 
-        log_info(logger_kernel, "Se conecto la IO con ID (nombre): %s  TIPO: %s", nombre, tipo);
+        //log_info(logger_kernel, "Se conecto la IO con ID (nombre): %s  TIPO: %s", nombre, tipo);
     }
 } 
 
@@ -232,38 +232,38 @@ void consola(){
 void ejecutar_comando_unico(char** palabras){
     if (strcmp(palabras[0], "INICIAR_PROCESO") == 0){
         if (!palabras[1] || string_is_empty(palabras[1])) {
-            printf("ERROR: Falta path para iniciar proceso, fue omitido.\n");
+           // printf("ERROR: Falta path para iniciar proceso, fue omitido.\n");
             return;   // Se debe tener en cuenta que frente a un fallo en la escritura de un palabras[0] en consola el sistema debe permanecer estable sin reacción alguna.
         }
-        printf("\nLlego la instruccion INICIAR_PROCESO con parametro: %s \n", palabras[1]);
+        // printf("\nLlego la instruccion INICIAR_PROCESO con parametro: %s \n", palabras[1]);
         iniciar_proceso(palabras[1]);
     } else if (strcmp(palabras[0], "INICIAR_PLANIFICACION") == 0) {
         if (planificacion_detenida) {
-            log_info(logger_kernel, "Se inicia la planificacion");
+            // log_info(logger_kernel, "Se inicia la planificacion");
             iniciar_planificacion();
         }
     } else if (strcmp(palabras[0], "FINALIZAR_PROCESO") == 0) {
         if (!palabras[1] || string_is_empty(palabras[1])) {
-            printf("ERROR: Falta id de proceso para finalizarlo, fue omitido.\n");
+           // printf("ERROR: Falta id de proceso para finalizarlo, fue omitido.\n");
             return;
         }
-        printf("\nLlego la instruccion FINALIZAR_PROCESO con parametro: %s\n", palabras[1]);
+        //printf("\nLlego la instruccion FINALIZAR_PROCESO con parametro: %s\n", palabras[1]);
         terminar_proceso_consola(atoi(palabras[1]));
     } else if (strcmp(palabras[0], "DETENER_PLANIFICACION") == 0) {
-        log_info(logger_kernel, "Se detiene la planificacion");
+        // log_info(logger_kernel, "Se detiene la planificacion");
         detener_planificacion();
     } else if (strcmp(palabras[0], "MULTIPROGRAMACION") == 0) {
         if (!palabras[1] || string_is_empty(palabras[1])) {
-            printf("ERROR: Falta el valor a asignar para multiprogramación, fue omitido.\n");
+           // printf("ERROR: Falta el valor a asignar para multiprogramación, fue omitido.\n");
             return;
         }
-        log_info(logger_kernel, "Se cambia el grado de multiprogramacion de %d a %d", grado_max_multiprogramacion, atoi(palabras[1]));
+        //log_info(logger_kernel, "Se cambia el grado de multiprogramacion de %d a %d", grado_max_multiprogramacion, atoi(palabras[1]));
         cambiar_grado_multiprogramacion(palabras[1]);
     } else if (strcmp(palabras[0], "PROCESO_ESTADO") == 0) {
-        printf("\nLlego la instruccion PROCESO_ESTADO\n");
+        //printf("\nLlego la instruccion PROCESO_ESTADO\n");
         listar_procesos_por_estado();
     } else {
-        printf("ERROR: Comando \"%s\" no reconocido, fue omitido.\n", palabras[0]);
+        //printf("ERROR: Comando \"%s\" no reconocido, fue omitido.\n", palabras[0]);
     }
 }
 
@@ -314,23 +314,23 @@ void leer_y_ejecutar(char* path){
     string_append(&ruta_completa, config_get_string_value(config_kernel, "RUTA_LOCAL"));
     string_append(&ruta_completa, path);
     string_append(&ruta_completa, ".txt");
-    printf("\n ruta completa %s", ruta_completa);
+    //printf("\n ruta completa %s", ruta_completa);
     FILE* script = fopen(ruta_completa,"r");
     if (!script){
-        perror("Error al abrir archivo, revisar el path.");
+        //perror("Error al abrir archivo, revisar el path.");
         return;
     }
     char* leido = leer_linea_de_archivo(script);
     int i = 0;
     while (leido){
-        printf("\nSe lee la instruccion %s", leido);
+        //printf("\nSe lee la instruccion %s", leido);
         i++;
         char** linea = string_split(leido, " ");
         ejecutar_comando_unico(linea);
         string_array_destroy(linea); 
         leido = leer_linea_de_archivo(script);
     }
-    printf("\nSe leyeron %d instrucciones", i);
+    //printf("\nSe leyeron %d instrucciones", i);
 
     fclose(script);
 }
@@ -422,7 +422,7 @@ t_pcb* encontrar_pcb_por_pid(uint32_t pid, int* encontrado){
     if(*(encontrado))
         return pcb;
     else
-        log_warning(logger_kernel, "PCB no encontrado de PID: %d", pid);
+        //log_warning(logger_kernel, "PCB no encontrado de PID: %d", pid);
 
     return NULL; // si llega aca es porque no lo encontró
 }
@@ -507,7 +507,7 @@ void iniciar_proceso(char* path){
         sem_post(&procesos_en_new);
     }
     else if(cod_op == INICIAR_PROCESO_ERROR){
-        log_info(logger_kernel, "No se pudo crear el proceso %d", pcb_a_new->cde->pid);
+        //log_info(logger_kernel, "No se pudo crear el proceso %d", pcb_a_new->cde->pid);
         destruir_pcb(pcb_a_new);
     }
  
@@ -518,7 +518,7 @@ void terminar_proceso_consola(uint32_t pid){
     int encontrado;
     t_pcb* pcb_a_liberar = encontrar_pcb_por_pid(pid, &encontrado);
     if (!pcb_a_liberar){
-        log_error(logger_kernel, "No existe el proceso %d que intenta finalizar", pid);
+        //log_error(logger_kernel, "No existe el proceso %d que intenta finalizar", pid);
         return;
     }
     
@@ -570,7 +570,7 @@ void controlar_tiempo(){
                 usleep(quantum * 1000);
             }else {
                 // duermo lo restante y espero a que se acabe para interrumpir en caso de que se siga ejecutando
-                log_warning(logger_kernel, "Vuelve a exec el pid %d con tiempo restante %ld", pid_pcb_pre_clock, (quantum - temporal_gettime(pcb_en_ejecucion->clock)));
+                //log_warning(logger_kernel, "Vuelve a exec el pid %d con tiempo restante %ld", pid_pcb_pre_clock, (quantum - temporal_gettime(pcb_en_ejecucion->clock)));
                 usleep((quantum - temporal_gettime(pcb_en_ejecucion->clock)) * 1000);
             }
         } else {
@@ -607,7 +607,7 @@ void reloj_quantum_VRR(){
             temporal_destroy(pcb_en_ejecucion->clock);
             pcb_en_ejecucion->clock = NULL;
 
-            log_error(logger_kernel, "SE ENVIA INTERRUPCION POR FIN DE QUANTUM");
+          //  log_error(logger_kernel, "SE ENVIA INTERRUPCION POR FIN DE QUANTUM");
             enviar_codigo(socket_cpu_interrupt, DESALOJO);
 
             t_buffer* buffer = crear_buffer();
@@ -718,10 +718,10 @@ void atender_cpu(){
     while (1) {
 
         sem_wait(&cpu_debe_retornar);
-        log_warning(logger_kernel, "Recibo el signal para cde_recibido");
+        //log_warning(logger_kernel, "Recibo el signal para cde_recibido");
         
         mensajeKernelCpu cod = recibir_codigo(socket_cpu_dispatch);
-        log_warning(logger_kernel, "Recibo el signal para cde_recibido");
+        //log_warning(logger_kernel, "Recibo el signal para cde_recibido");
 
         if (cod == CDE) {
             recibir_cde_de_cpu();
@@ -739,7 +739,7 @@ void recibir_cde_de_cpu(){
 
     if (pcb_en_ejecucion->clock) temporal_stop(pcb_en_ejecucion->clock);
 
-    log_warning(logger_kernel, "Recibo el cde del pid %d", cde_recibido_de_cpu->pid);
+    //log_warning(logger_kernel, "Recibo el cde del pid %d", cde_recibido_de_cpu->pid);
 
     // retiramos el cde anterior a ser ejecutado
     pthread_mutex_lock(&mutex_exec);
@@ -839,7 +839,7 @@ void evaluar_signal(char* nombre_recurso_pedido){
     }
 
     if (!encontrado) {
-        log_error(logger_kernel, "PID: %d - Solicitud de recurso inexistente, abortando proceso", pcb_en_ejecucion->cde->pid);
+        //log_error(logger_kernel, "PID: %d - Solicitud de recurso inexistente, abortando proceso", pcb_en_ejecucion->cde->pid);
         enviar_codigo(socket_cpu_dispatch, RECURSO_INEXISTENTE);
         return;
     }
@@ -855,7 +855,7 @@ void evaluar_signal(char* nombre_recurso_pedido){
     if(asignado){ // el recurso existe y lo tiene asignado
         t_recurso* recurso = list_get(recursos, posicion_recurso);
         recurso->instancias++; // segun el foro PUEDEN haber signals sin antes haber waits, por lo que las instancias pueden superar el maximo
-        log_info(logger_kernel, "PID: %d - Signal: %s - Instancias: %d", pcb_en_ejecucion->cde->pid, nombre_recurso_pedido, recurso->instancias);
+        //log_info(logger_kernel, "PID: %d - Signal: %s - Instancias: %d", pcb_en_ejecucion->cde->pid, nombre_recurso_pedido, recurso->instancias);
         
         list_remove_element(pcb_en_ejecucion->recursos_asignados, recurso); // saco el recurso porque lo libero
 
@@ -877,7 +877,7 @@ void evaluar_signal(char* nombre_recurso_pedido){
 		}
         enviar_codigo(socket_cpu_dispatch, RECURSO_OK);
     } else {
-        log_error(logger_kernel, "PID: %d - Solicitud de recurso NO asignado al proceso, abortando proceso", pcb_en_ejecucion->cde->pid);
+        //log_error(logger_kernel, "PID: %d - Solicitud de recurso NO asignado al proceso, abortando proceso", pcb_en_ejecucion->cde->pid);
         enviar_codigo(socket_cpu_dispatch, RECURSO_INEXISTENTE);
     }
 }
@@ -896,7 +896,7 @@ void evaluar_wait(char* nombre_recurso_pedido){
     if(encontrado){ 
         t_recurso* recurso = list_get(recursos, posicion_recurso);
         recurso->instancias--;
-        log_info(logger_kernel, "PID: %d - Wait: %s - Instancias: %d", pcb_en_ejecucion->cde->pid, nombre_recurso_pedido, recurso->instancias);
+        //log_info(logger_kernel, "PID: %d - Wait: %s - Instancias: %d", pcb_en_ejecucion->cde->pid, nombre_recurso_pedido, recurso->instancias);
         
         if(recurso->instancias < 0){  // Chequea si debe bloquear al proceso por falta de instancias
 
@@ -919,7 +919,7 @@ void evaluar_wait(char* nombre_recurso_pedido){
             enviar_codigo(socket_cpu_dispatch, RECURSO_OK);
         }
     } else { // el recurso no existe
-        log_error(logger_kernel, "PID: %d - Solicitud de recurso inexistente, abortando proceso", pcb_en_ejecucion->cde->pid);
+        //log_error(logger_kernel, "PID: %d - Solicitud de recurso inexistente, abortando proceso", pcb_en_ejecucion->cde->pid);
         enviar_codigo(socket_cpu_dispatch, RECURSO_INEXISTENTE);
     }
 }
@@ -942,7 +942,7 @@ bool interfaz_valida(char* nombre_io_solicitada){
     int indice = -1; // aca se va a guardar el indice en donde esta la interfaz guardada, solo si lo encuentra va a tener un valor valido
     t_interfaz* interfaz_buscada = obtener_interfaz_en_lista(nombre_io_solicitada, &indice);
     if (!interfaz_buscada) {
-   		printf("\n""\x1b[31m""La interfaz: %s que solicitó el proceso PID: %d no se encuentra en el sistema, se procede a finalizarlo.""\x1b[0m""\n", nombre_io_solicitada, pcb_en_ejecucion->cde->pid);
+   		//printf("\n""\x1b[31m""La interfaz: %s que solicitó el proceso PID: %d no se encuentra en el sistema, se procede a finalizarlo.""\x1b[0m""\n", nombre_io_solicitada, pcb_en_ejecucion->cde->pid);
         return false;
     }
 
@@ -954,13 +954,13 @@ bool interfaz_valida(char* nombre_io_solicitada){
         queue_destroy(interfaz_a_eliminar->pcb_esperando);
         list_remove(interfacesIO, indice);
 
-    	printf("\n""\x1b[31m""La interfaz: %s que solicitó el proceso PID: %d se encontraba en el sistema pero se desconectó, se procede a finalizarlo.""\x1b[0m""\n", nombre_io_solicitada, pcb_en_ejecucion->cde->pid);
+    	//printf("\n""\x1b[31m""La interfaz: %s que solicitó el proceso PID: %d se encontraba en el sistema pero se desconectó, se procede a finalizarlo.""\x1b[0m""\n", nombre_io_solicitada, pcb_en_ejecucion->cde->pid);
         return false; 
     }
 
     // chequeo si puede satisfacer la solicitud
     if(!io_puede_cumplir_solicitud(interfaz_buscada->tipo, pcb_en_ejecucion->cde->ultima_instruccion->codigo)){
-        printf("\n""\x1b[31m""La interfaz: %s que solicitó el proceso PID: %d no puede realizar la instrucción solicitada, se procede a finalizarlo.""\x1b[0m""\n", nombre_io_solicitada, pcb_en_ejecucion->cde->pid);
+        //printf("\n""\x1b[31m""La interfaz: %s que solicitó el proceso PID: %d no puede realizar la instrucción solicitada, se procede a finalizarlo.""\x1b[0m""\n", nombre_io_solicitada, pcb_en_ejecucion->cde->pid);
         return false; // en este caso no es necesario destruir la IO ya que no es su culpa, sino la del proceso
     }
 
@@ -1131,7 +1131,7 @@ void atender_io(void* socket_io){
 
             // si es VRR hay que pasarlo a la cola prioritaria
             if (strcmp(algoritmo, "VRR") == 0 && interfaz->pcb_ejecutando->clock){
-                log_warning(logger_kernel, "Vuelve el proceso %d de IO con tiempo restante %d", interfaz->pcb_ejecutando->cde->pid, max(quantum - temporal_gettime(interfaz->pcb_ejecutando->clock), 0));
+                //log_warning(logger_kernel, "Vuelve el proceso %d de IO con tiempo restante %d", interfaz->pcb_ejecutando->cde->pid, max(quantum - temporal_gettime(interfaz->pcb_ejecutando->clock), 0));
                 enviar_pcb_de_block_a_readyPlus(interfaz->pcb_ejecutando);
             } // si existe el clock entonces le resta quantum
             else 
@@ -1197,7 +1197,7 @@ void conectar_cpu_interrupt(){
 }
 
 void levantar_logger(){
-	logger_kernel = log_create("kernel_log.log", "KERNEL",false, LOG_LEVEL_INFO);
+	logger_kernel = log_create("kernel_log.log", "KERNEL",true, LOG_LEVEL_INFO);
 	if (!logger_kernel) {
 		perror("Error al iniciar logger de kernel\n");
 		exit(EXIT_FAILURE);
@@ -1454,7 +1454,7 @@ void enviar_de_exec_a_block(){
 
     log_info(logger_kernel, "PID: %d - Estado anterior: %s - Estado actual: %s", pcb_en_ejecucion->cde->pid, obtener_nombre_estado(EXEC), obtener_nombre_estado(BLOCKED));
     
-    log_info(logger_kernel, "Bloqueados %s: %s", algoritmo, lista_pcbs_en_blocked);
+    //log_info(logger_kernel, "Bloqueados %s: %s", algoritmo, lista_pcbs_en_blocked);
     free(lista_pcbs_en_blocked);
     
     pthread_mutex_lock(&mutex_pcb_en_ejecucion);
@@ -1659,7 +1659,7 @@ void signal_recursos_asignados_pcb(t_pcb* pcb, char* nombre_recurso_pedido){
     }
     t_recurso* recurso = list_get(recursos, posicion_recurso);
     recurso->instancias++; //podria considerarse chequear que no se pase de las instancias totales del recurso, pero me parecio innecesario
-    log_info(logger_kernel, "PID: %d - LIBERANDO INSTANCIAS DEL RECURSO: %s - INSTANCIAS DISPONIBLES: %d", pcb->cde->pid, nombre_recurso_pedido, recurso->instancias);
+    //log_info(logger_kernel, "PID: %d - LIBERANDO INSTANCIAS DEL RECURSO: %s - INSTANCIAS DISPONIBLES: %d", pcb->cde->pid, nombre_recurso_pedido, recurso->instancias);
 
     if(list_size(recurso->procesos_bloqueados) > 0){ // Desbloquea al primer proceso de la cola de bloqueados del recurso
 	    sem_t semaforo_recurso = recurso->sem_recurso;

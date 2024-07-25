@@ -218,7 +218,7 @@ void ejecutar_std_in(){
 	printf("\nLimite de bytes  %d", limite_bytes);
 
 	char* leido = readline("> ");
-	printf("\n el sting leido tiene  %ld bytes", strlen(leido) + 1);
+	printf("\n el string leido tiene  %ld bytes", strlen(leido) + 1);
 
 	// para poner el \0 y evitar conflictos, sabemos que en la serializacion no se va a copiar el \0
 	void* valor_a_escribir = malloc(limite_bytes + 1);
@@ -393,7 +393,7 @@ void levantar_archivo_bitarray(){
 		int resto = block_count % 8;
 
 		if(resto != 0) {
-			log_error(logger_io,"La cantidad de bloques debe ser multiplo de 8");
+			//log_error(logger_io,"La cantidad de bloques debe ser multiplo de 8");
 			return;
 		}
 		
@@ -408,12 +408,12 @@ void levantar_archivo_bitarray(){
 
 		fd_bitarray = open(path_archivo_bitarray, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
 		if (fd_bitarray == -1){
-			log_info(logger_io, "Error al levantar fd del bitarray");
+			//log_info(logger_io, "Error al levantar fd del bitarray");
 			free(path_archivo_bitarray);
 			return;
 		}
 		if (ftruncate(fd_bitarray, cantidad_bits_en_bytes) == -1) {
-            log_error(logger_io, "Error al establecer el tamaño del archivo bitmap.dat");
+            //log_error(logger_io, "Error al establecer el tamaño del archivo bitmap.dat");
             close(fd_bitarray);
             free(path_archivo_bitarray);
             return;
@@ -432,7 +432,7 @@ void levantar_archivo_bitarray(){
 void levantar_archivo_bloques(){
     path_archivo_bloques = malloc(strlen("bloques.dat") + strlen(path_filesystem) + 1);
 	if(!path_archivo_bloques) {
-		log_error(logger_io, "error maloc bloques.dat");
+		log_error(logger_io, "error malloc bloques.dat");
 		return;
 	}
 	
@@ -470,10 +470,10 @@ void levantar_archivos(const char *path) {
     struct dirent *entry;
 
     if ((dir = opendir(path)) == NULL) {
-        perror("opendir() error");
+        //perror("opendir() error");
         return;
     } else {
-        printf("Contenido del directorio: %s\n", path);
+        //printf("Contenido del directorio: %s\n", path);
         while ((entry = readdir(dir)) != NULL) {
             // Ignorar "." y ".."
             if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) {
@@ -498,7 +498,7 @@ void crear_archivo_desde_path(char* path, char* nombre_archivo){
 	archivo->nombre_archivo = string_new();
 	string_append(&archivo->nombre_archivo, nombre_archivo);
 	list_add(lista_global_archivos_abiertos, archivo);
-	log_info(logger_io, "Ruta Obtenida: %s  Nombre Archivo: %s",ruta_completa, nombre_archivo);
+	//log_info(logger_io, "Ruta Obtenida: %s  Nombre Archivo: %s",ruta_completa, nombre_archivo);
 	free(ruta_completa);
 }
 
@@ -510,7 +510,7 @@ void levantar_archivos_creados(){
     }
 	// Cambiar el directorio actual al directorio padre ("..")
     if (chdir("..") != 0) {
-        perror("chdir(..) error");
+        //perror("chdir(..) error");
         return;
     }
 
@@ -583,7 +583,7 @@ void asignar_bloque(archivo_t* archivo){
 	// la funcion de obtener el indice ya actualiza el bitmap
 	int indice = obtener_indice_bloque_libre();
 	if (indice == -1){
-		log_info(logger_io, "Error al asignar bloque a archivo %s", archivo->nombre_archivo);
+		//log_info(logger_io, "Error al asignar bloque a archivo %s", archivo->nombre_archivo);
 		return;
 	}
 
@@ -601,7 +601,7 @@ int obtener_indice_bloque_libre(){
 			encontrado = true;
 			bitarray_set_bit(bitmap, i);  // seteamos como ocupado
 			if (msync(bitmap->bitarray, bitmap->size, MS_SYNC) == -1)
-            	perror("Error en la sincronizacion");
+            	//perror("Error en la sincronizacion");
 		} else
 			i++;
 	}
@@ -655,20 +655,20 @@ void ejecutar_fs_truncate(){
 	int tamanio_archivo = config_get_int_value(archivo_buscado->metadata, "TAMANIO_ARCHIVO");
 
 
-	log_info(logger_io , "Cantidad de bloques del archivo: %s antes de modificacion: %d" ,archivo_buscado->nombre_archivo, tamanio_archivo );
+	//log_info(logger_io , "Cantidad de bloques del archivo: %s antes de modificacion: %d" ,archivo_buscado->nombre_archivo, tamanio_archivo );
 
 
 	if (tamanio_solicitado < tamanio_archivo){
 
 		reducir_tamanio(archivo_buscado, tamanio_solicitado);
 		int tamanio_archivo_actualizado = config_get_int_value(archivo_buscado->metadata, "TAMANIO_ARCHIVO");
-		log_info(logger_io , "Cantidad de bloques del archivo : %s  despues de la reduccion : %d " , archivo_buscado->nombre_archivo, tamanio_archivo_actualizado);
+		//log_info(logger_io , "Cantidad de bloques del archivo : %s  despues de la reduccion : %d " , archivo_buscado->nombre_archivo, tamanio_archivo_actualizado);
 	}
 	else {
 
 		ampliar_tamanio(archivo_buscado, tamanio_solicitado);
 		int tamanio_archivo_actualizado = config_get_int_value(archivo_buscado->metadata, "TAMANIO_ARCHIVO");
-		log_info(logger_io , "Cantidad de bloques del archivo : %s  despues de la ampliacion : %d " , archivo_buscado->nombre_archivo, tamanio_archivo_actualizado);
+		//log_info(logger_io , "Cantidad de bloques del archivo : %s  despues de la ampliacion : %d " , archivo_buscado->nombre_archivo, tamanio_archivo_actualizado);
 	}
 
 }
@@ -785,7 +785,7 @@ void compactar_y_asignar(archivo_t* archivo, uint32_t tamanio_solicitado){
 
 	// listo el bloquesmap ahora resta actualizar el bitmap
 	// usamos el ultimo bit disponible para poner a todos los bits previos a ese en 1 y el resto en 0
-	printf("\nultimo indice disponible %d\n", indice_ultimo_bit_disponible);
+	//printf("\nultimo indice disponible %d\n", indice_ultimo_bit_disponible);
 	int i = 0;
 	while (i < bitarray_get_max_bit(bitmap)){
 		if (i < indice_ultimo_bit_disponible) 
@@ -836,7 +836,7 @@ void ampliar_tamanio(archivo_t* archivo, uint32_t tamanio_solicitado){
 	} else if (hay_bloques_necesarios(bloques_a_asignar)){
 		compactar_y_asignar(archivo, bloques_a_asignar);
 	} else {
-		log_error(logger_io, "No hay espacio suficiente para ampliar el archivo de %d bloques a %d bloques", bloques_asignados_antes, bloques_a_asignar);
+		//log_error(logger_io, "No hay espacio suficiente para ampliar el archivo de %d bloques a %d bloques", bloques_asignados_antes, bloques_a_asignar);
 		return;
 	}
 
@@ -931,7 +931,7 @@ void eliminar_archivo_de_lista(t_list* lista, char* nombreArchivo, bool* encontr
             list_remove(lista, i);
             liberar_archivo(archivo);
 			*encontrado = true;
-			log_info(logger_io, "Se elimina el archivo de nombre: %s", nombreArchivo);
+			//log_info(logger_io, "Se elimina el archivo de nombre: %s", nombreArchivo);
             break;
         }
     }
@@ -1049,12 +1049,12 @@ t_config* crear_metadata(char* nombreArchivo, char* path_filesystem) {
     char *metadataDirPath = malloc(strlen(path_filesystem) + strlen("metadata") + 1);
     sprintf(metadataDirPath, "%smetadata", path_filesystem);
     mkdir(metadataDirPath, 0755);  // Crear el directorio con permisos adecuados
-	log_info(logger_io, "Se creo la carpeta con path %s", metadataDirPath);
+	//log_info(logger_io, "Se creo la carpeta con path %s", metadataDirPath);
 
     // Crear la ruta completa del archivo de metadata
     char *path_metadata = malloc(strlen(metadataDirPath) + strlen("/") + strlen(nombreArchivo) + 1);
     sprintf(path_metadata, "%s/%s", metadataDirPath, nombreArchivo);
-	log_info(logger_io, "Ruta del archivo de metadata: %s", path_metadata);
+	//log_info(logger_io, "Ruta del archivo de metadata: %s", path_metadata);
 
     // Crear el archivo metadata
 	FILE *file = fopen(path_metadata, "w");
