@@ -660,13 +660,13 @@ void ejecutar_fs_truncate(){
 	if (tamanio_solicitado < tamanio_archivo){
 
 		reducir_tamanio(archivo_buscado, tamanio_solicitado);
-		int tamanio_archivo_actualizado = config_get_int_value(archivo_buscado->metadata, "TAMANIO_ARCHIVO");
+		//int tamanio_archivo_actualizado = config_get_int_value(archivo_buscado->metadata, "TAMANIO_ARCHIVO");
 		//log_info(logger_io , "Cantidad de bloques del archivo : %s  despues de la reduccion : %d " , archivo_buscado->nombre_archivo, tamanio_archivo_actualizado);
 	}
 	else {
 
 		ampliar_tamanio(archivo_buscado, tamanio_solicitado);
-		int tamanio_archivo_actualizado = config_get_int_value(archivo_buscado->metadata, "TAMANIO_ARCHIVO");
+		//int tamanio_archivo_actualizado = config_get_int_value(archivo_buscado->metadata, "TAMANIO_ARCHIVO");
 		//log_info(logger_io , "Cantidad de bloques del archivo : %s  despues de la ampliacion : %d " , archivo_buscado->nombre_archivo, tamanio_archivo_actualizado);
 	}
 
