@@ -24,7 +24,7 @@ void conectar(){
 
 	socket_servidor = iniciar_servidor(puerto_escucha, logger_kernel);
 	if (socket_servidor == -1) {
-		perror("Fallo la creacion del servidor para memoria.\n");
+		//perror("Fallo la creacion del servidor para memoria.\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -40,14 +40,14 @@ void conectar(){
 void conectar_io(pthread_t* hilo_io, int* socket_io){
 	int err = pthread_create(hilo_io, NULL, (void*)atender_io, socket_io);
 	if (err != 0) {
-		perror("Fallo la creacion de hilo para IO\n");
+		//perror("Fallo la creacion de hilo para IO\n");
 		return;
 	}
 	pthread_detach(*(hilo_io));
 }
 
 void esperarIOs(){
-    log_info(logger_kernel, "Esperando que se conecte una IO....");
+    //log_info(logger_kernel, "Esperando que se conecte una IO....");
     while (1){
         int socket_io = esperar_cliente(socket_servidor, logger_kernel);
 
@@ -85,7 +85,7 @@ void setear_path_local() {
     ssize_t count = readlink("/proc/self/exe", path, sizeof(path) - 1);
 
     if (count == -1) {
-        perror("readlink");
+        //perror("readlink");
         return;
     }
 
@@ -155,14 +155,14 @@ void inicializar_modulo(){
 void levantar_planificador_largo_plazo(){
     int err = pthread_create(&hilo_plani_largo_new, NULL, (void*)enviar_de_new_a_ready, NULL);
 	if (err != 0) {
-		perror("Fallo la creacion de hilo para planificador de largo plazo NEW\n");
+		//perror("Fallo la creacion de hilo para planificador de largo plazo NEW\n");
 		return;
 	}
 	pthread_detach(hilo_plani_largo_new);
 
     err = pthread_create(&hilo_plani_largo_exit, NULL, (void*)terminar_proceso, NULL);
 	if (err != 0) {
-		perror("Fallo la creacion de hilo para planificador de largo plazo EXIT\n");
+		//perror("Fallo la creacion de hilo para planificador de largo plazo EXIT\n");
 		return;
 	}
 	pthread_detach(hilo_plani_largo_exit);
@@ -171,7 +171,7 @@ void levantar_planificador_largo_plazo(){
 void levantar_planificador_corto_plazo(){
     int err = pthread_create(&hilo_plani_corto, NULL, (void*)enviar_de_ready_a_exec, NULL);
 	if (err != 0) {
-		perror("Fallo la creacion de hilo para planificador de corto plazo\n");
+		//perror("Fallo la creacion de hilo para planificador de corto plazo\n");
 		return;
 	}
 	pthread_detach(hilo_plani_corto);
@@ -180,7 +180,7 @@ void levantar_planificador_corto_plazo(){
 void levantar_recepcion_cde(){
     int err = pthread_create(&hilo_recepcion_cde, NULL, (void*)atender_cpu, NULL);
 	if (err != 0) {
-		perror("Fallo la creacion de hilo para la recepcion de cde\n");
+		//perror("Fallo la creacion de hilo para la recepcion de cde\n");
 		return;
 	}
 	pthread_detach(hilo_recepcion_cde);
@@ -317,7 +317,7 @@ void leer_y_ejecutar(char* path){
     //printf("\n ruta completa %s", ruta_completa);
     FILE* script = fopen(ruta_completa,"r");
     if (!script){
-        //perror("Error al abrir archivo, revisar el path.");
+        ////perror("Error al abrir archivo, revisar el path.");
         return;
     }
     char* leido = leer_linea_de_archivo(script);
@@ -661,21 +661,25 @@ void detener_planificacion(){
 }
 
 void listar_procesos_por_estado(){
-    log_info(logger_kernel, "---------LISTANDO PROCESOS POR ESTADO---------");
+    printf("\n\n---------LISTANDO PROCESOS POR ESTADO---------\n\n");
 
     char* procesos_cargados_en_new = obtener_elementos_cargados_en(procesosNew);
     char* procesos_cargados_en_ready = obtener_elementos_cargados_en(procesosReady);
     char* procesos_cargados_en_blocked = obtener_elementos_cargados_en(procesosBloqueados);
     char* procesos_cargados_en_exit = obtener_elementos_cargados_en(procesosFinalizados);
 
-    log_info(logger_kernel, "Procesos en %s: %s", obtener_nombre_estado(NEW), procesos_cargados_en_new);
-    log_info(logger_kernel, "Procesos en %s: %s", obtener_nombre_estado(READY), procesos_cargados_en_ready);
+    printf("Procesos en %s: %s", obtener_nombre_estado(NEW), procesos_cargados_en_new);
+    printf("Procesos en %s: %s", obtener_nombre_estado(READY), procesos_cargados_en_ready);
+    if (strcmp(algoritmo, "VRR") == 0){
+        char* procesos_en_readyPlus = obtener_elementos_cargados_en(procesosReadyPlus);
+        printf("Procesos en %s: %s", obtener_nombre_estado(READY_PLUS), procesos_en_readyPlus);
+    }
     if(pcb_en_ejecucion != NULL)
-        log_info(logger_kernel, "Proceso en %s: [%d]", obtener_nombre_estado(EXEC), pcb_en_ejecucion->cde->pid);
+        printf("Proceso en %s: [%d]", obtener_nombre_estado(EXEC), pcb_en_ejecucion->cde->pid);
     else
-        log_info(logger_kernel, "Proceso en %s: []", obtener_nombre_estado(EXEC));
-    log_info(logger_kernel, "Procesos en %s: %s", obtener_nombre_estado(BLOCKED), procesos_cargados_en_blocked);
-    log_info(logger_kernel, "Procesos en %s: %s",  obtener_nombre_estado(TERMINADO), procesos_cargados_en_exit);
+        printf("Proceso en %s: []", obtener_nombre_estado(EXEC));
+    printf("Procesos en %s: %s", obtener_nombre_estado(BLOCKED), procesos_cargados_en_blocked);
+    printf("Procesos en %s: %s",  obtener_nombre_estado(TERMINADO), procesos_cargados_en_exit);
 
     free(procesos_cargados_en_new);
     free(procesos_cargados_en_ready);
@@ -738,6 +742,9 @@ void recibir_cde_de_cpu(){
     destruir_buffer(buffer);
 
     if (pcb_en_ejecucion->clock) temporal_stop(pcb_en_ejecucion->clock);
+
+    if (cde_recibido_de_cpu->motivo_desalojo == FIN_DE_QUANTUM)
+        log_info(logger_kernel, "PID: %d - Desalojado por fin de Quantum", cde_recibido_de_cpu->pid);
 
     //log_warning(logger_kernel, "Recibo el cde del pid %d", cde_recibido_de_cpu->pid);
 
@@ -817,6 +824,7 @@ void evaluar_io(t_instruccion* ultima_instruccion){
         pthread_mutex_unlock(&mutex_interfaz);
         
         enviar_de_exec_a_block(); // al hacer esto se avisa que la cpu esta libre y se continua con el proximo pcb
+        log_info(logger_kernel, "PID: %d - Bloqueado por: %s", pcb_en_ejecucion->cde->pid, interfaz_buscada->nombre);
         return; 
     }
 
@@ -1099,7 +1107,7 @@ char* obtener_nombre_estado(t_estados estado){
             return "EXIT";
             break;
         case READY_PLUS:
-            return "READY+";
+            return "READY PRIORIDAD";
             break;
         default:
             return "NULO";
@@ -1181,7 +1189,7 @@ void conectar_cpu_dispatch(){
 		terminar_programa();
         exit(EXIT_FAILURE);
     }
-	log_info(logger_kernel, "Conexion dispatch lista!");
+	//log_info(logger_kernel, "Conexion dispatch lista!");
 }
 
 void conectar_cpu_interrupt(){
@@ -1193,13 +1201,13 @@ void conectar_cpu_interrupt(){
 		terminar_programa();
         exit(EXIT_FAILURE);
     }
-	log_info(logger_kernel, "Conexion interrupt lista!");
+	//log_info(logger_kernel, "Conexion interrupt lista!");
 }
 
 void levantar_logger(){
-	logger_kernel = log_create("kernel_log.log", "KERNEL",true, LOG_LEVEL_INFO);
+	logger_kernel = log_create("kernel_log.log", "KERNEL",false, LOG_LEVEL_INFO);
 	if (!logger_kernel) {
-		perror("Error al iniciar logger de kernel\n");
+		//perror("Error al iniciar logger de kernel\n");
 		exit(EXIT_FAILURE);
 	}
 }
@@ -1207,7 +1215,7 @@ void levantar_logger(){
 void levantar_config(){
     config_kernel = config_create(config_path);
 	if (!config_kernel) {
-		perror("Error al iniciar config de kernel\n");
+		//perror("Error al iniciar config de kernel\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -1321,10 +1329,6 @@ void terminar_programa(){
 		close(socket_servidor);
 }
 
-void iterator(char* value) {
-	log_info(logger_kernel,"%s", value);
-}
-
 // TANSICIONES ENTRE ESTADOS -------------------------------------------------------------------------------------------------
 // las siguientes dos funciones (o dos transiciones) son las que van a bloquearse en caso
 // de que llegue la orden de detener_planificacion
@@ -1351,9 +1355,18 @@ void enviar_de_new_a_ready(){
         pcb_a_ready->estado = READY;
 
         // Pedir a memoria incializar estructuras
-
         log_info(logger_kernel, "PID: %d - Estado anterior: %s - Estado actual: %s", pcb_a_ready->cde->pid, obtener_nombre_estado(NEW), obtener_nombre_estado(READY)); //OBLIGATORIO
-        
+
+        char* lista_procesos_en_ready = obtener_elementos_cargados_en(procesosReady);
+        log_info(logger_kernel, "Cola Ready: %s", lista_procesos_en_ready);
+        free(lista_procesos_en_ready);
+
+        if (strcmp(algoritmo, "VRR") == 0){
+            char* lista_procesos_en_readyPlus = obtener_elementos_cargados_en(procesosReadyPlus);
+            log_info(logger_kernel, "Cola Ready Prioridad: %s", lista_procesos_en_readyPlus);
+            free(lista_procesos_en_readyPlus);
+        }
+
         // avisamos al sistema que ya hay proceso en ready
         sem_post(&procesos_en_ready);
 	}
@@ -1432,6 +1445,15 @@ void enviar_de_exec_a_ready(){
     pcb_en_ejecucion->cde->motivo_desalojo = NO_DESALOJADO;
     
     log_info(logger_kernel, "PID: %d - Estado anterior: %s - Estado actual: %s", pcb_en_ejecucion->cde->pid, obtener_nombre_estado(EXEC), obtener_nombre_estado(READY));
+    char* lista_procesos_en_ready = obtener_elementos_cargados_en(procesosReady);
+    log_info(logger_kernel, "Cola Ready: %s", lista_procesos_en_ready);
+    free(lista_procesos_en_ready);
+
+    if (strcmp(algoritmo, "VRR") == 0){
+        char* lista_procesos_en_readyPlus = obtener_elementos_cargados_en(procesosReadyPlus);
+        log_info(logger_kernel, "Cola Ready Prioridad: %s", lista_procesos_en_readyPlus);
+        free(lista_procesos_en_readyPlus);
+    }
 
     pthread_mutex_lock(&mutex_pcb_en_ejecucion);
     pcb_en_ejecucion = NULL;
@@ -1488,6 +1510,15 @@ void enviar_pcb_de_block_a_ready(t_pcb* pcb){
     pcb_a_ready->cde->motivo_desalojo = NO_DESALOJADO;
 
     log_info(logger_kernel, "PID: %d - Estado anterior: %s - Estado actual: %s", pcb_a_ready->cde->pid, obtener_nombre_estado(BLOCKED), obtener_nombre_estado(READY));
+    char* lista_procesos_en_ready = obtener_elementos_cargados_en(procesosReady);
+    log_info(logger_kernel, "Cola Ready: %s", lista_procesos_en_ready);
+    free(lista_procesos_en_ready);
+
+    if (strcmp(algoritmo, "VRR") == 0){
+        char* lista_procesos_en_readyPlus = obtener_elementos_cargados_en(procesosReadyPlus);
+        log_info(logger_kernel, "Cola Ready Prioridad: %s", lista_procesos_en_readyPlus);
+        free(lista_procesos_en_readyPlus);
+    }
 
     sem_post(&procesos_en_ready);
 }
@@ -1512,6 +1543,15 @@ void enviar_pcb_de_block_a_readyPlus(t_pcb* pcb){
     pcb_a_readyPlus->cde->motivo_desalojo = NO_DESALOJADO;
 
     log_info(logger_kernel, "PID: %d - Estado anterior: %s - Estado actual: %s", pcb_a_readyPlus->cde->pid, obtener_nombre_estado(BLOCKED), obtener_nombre_estado(READY_PLUS));
+    char* lista_procesos_en_ready = obtener_elementos_cargados_en(procesosReady);
+    log_info(logger_kernel, "Cola Ready: %s", lista_procesos_en_ready);
+    free(lista_procesos_en_ready);
+
+    if (strcmp(algoritmo, "VRR") == 0){
+        char* lista_procesos_en_readyPlus = obtener_elementos_cargados_en(procesosReadyPlus);
+        log_info(logger_kernel, "Cola Ready Prioridad: %s", lista_procesos_en_readyPlus);
+        free(lista_procesos_en_readyPlus);
+    }
 
     sem_post(&procesos_en_ready);
 }
