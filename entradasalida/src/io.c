@@ -600,8 +600,7 @@ int obtener_indice_bloque_libre(){
 		if (!bitarray_test_bit(bitmap, i)) {
 			encontrado = true;
 			bitarray_set_bit(bitmap, i);  // seteamos como ocupado
-			if (msync(bitmap->bitarray, bitmap->size, MS_SYNC) == -1)
-            	//perror("Error en la sincronizacion");
+			if (msync(bitmap->bitarray, bitmap->size, MS_SYNC) == -1) perror("Error en la sincronizacion");
 		} else
 			i++;
 	}
