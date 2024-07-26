@@ -640,9 +640,7 @@ void ejecutar_fs_truncate(){
 	int pid = buffer_read_uint32(buffer);
     t_instruccion* instruccion = buffer_read_instruccion(buffer);
    	destruir_buffer(buffer);
-	// por el warning
-	pid = pid;
-
+	
 	uint32_t tamanio_solicitado = atoi(instruccion->parametro3);
 
 	archivo_t* archivo_buscado = obtener_archivo_con_nombre(instruccion->parametro2);
@@ -668,6 +666,8 @@ void ejecutar_fs_truncate(){
 		ampliar_tamanio(archivo_buscado, tamanio_solicitado);
 		//int tamanio_archivo_actualizado = config_get_int_value(archivo_buscado->metadata, "TAMANIO_ARCHIVO");
 		//log_info(logger_io , "Cantidad de bloques del archivo : %s  despues de la ampliacion : %d " , archivo_buscado->nombre_archivo, tamanio_archivo_actualizado);
+		log_info(logger_io , "PID: %d - Truncar archivo : %s " ,pid, archivo_buscado->nombre_archivo);
+
 	}
 
 }
@@ -833,7 +833,10 @@ void ampliar_tamanio(archivo_t* archivo, uint32_t tamanio_solicitado){
 			i ++;
 		}
 	} else if (hay_bloques_necesarios(bloques_a_asignar)){
+		//log_info(logger_io , "PID: %s Inicio de compactacion" , pid);
 		compactar_y_asignar(archivo, bloques_a_asignar);
+		//log_info(logger_io , "PID: %s Fin de compactacion" , pid);
+
 	} else {
 		//log_error(logger_io, "No hay espacio suficiente para ampliar el archivo de %d bloques a %d bloques", bloques_asignados_antes, bloques_a_asignar);
 		return;
