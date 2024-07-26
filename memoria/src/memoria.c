@@ -26,7 +26,7 @@ void setear_path_local() {
     ssize_t count = readlink("/proc/self/exe", path, sizeof(path) - 1);
 
     if (count == -1) {
-        perror("readlink");
+        //perror("readlink");
         return;
     }
 
@@ -84,7 +84,7 @@ void conectar()
 	socket_servidor = iniciar_servidor(puerto_escucha, logger_memoria);
 	if (socket_servidor == -1)
 	{
-		perror("Fallo la creacion del servidor para memoria.\n");
+		//perror("Fallo la creacion del servidor para memoria.\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -144,9 +144,9 @@ void conectar_io(pthread_t *hilo_io, int *socket_io)
 
 void conectar_cpu()
 {
-	log_info(logger_memoria, "Esperando Cpu....");
+	//log_info(logger_memoria, "Esperando Cpu....");
 	socket_cpu = esperar_cliente(socket_servidor, logger_memoria);
-	log_info(logger_memoria, "Se conecto Cpu");
+	//log_info(logger_memoria, "Se conecto Cpu");
 
 	// tiene que enviar al CPU el tamanio de pagina para que tenga con que laburar la MMU
 	t_buffer *buffer = crear_buffer();
@@ -386,8 +386,8 @@ void escribir_a_partir_de_direccion(int socket_interfaz_io)
 	char *valor_a_escribir = buffer_read_string(buffer); 
 	destruir_buffer(buffer);
 	uint32_t bytes_copiados = 0;
-	// esto es porque despues hacemos cuenta regresiva con bytes_a_copiar y usamos el original para el log
-	uint32_t bytes_a_copiar_original = bytes_a_copiar;
+
+	log_info(logger_memoria, "PID: %d - Accion: ESCRIBIR - Direccion fisica: %d - Tamaño a escribir: %d", pid, direccion_fisica, bytes_a_copiar);
 
 	uint32_t bytes_disp_frame = tamanio_paginas - obtener_desplazamiento_pagina(direccion_fisica);
 	if (bytes_disp_frame >= bytes_a_copiar)
@@ -399,7 +399,7 @@ void escribir_a_partir_de_direccion(int socket_interfaz_io)
 		//printf("\nMemoria despues de la escritura:\n");
 		//mem_hexdump(memoria_fisica, 64);
 		enviar_codigo(socket_interfaz_io, OK);
-		log_info(logger_memoria, "PID: %d - Accion: ESCRIBIR - Direccion fisica: %d - Tamaño %d", pid, direccion_fisica, bytes_a_copiar_original);
+		//log_info(logger_memoria, "PID: %d - Accion: ESCRIBIR - Direccion fisica: %d - Tamaño %d", pid, direccion_fisica, bytes_a_copiar_original);
 
 		return;
 	}
@@ -434,7 +434,7 @@ void escribir_a_partir_de_direccion(int socket_interfaz_io)
 		//mem_hexdump(memoria_fisica, 64);
 	}
 
-	log_info(logger_memoria, "PID: %d - Accion: ESCRIBIR - Direccion fisica: %d - Tamaño %d", pid, direccion_fisica, bytes_a_copiar_original);
+	//log_info(logger_memoria, "PID: %d - Accion: ESCRIBIR - Direccion fisica: %d - Tamaño %d", pid, direccion_fisica, bytes_a_copiar_original);
 
 	enviar_codigo(socket_interfaz_io, OK);
 }
@@ -483,6 +483,9 @@ void leer_a_partir_de_direccion(int socket_interfaz_io)
 	uint32_t bytes_a_leer = buffer_read_uint32(buffer);
 	destruir_buffer(buffer);
 
+	log_info(logger_memoria, "PID: %d - Accion: LEER - Direccion fisica: %d - Tamaño a leer: %d", pid, direccion_fisica, bytes_a_leer);
+
+
 	buffer = crear_buffer();
 
 	// se le suma 1 para el \0
@@ -508,7 +511,7 @@ void leer_a_partir_de_direccion(int socket_interfaz_io)
 			enviar_buffer(buffer, socket_interfaz_io);
 			destruir_buffer(buffer);
 			free(valor_a_leer);
-			log_info(logger_memoria, "PID: %d - Accion: LEER - Direccion fisica: %d - Tamaño %d", pid, direccion_fisica, bytes_a_leer);
+			//log_info(logger_memoria, "PID: %d - Accion: LEER - Direccion fisica: %d - Tamaño %d", pid, direccion_fisica, bytes_a_leer);
 			return;
 		}
 	} else {
@@ -527,7 +530,7 @@ void leer_a_partir_de_direccion(int socket_interfaz_io)
 			enviar_buffer(buffer, socket_interfaz_io);
 			destruir_buffer(buffer);
 			free(valor_a_leer);
-			log_info(logger_memoria, "PID: %d - Accion: LEER - Direccion fisica: %d - Tamaño %d", pid, direccion_fisica, bytes_a_leer);
+			//log_info(logger_memoria, "PID: %d - Accion: LEER - Direccion fisica: %d - Tamaño %d", pid, direccion_fisica, bytes_a_leer);
 			return;
 		} else {
 			// en este caso leemos una pagina completa y actualizamos los bytes usados
@@ -584,12 +587,12 @@ void leer_a_partir_de_direccion(int socket_interfaz_io)
 	destruir_buffer(buffer);
 	free(valor_a_leer);
 
-	log_info(logger_memoria, "PID: %d - Accion: LEER - Direccion fisica: %d - Tamaño %d", pid, direccion_fisica, bytes_a_leer);
+	//log_info(logger_memoria, "PID: %d - Accion: LEER - Direccion fisica: %d - Tamaño %d", pid, direccion_fisica, bytes_a_leer);
 	return;
 }
 
 void esperarIOs() {
-	log_info(logger_memoria, "Esperando que se conecte una IO....");
+	//log_info(logger_memoria, "Esperando que se conecte una IO....");
 	while (1){
 		int socket_io = esperar_cliente(socket_servidor, logger_memoria);
 
@@ -638,7 +641,7 @@ void iniciar_proceso()
 
 	t_proceso *proceso_nuevo = crear_proceso(pid, lista_instrucciones);
 
-	log_info(logger_memoria, "Creación: PID: %d", pid);
+	//log_info(logger_memoria, "Creación: PID: %d", pid);
 
 	pthread_mutex_lock(&mutex_lista_procesos);
 	list_add(lista_procesos, proceso_nuevo);
@@ -649,8 +652,8 @@ void iniciar_proceso()
 
 void liberar_proceso()
 {
-	printf("\nProcesos en el sistema antes de eliminar");
-	imprimir_pids();
+	//printf("\nProcesos en el sistema antes de eliminar");
+	//imprimir_pids();
 	t_buffer *buffer_recibido = recibir_buffer(socket_kernel);
 	uint32_t pid = buffer_read_uint32(buffer_recibido);
 
@@ -658,9 +661,8 @@ void liberar_proceso()
 	buscar_y_eliminar_proceso(pid);
 	pthread_mutex_unlock(&mutex_lista_procesos);
 
-	printf("\nProcesos en el sistema DESPUES de eliminar");
-	imprimir_pids();
-	log_info(logger_memoria, "Destruccion: PID: %d", pid);
+	//printf("\nProcesos en el sistema DESPUES de eliminar");
+	//imprimir_pids();
 }
 
 void imprimir_pids()
@@ -682,6 +684,7 @@ t_proceso *crear_proceso(uint32_t pid, t_list *lista_instrucciones)
 	proceso->pid = pid;
 	proceso->lista_instrucciones = lista_instrucciones;
 	proceso->tabla_de_paginas = list_create();
+	log_info(logger_memoria, "PID: %d - Tamaño: 0", pid);
 	return proceso;
 }
 
@@ -790,6 +793,8 @@ void buscar_y_eliminar_proceso(uint32_t pid)
 		if (proceso->pid == pid)
 		{
 			eliminar_lista_instrucciones(proceso->lista_instrucciones);
+			log_info(logger_memoria, "PID: %d - Tamaño: %d", pid, list_size(proceso->tabla_de_paginas));
+			list_destroy(proceso->tabla_de_paginas);
 			free(proceso);
 			list_remove(lista_procesos, i);
 			return;
@@ -894,11 +899,6 @@ void terminar_programa(){
 
 }
 
-void iterator(char *value)
-{
-	log_info(logger_memoria, "%s", value);
-}
-
 t_proceso *buscar_proceso(uint32_t pid)
 {
 	t_proceso *proceso = malloc(sizeof(t_proceso));
@@ -920,6 +920,7 @@ void devolver_nro_marco()
 	uint32_t pid = buffer_read_uint32(buffer);
 	destruir_buffer(buffer);
 
+
 	// buscamos por pid al proceso involucrado
 	t_proceso *proceso_involucrado = buscar_proceso(pid);
 
@@ -931,7 +932,7 @@ void devolver_nro_marco()
 	enviar_buffer(buffer, socket_cpu);
 	destruir_buffer(buffer);
 
-	log_info(logger_memoria, "Acceso a TGP - PID: %d - Página: %d - Marco: %d", pid, pagina_solicitada->nro_pagina, pagina_solicitada->marco);
+	log_info(logger_memoria, "PID: %d - Página: %d - Marco: %d", pid, pagina_solicitada->nro_pagina, pagina_solicitada->marco);
 }
 
 void inicializar_paginacion()

@@ -47,7 +47,7 @@ void ejecutar_fs_write();
 void ejecutar_fs_read();
 
 void reducir_tamanio(archivo_t* , uint32_t);
-void ampliar_tamanio(archivo_t* , uint32_t);
+void ampliar_tamanio(archivo_t* , uint32_t, uint32_t);
 archivo_t* obtener_archivo_con_nombre(char* );
 
 void asignar_bloque(archivo_t*);

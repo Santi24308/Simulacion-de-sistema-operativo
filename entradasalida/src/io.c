@@ -134,11 +134,11 @@ void inicializar_fs(){
 	bitmap->mode = MSB_FIRST;
 	bitmap->bitarray = mmap(NULL, tamanio_archivo_bitarray, PROT_READ | PROT_WRITE, MAP_SHARED, fd_bitarray, 0);
 	if (bitmap == MAP_FAILED) {
-		log_info(logger_io, "error al crear el bitmap");
+		//log_info(logger_io, "error al crear el bitmap");
 	}
 	bloquesmap = mmap(NULL, tamanio_archivo_bloques, PROT_READ | PROT_WRITE, MAP_SHARED, fd_bloques, 0);
 	if (bloquesmap == MAP_FAILED) {
-		log_info(logger_io, "error al crear bloquesmap");
+		//log_info(logger_io, "error al crear bloquesmap");
 	}
 }
 
@@ -213,6 +213,8 @@ void ejecutar_std_in(){
 	t_instruccion* instruccion = buffer_read_instruccion(buffer);
 	destruir_buffer(buffer);
 
+	log_info(logger_io, "PID: %d - Operacion: %s", pid, obtener_nombre_instruccion(instruccion));
+
 
 	int limite_bytes = atoi(instruccion->parametro3);
 	printf("\nLimite de bytes  %d", limite_bytes);
@@ -252,6 +254,8 @@ void ejecutar_std_out(){
 	uint32_t pid = buffer_read_uint32(buffer);
 	t_instruccion* instruccion = buffer_read_instruccion(buffer);
 	destruir_buffer(buffer);
+
+	log_info(logger_io, "PID: %d - Operacion: %s", pid, obtener_nombre_instruccion(instruccion));
 
 	enviar_codigo(socket_memoria, IO_STDOUT_WRITE);
 	buffer = crear_buffer();
@@ -600,8 +604,11 @@ void ejecutar_fs_create(){
 	int pid = buffer_read_uint32(buffer);
     t_instruccion* instruccion = buffer_read_instruccion(buffer);
    	destruir_buffer(buffer);
-	
+
+	log_info(logger_io, "PID: %d - Operacion: %s", pid, obtener_nombre_instruccion(instruccion));
 	char* nombreArchivo = instruccion -> parametro2;
+	
+	log_info(logger_io, "PID: %d - Crear Archivo: %s", pid, nombreArchivo);
 
 	if (!hay_espacio_suficiente()){
 		log_error(logger_io, "No hay espacio suficiente para crear: %s" , nombreArchivo);
@@ -612,12 +619,11 @@ void ejecutar_fs_create(){
 
 	archivo_t* archivoAgregar = crear_archivo(nombreArchivo, metadata);
 
-	log_info(logger_io, "DialFS - Crear Archivo: PID: %d - Crear Archivo: %s", pid, nombreArchivo);
+	//log_info(logger_io, "DialFS - Crear Archivo: PID: %d - Crear Archivo: %s", pid, nombreArchivo);
 	
 	list_add(lista_global_archivos_abiertos , archivoAgregar);
 
-	char* lista_de_archivos_abiertos = obtener_lista_archivos_abiertos(lista_global_archivos_abiertos);
-	log_info(logger_io, "DialFS - Agregado a lista %s el archivo:  %s", lista_de_archivos_abiertos, nombreArchivo);
+	//log_info(logger_io, "DialFS - Agregado a lista %s el archivo:  %s", lista_de_archivos_abiertos, nombreArchivo);
 
 	asignar_bloque(archivoAgregar);
 
@@ -685,12 +691,15 @@ void ejecutar_fs_truncate(){
 	int pid = buffer_read_uint32(buffer);
     t_instruccion* instruccion = buffer_read_instruccion(buffer);
    	destruir_buffer(buffer);
-	
+
+	log_info(logger_io, "PID: %d - Operacion: %s", pid, obtener_nombre_instruccion(instruccion));
 	uint32_t tamanio_solicitado = atoi(instruccion->parametro3);
+	log_info(logger_io, "PID: %d - Truncar Archivo: %s - Tamaño: %d", pid, instruccion->parametro2, tamanio_solicitado);
+	
 
 	archivo_t* archivo_buscado = obtener_archivo_con_nombre(instruccion->parametro2);
 	if (!archivo_buscado){
-		log_error(logger_io, "El archivo solicitado para escribir no existe, terminando.");
+		//log_error(logger_io, "El archivo solicitado para escribir no existe, terminando.");
 		exit(EXIT_FAILURE);
 	}
 	
@@ -708,10 +717,10 @@ void ejecutar_fs_truncate(){
 	}
 	else {
 
-		ampliar_tamanio(archivo_buscado, tamanio_solicitado);
+		ampliar_tamanio(archivo_buscado, tamanio_solicitado, pid);
 		//int tamanio_archivo_actualizado = config_get_int_value(archivo_buscado->metadata, "TAMANIO_ARCHIVO");
 		//log_info(logger_io , "Cantidad de bloques del archivo : %s  despues de la ampliacion : %d " , archivo_buscado->nombre_archivo, tamanio_archivo_actualizado);
-		log_info(logger_io , "PID: %d - Truncar archivo : %s " ,pid, archivo_buscado->nombre_archivo);
+		//log_info(logger_io , "PID: %d - Truncar archivo : %s " ,pid, archivo_buscado->nombre_archivo);
 
 	}
 
@@ -814,7 +823,9 @@ int recrear_bloquesmap(archivo_t* archivo_a_ampliar, uint32_t cantidad_bloques_n
 	return ultimo_indice_disponible;
 }
 
-void compactar_y_asignar(archivo_t* archivo, uint32_t tamanio_solicitado){
+void compactar_y_asignar(archivo_t* archivo, uint32_t tamanio_solicitado, uint32_t pid){
+	log_info(logger_io, "PID: %d - Inicio Compactacion", pid);
+
 	// la idea es construir un nuevo void* para despues solamente pisar el actual
 	// y usar msync para actualizar, esto no requiere remapeo ni nada
 	bloquesmap_paralelo = malloc(block_count*block_size);
@@ -845,10 +856,11 @@ void compactar_y_asignar(archivo_t* archivo, uint32_t tamanio_solicitado){
 	// hacemos el retraso pedido
 	int retraso_compactacion = config_get_int_value(config_io, "RETRASO_COMPACTACION");
 	usleep(retraso_compactacion * 1000);
+	log_info(logger_io, "PID: %d - Fin Compactacion", pid);
 }
 
 // --------------------------------------------------------------------------------------------------------------------------------------------------
-void ampliar_tamanio(archivo_t* archivo, uint32_t tamanio_solicitado){
+void ampliar_tamanio(archivo_t* archivo, uint32_t tamanio_solicitado, uint32_t pid){
 	int bloque_inicial = config_get_int_value(archivo->metadata, "BLOQUE_INICIAL");
 	int tamanio_archivo = config_get_int_value(archivo->metadata, "TAMANIO_ARCHIVO");
 	// para cubrir el caso en que un archivo tenga asignado un bloque pero el tamaño sea 0
@@ -879,7 +891,7 @@ void ampliar_tamanio(archivo_t* archivo, uint32_t tamanio_solicitado){
 		}
 	} else if (hay_bloques_necesarios(bloques_a_asignar)){
 		//log_info(logger_io , "PID: %s Inicio de compactacion" , pid);
-		compactar_y_asignar(archivo, bloques_a_asignar);
+		compactar_y_asignar(archivo, bloques_a_asignar, pid);
 		//log_info(logger_io , "PID: %s Fin de compactacion" , pid);
 
 	} else {
@@ -928,17 +940,18 @@ void ejecutar_fs_delete(){
    	destruir_buffer(buffer);
 	char* nombreArchivo = instruccion -> parametro2;
 
+	log_info(logger_io, "PID: %d - Operacion: %s", pid, obtener_nombre_instruccion(instruccion));
+	log_info(logger_io, "PID: %d - Eliminar Archivo: %s", pid, nombreArchivo);
+
 
 	//elimino de la lista global de archivos abiertos el archivo a eliminar y eliminar el archivo en si 
 	bool encontrado = false;
 	eliminar_archivo_de_lista( lista_global_archivos_abiertos ,nombreArchivo, &encontrado);	
 	if (!encontrado) {
 		destruir_buffer(buffer);
-		log_info(logger_io, "El archivo buscado no existe.");
+		//log_info(logger_io, "El archivo buscado no existe.");
 		return;
 	}
-
-	log_info(logger_io , "DialFS - Eliminar Archivo: PID: %d - Eliminar Archivo: %s " , pid, nombreArchivo);
 } 
 
 void liberar_espacio_en_disco(int bloque_inicial, int tamanio_archivo){
@@ -1006,10 +1019,13 @@ void ejecutar_fs_write(){
 	t_instruccion* instruccion = buffer_read_instruccion(buffer);
     destruir_buffer(buffer);
 
+	log_info(logger_io, "PID: %d - Operacion: %s", pid, obtener_nombre_instruccion(instruccion));
+
     char* nombreArchivo = instruccion->parametro2;
     uint32_t registroDireccion = atoi(instruccion->parametro3);
     uint32_t registroTamanio = atoi(instruccion->parametro4);
 	uint32_t registroPunteroArchivo = atoi(instruccion->parametro5);
+    log_info(logger_io,"PID: %d - Escribir Archivo: %s - Tamaño a Escribir: %d - Puntero Archivo: %d", pid, nombreArchivo, registroTamanio, registroPunteroArchivo);
 
 	// se le pide a memoria lo que hay en la direccion fisica
 	enviar_codigo(socket_memoria, IO_FS_WRITE);
@@ -1025,7 +1041,7 @@ void ejecutar_fs_write(){
 	char* contenido_a_escribir = buffer_read_string(buffer);
 	destruir_buffer(buffer);
 
-	log_info(logger_io, "Me llego de memoria la cadena: %s", contenido_a_escribir);
+	//log_info(logger_io, "Me llego de memoria la cadena: %s", contenido_a_escribir);
 
 	// se escribe en bloques.dat
 
@@ -1039,7 +1055,6 @@ void ejecutar_fs_write(){
 	memcpy(bloquesmap+bloque_inicial_archivo*block_size+registroPunteroArchivo, contenido_a_escribir, registroTamanio);
 	msync(bloquesmap, tamanio_archivo_bloques, MS_SYNC);
 
-    log_info(logger_io,"DialFS - Escribir Archivo: PID: %d - Escribir Archivo: %s - Tamaño a Escribir: %d - Puntero Archivo: %d", pid, nombreArchivo, registroTamanio, registroPunteroArchivo);
     
     free(nombreArchivo);
 }
@@ -1050,10 +1065,13 @@ void ejecutar_fs_read(){
 	t_instruccion* instruccion = buffer_read_instruccion(buffer);
     destruir_buffer(buffer);
 
+	log_info(logger_io, "PID: %d - Operacion: %s", pid, obtener_nombre_instruccion(instruccion));
+
     char* nombreArchivo = instruccion->parametro2;
     uint32_t registroDireccion = atoi(instruccion->parametro3);
     uint32_t registroTamanio = atoi(instruccion->parametro4);
 	uint32_t registroPunteroArchivo = atoi(instruccion->parametro5);
+    log_info(logger_io,"PID: %d - Leer Archivo: %s - Tamaño a Escribir: %d - Puntero Archivo: %d", pid, nombreArchivo, registroTamanio, registroPunteroArchivo);
 
 	archivo_t* archivo_buscado = obtener_archivo_con_nombre(nombreArchivo);
 	if (!archivo_buscado){
@@ -1069,7 +1087,7 @@ void ejecutar_fs_read(){
 	memcpy(cadena_a_escribir_en_memoria, bloquesmap+bloque_inicial_archivo*block_size+registroPunteroArchivo, registroTamanio);
 	cadena_a_escribir_en_memoria[registroTamanio] = '\0';
 
-	log_info(logger_io, "La cadena a escribir en memoria es: %s", cadena_a_escribir_en_memoria);
+	//log_info(logger_io, "La cadena a escribir en memoria es: %s", cadena_a_escribir_en_memoria);
 
 	// le enviamos a memoria todo lo necesario para que escriba
 
