@@ -416,7 +416,7 @@ void ejecutar_proceso(){
         realizar_desalojo = 0;
         pthread_mutex_unlock(&mutex_desalojar);
         
-       // log_warning(logger_cpu, "PID: %d - Desalojado por %s", cde_ejecutando->pid, obtener_nombre_motivo_desalojo(cde_ejecutando->motivo_desalojo)); 
+        log_warning(logger_cpu, "PID: %d - Desalojado por %s", cde_ejecutando->pid, obtener_nombre_motivo_desalojo(cde_ejecutando->motivo_desalojo)); 
         desalojar_cde(instruccion_a_ejecutar);
     } else if (fin_q){
         pthread_mutex_lock(&mutex_desalojar);
@@ -425,7 +425,7 @@ void ejecutar_proceso(){
         realizar_desalojo = 0;
         pthread_mutex_unlock(&mutex_desalojar);
         
-       // log_warning(logger_cpu, "PID: %d - Desalojado por fin de Quantum", cde_ejecutando->pid); 
+       log_warning(logger_cpu, "PID: %d - Desalojado por fin de Quantum", cde_ejecutando->pid); 
         cde_ejecutando->motivo_desalojo = FIN_DE_QUANTUM;
         desalojar_cde(instruccion_a_ejecutar);
     }
