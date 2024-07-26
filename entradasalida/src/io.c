@@ -322,12 +322,57 @@ void levantar_logger(){
 	}
 }
 
+void setear_path_base_dial(){
+    char path[1024];
+    ssize_t count = readlink("/proc/self/exe", path, sizeof(path) - 1);
+
+    if (count == -1) {
+        perror("readlink");
+        return;
+    }
+
+    path[count] = '\0'; // Asegura que la cadena esté terminada en nulo
+
+    // Obtiene el directorio del ejecutable
+    char *dir = dirname(path);
+
+    // Retrocede un directorio
+    char *parent_dir = dirname(dir);
+
+    // Reserva memoria para la cadena resultante
+    size_t len = strlen(parent_dir);
+    char *result = malloc(len + 1);
+
+    strcpy(result, parent_dir); // Copia la ruta resultante a la memoria reservada
+
+    // Elimina la última '/' si está presente
+    if (len > 1 && result[len - 1] == '/') {
+        result[len - 1] = '\0';
+    }
+
+	// hasta aca tenemos el path local
+	// le sumamos /src/baseDIALFS
+
+	char* ruta_completa = malloc(sizeof(char) * 150);
+
+	string_append(&ruta_completa, result);
+	string_append(&ruta_completa, "/src/baseDIALFS/");
+
+    config_set_value(config_io, "PATH_BASE_DIALFS", ruta_completa);
+    config_save(config_io);
+
+	free(ruta_completa);
+}
+
+
 void levantar_config(){
     config_io = config_create(config_path);
 	if (!config_io) {
 		perror("Error al iniciar config de IO\n");
 		exit(EXIT_FAILURE);
 	}
+
+	setear_path_base_dial();
 
 	printf("\nIngrese IP de Memoria:\n");
     char* ip_memo = readline("> ");
