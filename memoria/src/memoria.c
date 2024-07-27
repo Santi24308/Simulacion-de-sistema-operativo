@@ -273,7 +273,7 @@ void atender_cpu()
 			// CASO REDUCCION
 			if (tamanio < tamanio_reservado)
 			{	
-				log_info(logger_memoria, "PID: %d -Tamaño actual: %d -Tamaño a Reducir: %d", pid_resize, tamanio_reservado, tamanio);
+				log_info(logger_memoria, "PID: %d - Tamaño actual: %d -Tamaño a Reducir: %d", pid_resize, tamanio_reservado, tamanio);
 				
 				if(tamanio == 0) 
 				{
@@ -306,7 +306,7 @@ void atender_cpu()
 
 				if (marcos_libres >= pagina_totales_a_crear)
 				{
-					log_info(logger_memoria, "PID: %d - Tamaño Actual: %d - Tamaño a Ampliar: %d", pid_resize, tamanio_reservado, tamanio);
+					log_info(logger_memoria, "PID: %d -  Tamaño Actual: %d - Tamaño a Ampliar: %d", pid_resize, tamanio_reservado, tamanio);
 					while (cantidad_paginas_solicitadas != 0)
 					{
 						uint32_t nro_pagina = list_size(proceso->tabla_de_paginas);

@@ -819,12 +819,11 @@ void evaluar_io(t_instruccion* ultima_instruccion, uint32_t pid){
     int indice = -1;
     t_interfaz* interfaz_buscada = obtener_interfaz_en_lista(ultima_instruccion->parametro1, &indice);
     if (interfaz_buscada->ocupada){
+        log_info(logger_kernel, "PID: %d - Bloqueado por: %s", pid, interfaz_buscada->nombre);
         pthread_mutex_lock(&mutex_interfaz);
         queue_push(interfaz_buscada->pcb_esperando, (void*)pcb_en_ejecucion);
         pthread_mutex_unlock(&mutex_interfaz);
-        
         enviar_de_exec_a_block(); // al hacer esto se avisa que la cpu esta libre y se continua con el proximo pcb
-        log_info(logger_kernel, "PID: %d - Bloqueado por: %s", pid, interfaz_buscada->nombre);
         return; 
     }
 
