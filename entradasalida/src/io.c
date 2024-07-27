@@ -4,7 +4,7 @@ int main(int argc, char* argv[]) {
 
 	// se analiza si se puede seguir o no ejecutando
 	if(!chequeo_parametros(argc, argv)) return -1;
-	sem_init(&terminar_io, 0, 0);
+		sem_init(&terminar_io, 0, 0);
 
 	inicializar_modulo();
 
@@ -20,7 +20,7 @@ bool chequeo_parametros(int argc, char** argv){
 	// I/O debe recibir el NOMBRE y el CONFIG
 	
 	if(argc != 3) {
-		printf("\x1b[31m""ERROR: Tenés que pasar el nombre de I/O y el path del archivo config de Entradasalida""\x1b[0m""\n");
+		//printf("\x1b[31m""ERROR: Tenés que pasar el nombre de I/O y el path del archivo config de Entradasalida""\x1b[0m""\n");
 		return false;
 	}
 
@@ -184,16 +184,6 @@ void atender_kernel_dialfs(){
 	}
 }
 
-void test(){
-	char cadena[10] = "hola";
-
-	bitarray_set_bit(bitmap, 2);
-	msync(bitmap->bitarray, bitmap->size, MS_SYNC);
-
-	memcpy(bloquesmap+2*block_size, &cadena, 5);
-	msync(bloquesmap, tamanio_archivo_bloques, MS_SYNC);
-}
-
 void atender(){
 	if (strcmp(tipo, "GENERICA")==0)
 		atender_kernel_generica();
@@ -217,10 +207,9 @@ void ejecutar_std_in(){
 
 
 	int limite_bytes = atoi(instruccion->parametro3);
-	printf("\nLimite de bytes  %d", limite_bytes);
-
+	printf("\nIngrese string...\n");
 	char* leido = readline("> ");
-	printf("\n el string leido tiene  %ld bytes", strlen(leido) + 1);
+	//printf("\n el string leido tiene  %ld bytes", strlen(leido) + 1);
 
 	// para poner el \0 y evitar conflictos, sabemos que en la serializacion no se va a copiar el \0
 	void* valor_a_escribir = malloc(limite_bytes + 1);
@@ -229,9 +218,9 @@ void ejecutar_std_in(){
 	char* palabra = valor_a_escribir;
 	palabra[limite_bytes] = '\0';
 
-	printf("\nLa palabra limitada queda: %s", palabra);
-	printf("\nEn bytes queda:");
-	mem_hexdump(palabra, limite_bytes);
+	//printf("\nLa palabra limitada queda: %s", palabra);
+	//printf("\nEn bytes queda:");
+	//mem_hexdump(palabra, limite_bytes);
 
 
 	enviar_codigo(socket_memoria, IO_STDIN_READ);
@@ -269,7 +258,7 @@ void ejecutar_std_out(){
 	char* valor_a_mostrar = buffer_read_string(buffer);
 	destruir_buffer(buffer);
 
-	printf("\t\nEl string que llego es: %s\n", valor_a_mostrar);
+	printf("\t\nValor leido: %s\n", valor_a_mostrar);
 }
 
 void conectar_memoria(){
@@ -319,7 +308,7 @@ void levantar_logger(){
 	string_append(&nombreLog, nombreIO);
 	string_append(&nombreLog, "_log.log");
 
-	logger_io = log_create(nombreLog, "IO",true, LOG_LEVEL_INFO);
+	logger_io = log_create(nombreLog, "IO",false, LOG_LEVEL_INFO);
 	if (!logger_io) {
 		perror("Error al iniciar logger de IO\n");
 		exit(EXIT_FAILURE);
@@ -357,7 +346,7 @@ void setear_path_base_dial(){
 	// hasta aca tenemos el path local
 	// le sumamos /src/baseDIALFS
 
-	char* ruta_completa = malloc(sizeof(char) * 150);
+	char* ruta_completa = calloc(1, sizeof(char) * 150);
 
 	string_append(&ruta_completa, result);
 	string_append(&ruta_completa, "/src/baseDIALFS/");
@@ -413,8 +402,6 @@ void terminar_programa(){
 	free(tipo);
 	free(config_path);
 
-	sem_destroy(&sema_memoria);
-	sem_destroy(&sema_kernel);
 	sem_destroy(&terminar_io);
 
 	list_destroy_and_destroy_elements(lista_global_archivos_abiertos, destruir_archivo);
@@ -528,7 +515,7 @@ void levantar_archivos(const char *path) {
             if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) {
                 char fullpath[1024];
                 snprintf(fullpath, sizeof(fullpath), "%s/%s", path, entry->d_name);
-                printf("%s\n", fullpath);
+                //printf("%s\n", fullpath);
 				crear_archivo_desde_path(fullpath,entry->d_name);
             }
         }
@@ -554,7 +541,7 @@ void crear_archivo_desde_path(char* path, char* nombre_archivo){
 void levantar_archivos_creados(){
     char initial_path[1024];
     if (getcwd(initial_path, sizeof(initial_path)) == NULL) {
-        perror("getcwd() error");
+        //perror("getcwd() error");
         return;
     }
 	// Cambiar el directorio actual al directorio padre ("..")
@@ -565,23 +552,23 @@ void levantar_archivos_creados(){
 
     // Cambiar al directorio "src"
     if (chdir("src") != 0) {
-        perror("chdir(src) error");
+        //perror("chdir(src) error");
         return;
     }
 
     // Cambiar al directorio "baseDIALFS"
     if (chdir("baseDIALFS") != 0) {
-        perror("chdir(baseDIALFS) error");
+        //perror("chdir(baseDIALFS) error");
         return;
     }
 	// Cambiar al directorio "metadata"
     if (chdir("metadata") != 0) {
-        perror("chdir(metadata) error");
+        //perror("chdir(metadata) error");
         return;
     }
 	char current_path[1024];
     if (getcwd(current_path, sizeof(current_path)) == NULL) {
-        perror("getcwd() error");
+        //perror("getcwd() error");
         return;
     }
 
@@ -590,7 +577,7 @@ void levantar_archivos_creados(){
 
     // Volver al directorio inicial
     if (chdir(initial_path) != 0) {
-        perror("chdir() error");
+        //perror("chdir() error");
         return;
     }
     return;

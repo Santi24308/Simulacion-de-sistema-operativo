@@ -98,7 +98,7 @@ void conectar()
 
 void levantar_logger()
 {
-	logger_memoria = log_create("memoria.log", "MEMORIA", true, LOG_LEVEL_INFO);
+	logger_memoria = log_create("memoria.log", "MEMORIA", false, LOG_LEVEL_INFO);
 	if (!logger_memoria)
 	{
 		perror("Error al iniciar logger de memoria\n");
@@ -357,14 +357,6 @@ void atender_io(void *socket_io)
 		case IO_STDOUT_WRITE:
 			leer_a_partir_de_direccion(socket_interfaz_io);
 			break;
-		case IO_GEN_SLEEP:
-			break;
-		case IO_FS_CREATE:
-			break;
-		case IO_FS_DELETE:
-			break;
-		case IO_FS_TRUNCATE:
-			break;
 		case IO_FS_WRITE:
 			leer_a_partir_de_direccion(socket_interfaz_io);
 			break;
@@ -487,9 +479,8 @@ void leer_a_partir_de_direccion(int socket_interfaz_io)
 
 
 	buffer = crear_buffer();
-
-	// se le suma 1 para el \0
-	char* valor_a_leer = calloc(1, (size_t)bytes_a_leer);
+	// +1 por el \0
+	char* valor_a_leer = calloc(1, (size_t)bytes_a_leer + 1);
 	int bytes_usados = 0;
 	int desplazamiento = obtener_desplazamiento_pagina(direccion_fisica);
 	int bytes_restantes = bytes_a_leer; 

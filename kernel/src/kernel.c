@@ -668,18 +668,18 @@ void listar_procesos_por_estado(){
     char* procesos_cargados_en_blocked = obtener_elementos_cargados_en(procesosBloqueados);
     char* procesos_cargados_en_exit = obtener_elementos_cargados_en(procesosFinalizados);
 
-    printf("Procesos en %s: %s", obtener_nombre_estado(NEW), procesos_cargados_en_new);
-    printf("Procesos en %s: %s", obtener_nombre_estado(READY), procesos_cargados_en_ready);
+    printf("Procesos en %s: %s\n", obtener_nombre_estado(NEW), procesos_cargados_en_new);
+    printf("Procesos en %s: %s\n", obtener_nombre_estado(READY), procesos_cargados_en_ready);
     if (strcmp(algoritmo, "VRR") == 0){
         char* procesos_en_readyPlus = obtener_elementos_cargados_en(procesosReadyPlus);
-        printf("Procesos en %s: %s", obtener_nombre_estado(READY_PLUS), procesos_en_readyPlus);
+        printf("Procesos en %s: %s\n", obtener_nombre_estado(READY_PLUS), procesos_en_readyPlus);
     }
     if(pcb_en_ejecucion != NULL)
-        printf("Proceso en %s: [%d]", obtener_nombre_estado(EXEC), pcb_en_ejecucion->cde->pid);
+        printf("Proceso en %s: [%d]\n", obtener_nombre_estado(EXEC), pcb_en_ejecucion->cde->pid);
     else
-        printf("Proceso en %s: []", obtener_nombre_estado(EXEC));
-    printf("Procesos en %s: %s", obtener_nombre_estado(BLOCKED), procesos_cargados_en_blocked);
-    printf("Procesos en %s: %s",  obtener_nombre_estado(TERMINADO), procesos_cargados_en_exit);
+        printf("Proceso en %s: []\n", obtener_nombre_estado(EXEC));
+    printf("Procesos en %s: %s\n", obtener_nombre_estado(BLOCKED), procesos_cargados_en_blocked);
+    printf("Procesos en %s: %s\n\n",  obtener_nombre_estado(TERMINADO), procesos_cargados_en_exit);
 
     free(procesos_cargados_en_new);
     free(procesos_cargados_en_ready);
@@ -766,38 +766,38 @@ void recibir_cde_de_cpu(){
     } else if (pcb_en_ejecucion->cde->motivo_desalojo == RECURSO_NO_DISPONIBLE){
         enviar_de_exec_a_block();
     } else {
-        evaluar_instruccion(pcb_en_ejecucion->cde->ultima_instruccion);        
+        evaluar_instruccion(pcb_en_ejecucion->cde->ultima_instruccion, pcb_en_ejecucion->cde->pid);        
     }
 }
 
-void evaluar_instruccion(t_instruccion* ultima_instruccion){
+void evaluar_instruccion(t_instruccion* ultima_instruccion, uint32_t pid){
     // las IO se evaluan de la misma manera ya que desde kernel se comportan siempre igual
     // lo unico que hacemos es validar y despachar/poner en espera y llegado el momento le enviamos la 
     // ultima instruccion a la IO con los datos necesarios
     switch (ultima_instruccion->codigo){
         case IO_GEN_SLEEP:
-            evaluar_io(ultima_instruccion);
+            evaluar_io(ultima_instruccion, pid);
             break;
         case IO_STDIN_READ:
-            evaluar_io(ultima_instruccion);
+            evaluar_io(ultima_instruccion, pid);
             break;
         case IO_STDOUT_WRITE:
-            evaluar_io(ultima_instruccion);
+            evaluar_io(ultima_instruccion, pid);
             break;
         case IO_FS_CREATE:
-            evaluar_io(ultima_instruccion);
+            evaluar_io(ultima_instruccion, pid);
             break;
         case IO_FS_TRUNCATE:
-            evaluar_io(ultima_instruccion);
+            evaluar_io(ultima_instruccion, pid);
             break;
         case IO_FS_WRITE:
-            evaluar_io(ultima_instruccion);
+            evaluar_io(ultima_instruccion, pid);
             break;
         case IO_FS_READ:
-            evaluar_io(ultima_instruccion);
+            evaluar_io(ultima_instruccion, pid);
             break;
         case IO_FS_DELETE:
-            evaluar_io(ultima_instruccion);
+            evaluar_io(ultima_instruccion, pid);
             break;
         case EXIT:
             pcb_en_ejecucion->cde->motivo_finalizacion = SUCCESS;
@@ -810,7 +810,7 @@ void evaluar_instruccion(t_instruccion* ultima_instruccion){
     }
 }
 
-void evaluar_io(t_instruccion* ultima_instruccion){
+void evaluar_io(t_instruccion* ultima_instruccion, uint32_t pid){
     if (!interfaz_valida(ultima_instruccion->parametro1)){
         terminar_proceso_consola(pcb_en_ejecucion->cde->pid);
         return;
@@ -824,7 +824,7 @@ void evaluar_io(t_instruccion* ultima_instruccion){
         pthread_mutex_unlock(&mutex_interfaz);
         
         enviar_de_exec_a_block(); // al hacer esto se avisa que la cpu esta libre y se continua con el proximo pcb
-        log_info(logger_kernel, "PID: %d - Bloqueado por: %s", pcb_en_ejecucion->cde->pid, interfaz_buscada->nombre);
+        log_info(logger_kernel, "PID: %d - Bloqueado por: %s", pid, interfaz_buscada->nombre);
         return; 
     }
 
@@ -1561,17 +1561,6 @@ void enviar_de_ready_a_exec(){
         sem_wait(&cpu_libre);
 
 		sem_wait(&procesos_en_ready);
-
-        // Log obligatorio
-        char* lista_pcbs_en_ready = obtener_elementos_cargados_en(procesosReady);
-        log_info(logger_kernel, "Cola Ready %s: %s", algoritmo, lista_pcbs_en_ready);
-        free(lista_pcbs_en_ready);
-
-        if (strcmp(algoritmo, "VRR") == 0) {
-            char* lista_pcbs_en_readyPlus = obtener_elementos_cargados_en(procesosReadyPlus);
-            log_info(logger_kernel, "Cola Ready+ (prioritaria) %s: %s", algoritmo, lista_pcbs_en_readyPlus);
-            free(lista_pcbs_en_readyPlus);
-        }
 
         if(planificacion_detenida == 1){
             sem_wait(&pausar_ready_a_exec);

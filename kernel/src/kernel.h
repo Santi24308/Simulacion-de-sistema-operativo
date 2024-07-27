@@ -63,7 +63,7 @@ void terminar_proceso_consola(uint32_t);
 char* obtener_nombre_motivo_finalizacion(cod_finalizacion);
 
 bool instruccion_de_recursos(codigoInstruccion);
-void evaluar_io(t_instruccion* );
+void evaluar_io(t_instruccion*, uint32_t);
 
 void controlar_tiempo();
 
@@ -98,7 +98,7 @@ int esta_proceso_en_cola_bloqueados(t_pcb*);
 char* obtener_elementos_cargados_en(t_queue*);
 
 void enviar_cde_a_cpu();
-void evaluar_instruccion(t_instruccion*);
+void evaluar_instruccion(t_instruccion*, uint32_t);
 void recibir_cde_de_cpu();
 
 void levantar_planificador_largo_plazo();

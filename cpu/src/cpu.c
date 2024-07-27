@@ -63,7 +63,7 @@ void inicializar_modulo(){
 }
 
 void levantar_logger(){
-	logger_cpu = log_create("cpu_log.log", "CPU",true, LOG_LEVEL_INFO);
+	logger_cpu = log_create("cpu_log.log", "CPU",false, LOG_LEVEL_INFO);
 	if (!logger_cpu) {
 		perror("Error al iniciar logger de cpu\n");
 		exit(EXIT_FAILURE);
@@ -106,18 +106,18 @@ void inicializarSemaforos(){
 }
 
 void conectar_kernel_dispatch(){
-	log_info(logger_cpu, "Esperando Kernel (dispatch)....");
+	//log_info(logger_cpu, "Esperando Kernel (dispatch)....");
     socket_kernel_dispatch = esperar_cliente(socket_servidor_dispatch, logger_cpu);
-    log_info(logger_cpu, "Se conecto Kernel Dispatch");
+    //log_info(logger_cpu, "Se conecto Kernel Dispatch");
 
 	if(socket_kernel_dispatch == -1){
-		log_info(logger_cpu, "Se desconecto Kernel Dispatch!!!.");
+		//log_info(logger_cpu, "Se desconecto Kernel Dispatch!!!.");
 		exit(EXIT_FAILURE);
 	}
 
 	int err = pthread_create(&hilo_kernel_dispatch, NULL, (void *)atender_kernel_dispatch, NULL);
 	if (err != 0) {
-		perror("Fallo la creacion de hilo para Kernel\n");
+		//perror("Fallo la creacion de hilo para Kernel\n");
 		return;
 	}
 	pthread_detach(hilo_kernel_dispatch);
@@ -125,19 +125,19 @@ void conectar_kernel_dispatch(){
 }
 
 void conectar_kernel_interrupt(){
-	log_info(logger_cpu, "Esperando Kernel (interrupt)....");
+	//log_info(logger_cpu, "Esperando Kernel (interrupt)....");
     socket_kernel_interrupt = esperar_cliente(socket_servidor_interrupt, logger_cpu);
-    log_info(logger_cpu, "Se conecto Kernel Interrupt");
+    //log_info(logger_cpu, "Se conecto Kernel Interrupt");
 
 	if(socket_kernel_dispatch == -1){
 		
-		log_info(logger_cpu, "Se desconecto Kernel Interrupt.");
+		//log_info(logger_cpu, "Se desconecto Kernel Interrupt.");
 		exit(EXIT_FAILURE);
 	}
 
 	int err = pthread_create(&hilo_kernel_interrupt, NULL, (void *)atender_kernel_interrupt, NULL);
 		if (err != 0) {
-			perror("Fallo la creacion de hilo para Kernel\n");
+			//perror("Fallo la creacion de hilo para Kernel\n");
 			return;
 		}
 	pthread_detach(hilo_kernel_interrupt);
@@ -416,7 +416,7 @@ void ejecutar_proceso(){
         realizar_desalojo = 0;
         pthread_mutex_unlock(&mutex_desalojar);
         
-        log_warning(logger_cpu, "PID: %d - Desalojado por %s", cde_ejecutando->pid, obtener_nombre_motivo_desalojo(cde_ejecutando->motivo_desalojo)); 
+        log_info(logger_cpu, "PID: %d - Desalojado por %s", cde_ejecutando->pid, obtener_nombre_motivo_desalojo(cde_ejecutando->motivo_desalojo)); 
         desalojar_cde(instruccion_a_ejecutar);
     } else if (fin_q){
         pthread_mutex_lock(&mutex_desalojar);
@@ -425,7 +425,7 @@ void ejecutar_proceso(){
         realizar_desalojo = 0;
         pthread_mutex_unlock(&mutex_desalojar);
         
-       log_warning(logger_cpu, "PID: %d - Desalojado por fin de Quantum", cde_ejecutando->pid); 
+       log_info(logger_cpu, "PID: %d - Desalojado por fin de Quantum", cde_ejecutando->pid); 
         cde_ejecutando->motivo_desalojo = FIN_DE_QUANTUM;
         desalojar_cde(instruccion_a_ejecutar);
     }
