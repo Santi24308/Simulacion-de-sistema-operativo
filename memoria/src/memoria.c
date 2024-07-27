@@ -118,9 +118,9 @@ void levantar_config()
 
 void conectar_kernel()
 {
-	log_info(logger_memoria, "Esperando Kernel....");
+	//log_info(logger_memoria, "Esperando Kernel....");
 	socket_kernel = esperar_cliente(socket_servidor, logger_memoria);
-	log_info(logger_memoria, "Se conecto Kernel");
+	//log_info(logger_memoria, "Se conecto Kernel");
 
 	int err = pthread_create(&hilo_kernel, NULL, (void *)atender_kernel, NULL);
 	if (err != 0)
